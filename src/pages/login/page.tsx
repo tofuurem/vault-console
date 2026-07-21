@@ -10,7 +10,7 @@ import { normalizeVaultError, type VaultError } from '@/domain/vault/errors';
 type AuthTab = 'token' | 'userpass';
 type ConnectionStatus = 'idle' | 'checking' | 'ready' | 'sealed' | 'uninitialized' | 'unavailable';
 
-const DEFAULT_VAULT_ADDRESS = import.meta.env.VITE_VAULT_ADDR || 'http://127.0.0.1:8200';
+const DEFAULT_VAULT_ADDRESS = import.meta.env.VITE_VAULT_ADDR || window.location.origin;
 
 function normalizeServerUrl(value: string): string {
   const url = new URL(value.trim());

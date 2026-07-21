@@ -1,0 +1,33 @@
+name: vault-console
+
+services:
+  vault-console:
+    image: ${VAULT_CONSOLE_IMAGE:-vault-console:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      VAULT_UPSTREAM: ${VAULT_UPSTREAM:?Set VAULT_UPSTREAM to the existing Vault URL on the Docker network}
+      NGINX_ENVSUBST_FILTER: VAULT_UPSTREAM
+    ports:
+      - "${VAULT_CONSOLE_BIND:-127.0.0.1}:${VAULT_CONSOLE_PORT:-8080}:8080"
+    volumes:
+      - type: bind
+        source: ./deploy/ca-certificates
+        target: /etc/vault-console/ca-certificates
+        read_only: true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    stop_grace_period: 10s
+    networks:
+      - vault-network
+
+networks:
+  vault-network:
+    name: ${VAULT_DOCKER_NETWORK:-caddy_net}
+    external: true

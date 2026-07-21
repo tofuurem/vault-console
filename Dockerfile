@@ -4,12 +4,15 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-
-ARG VITE_VAULT_ADDR
-ENV VITE_VAULT_ADDR=${VITE_VAULT_ADDR}
 RUN npm run build
 
 FROM nginx:1.29-alpine
-COPY deploy/nginx.spa.conf /etc/nginx/conf.d/default.conf
+ENV NGINX_ENVSUBST_FILTER=VAULT_UPSTREAM
+
+COPY deploy/nginx.runtime.conf.template /etc/nginx/templates/default.conf.template
+COPY deploy/docker-entrypoint.d/05-install-vault-ca.sh /docker-entrypoint.d/05-install-vault-ca.sh
 COPY --from=build /app/dist /usr/share/nginx/html
+
+RUN chmod +x /docker-entrypoint.d/05-install-vault-ca.sh
+
 EXPOSE 8080

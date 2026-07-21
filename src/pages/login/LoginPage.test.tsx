@@ -34,6 +34,14 @@ class LoginGateway implements VaultAuthGateway {
 }
 
 describe('LoginPage', () => {
+  it('defaults to the console origin for same-origin Vault proxying', () => {
+    const gateway = new LoginGateway();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={gateway} />);
+
+    expect(screen.getByLabelText('Vault server')).toHaveValue(window.location.origin);
+  });
+
   it('checks the actual Vault health endpoint and renders sealed state', async () => {
     const user = userEvent.setup();
     const gateway = new LoginGateway();

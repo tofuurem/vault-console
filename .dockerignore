@@ -6,3 +6,4 @@ playwright-report
 test-results
 .env*
 !.env.example
+deploy/ca-certificates/*.crt
