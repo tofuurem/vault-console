@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+if [ ! -f package.json ]; then
+  exit 0
+fi
+
+if [ ! -d node_modules ]; then
+  echo "node_modules is missing; run npm install before pushing frontend changes." >&2
+  exit 1
+fi
+
+npm run --if-present type-check
+npm run --if-present lint
+npm run --if-present test:run
+npm run --if-present build
