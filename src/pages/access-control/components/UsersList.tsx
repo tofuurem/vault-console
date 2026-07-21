@@ -30,11 +30,11 @@ export default function UsersList({ users, warnings, onCreateUser, onViewUser, o
         {warnings.length > 0 && <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-800">Some auth mounts or aliases could not be read. The list may be partial.</div>}
       </header>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-auto">
         {filtered.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-4 text-center"><div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-background-200"><i className="ri-user-search-line text-xl text-foreground-400" aria-hidden="true" /></div><p className="text-sm font-medium text-foreground-700">{users.length ? 'No users match this search' : 'No userpass accounts found'}</p><p className="mt-1 text-xs text-foreground-400">Accounts are discovered across every readable userpass mount.</p></div>
         ) : (
-          <table className="w-full">
+          <table className="w-full min-w-[720px]">
             <thead className="sticky top-0 bg-background-50"><tr className="border-b border-background-200"><th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">Username</th><th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">Identity entity</th><th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">Auth mount</th><th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">Groups</th><th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">Direct policies</th></tr></thead>
             <tbody>{filtered.map((user) => (
               <tr key={user.id} tabIndex={0} onClick={() => onViewUser(user)} onKeyDown={(event) => { if (event.key === 'Enter') onViewUser(user); }} className="cursor-pointer border-b border-background-100 hover:bg-background-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-300">

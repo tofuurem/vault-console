@@ -223,7 +223,7 @@ export default function CreateUserWizard({
         </div>
       </header>
 
-      <main className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {step === 'account' ? (
           <AccountForm
             value={account}
@@ -235,7 +235,7 @@ export default function CreateUserWizard({
         ) : (
           <AccessScreen username={account.username} catalog={catalog} value={access} onChange={setAccess} />
         )}
-      </main>
+      </div>
 
       <footer className="flex shrink-0 items-center justify-between border-t border-background-200 bg-background-50 px-5 py-3">
         <div>

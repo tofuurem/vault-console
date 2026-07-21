@@ -88,7 +88,7 @@ export default function ExplorerMain({
   };
 
   return (
-    <div className="flex min-w-0 flex-1">
+    <main id="main-content" tabIndex={-1} className="flex min-w-0 flex-1">
       <section aria-labelledby="directory-heading" className="flex min-w-0 flex-1 flex-col">
         <header className="shrink-0 border-b border-background-200 px-4 py-3">
           <nav aria-label="Secret path" className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
@@ -151,7 +151,7 @@ export default function ExplorerMain({
       </section>
 
       {inspectorOpen && (
-        <aside aria-label="Secret inspector" className="hidden w-[360px] shrink-0 flex-col border-l border-background-200 bg-background-50 lg:flex">
+        <aside aria-label="Secret inspector" className={`${selectedPath ? 'flex' : 'hidden'} absolute inset-0 z-20 w-full shrink-0 flex-col border-l border-background-200 bg-background-50 lg:static lg:flex lg:w-[360px]`}>
           <div className="flex h-9 items-center justify-between border-b border-background-200 px-3">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-500">{selectedPath ? 'Inspector' : 'Details'}</span>
             <button type="button" aria-label="Close inspector" onClick={() => setInspectorOpen(false)} className="flex h-5 w-5 items-center justify-center rounded text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className="ri-close-line text-xs" aria-hidden="true" /></button>
@@ -176,9 +176,9 @@ export default function ExplorerMain({
       )}
       {!inspectorOpen && (
         <Tooltip content="Open inspector" position="left">
-          <button type="button" aria-label="Open inspector" onClick={() => setInspectorOpen(true)} className="absolute right-0 top-1/2 hidden h-12 w-6 -translate-y-1/2 items-center justify-center rounded-l-md border border-r-0 border-background-300 bg-background-50 text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 lg:flex"><i className="ri-arrow-left-s-line text-sm" aria-hidden="true" /></button>
+          <button type="button" aria-label="Open inspector" onClick={() => setInspectorOpen(true)} className="absolute right-0 top-1/2 z-10 flex h-12 w-6 -translate-y-1/2 items-center justify-center rounded-l-md border border-r-0 border-background-300 bg-background-50 text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className="ri-arrow-left-s-line text-sm" aria-hidden="true" /></button>
         </Tooltip>
       )}
-    </div>
+    </main>
   );
 }

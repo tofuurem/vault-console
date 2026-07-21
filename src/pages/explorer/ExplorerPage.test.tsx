@@ -157,7 +157,7 @@ describe('ExplorerPage', () => {
     await login(user);
     await user.click((await screen.findAllByText('shared'))[0]);
     await screen.findByText('API_KEY');
-    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+    await user.click(screen.getByRole('tab', { name: /^Versions/ }));
     await user.click(await screen.findByRole('button', { name: 'Delete current version 2' }));
 
     await user.type(screen.getByLabelText('Type applications/shared to confirm'), 'applications/shared');
@@ -178,7 +178,7 @@ describe('ExplorerPage', () => {
     await login(user);
     await user.click((await screen.findAllByText('shared'))[0]);
     await screen.findByText('API_KEY');
-    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+    await user.click(screen.getByRole('tab', { name: /^Versions/ }));
     await user.click(screen.getByRole('button', { name: 'Compare version 1' }));
     await user.selectOptions(await screen.findByLabelText('Version B'), '1');
     await user.click(await screen.findByRole('button', { name: 'Restore v1' }));

@@ -32,7 +32,7 @@ describe('UserProfile effective access', () => {
     const user = userEvent.setup();
     render(<UserProfile user={profileUser} catalog={mockCreateUserAccessCatalog} onBack={() => undefined} />);
 
-    await user.click(screen.getByRole('button', { name: /Effective access/i }));
+    await user.click(screen.getByRole('tab', { name: /Effective access/i }));
     expect(screen.getByRole('heading', { name: 'Effective KV access' })).toBeInTheDocument();
     expect(screen.getByTestId('effective-level-platform:')).toHaveTextContent('View');
   });

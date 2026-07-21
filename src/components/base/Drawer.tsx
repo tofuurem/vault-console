@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+
+import { useDialogFocus } from './useDialogFocus';
 
 interface DrawerProps {
   open: boolean;
@@ -10,6 +12,8 @@ interface DrawerProps {
 
 export default function Drawer({ open, onClose, title, children, width = '640px' }: DrawerProps) {
   const [visible, setVisible] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     if (open) {
@@ -23,30 +27,28 @@ export default function Drawer({ open, onClose, title, children, width = '640px'
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); },
-    [onClose]
-  );
-
-  useEffect(() => {
-    if (open) document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, handleKeyDown]);
+  useDialogFocus(open && visible, dialogRef, onClose);
 
   if (!visible) return null;
 
   return (
     <div className="fixed inset-0 z-[70]">
-      <div className={`absolute inset-0 bg-black/30 ${open ? 'modal-backdrop-enter' : ''}`} onClick={onClose} />
+      <div aria-hidden="true" className={`absolute inset-0 bg-black/30 ${open ? 'modal-backdrop-enter' : ''}`} onClick={onClose} />
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : 'Drawer'}
+        tabIndex={-1}
         className={`absolute top-0 right-0 h-full bg-background-50 border-l border-background-300 shadow-sm flex flex-col ${open ? 'drawer-enter' : 'drawer-exit'}`}
-        style={{ width }}
+        style={{ width: `min(${width}, 100vw)` }}
       >
         {title && (
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-background-200 shrink-0">
-            <h3 className="text-sm font-semibold text-foreground-900">{title}</h3>
-            <button onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded-md text-foreground-400 hover:text-foreground-700 hover:bg-background-100 cursor-pointer">
-              <i className="ri-close-line" />
+            <h3 id={titleId} className="text-sm font-semibold text-foreground-900">{title}</h3>
+            <button type="button" aria-label="Close drawer" onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-md text-foreground-400 hover:text-foreground-700 hover:bg-background-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+              <i className="ri-close-line" aria-hidden="true" />
             </button>
           </div>
         )}

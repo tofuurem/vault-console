@@ -1,0 +1,63 @@
+# High-privilege operator policy for the default userpass/ mount.
+# Review and narrow it for your environment before use.
+
+path "sys/internal/ui/mounts" {
+  capabilities = ["read"]
+}
+
+path "sys/capabilities-self" {
+  capabilities = ["update"]
+}
+
+path "sys/auth" {
+  capabilities = ["read", "sudo"]
+}
+
+path "sys/policy" {
+  capabilities = ["read", "list"]
+}
+
+path "sys/policy/*" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+
+path "identity/group/id" {
+  capabilities = ["list"]
+}
+
+path "identity/group/id/*" {
+  capabilities = ["read", "update"]
+}
+
+path "identity/lookup/entity" {
+  capabilities = ["update"]
+}
+
+path "identity/entity/name/*" {
+  capabilities = ["read"]
+}
+
+path "identity/entity" {
+  capabilities = ["update"]
+}
+
+path "identity/entity/id/*" {
+  capabilities = ["read", "delete"]
+}
+
+path "identity/entity-alias" {
+  capabilities = ["update"]
+}
+
+path "identity/entity-alias/id/*" {
+  capabilities = ["delete"]
+}
+
+# Repeat these two stanzas for every userpass auth mount the UI may manage.
+path "auth/userpass/users" {
+  capabilities = ["list"]
+}
+
+path "auth/userpass/users/*" {
+  capabilities = ["create", "read", "update", "delete"]
+}

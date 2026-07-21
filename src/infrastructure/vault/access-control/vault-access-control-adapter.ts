@@ -279,14 +279,14 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
     signal?: AbortSignal,
   ): Promise<VaultIdentityEntity | null> {
     try {
-      const response = asObject(
-        await this.client.request(session.serverUrl, 'identity/lookup/entity', {
-          method: 'POST',
-          token: session.token,
-          body: { alias_name: name, alias_mount_accessor: mountAccessor },
-          signal,
-        }),
-      );
+      const payload = await this.client.request(session.serverUrl, 'identity/lookup/entity', {
+        method: 'POST',
+        token: session.token,
+        body: { alias_name: name, alias_mount_accessor: mountAccessor },
+        signal,
+      });
+      if (payload === null) return null;
+      const response = asObject(payload);
       return response.data === null ? null : parseEntity(response.data);
     } catch (error) {
       if (error instanceof VaultError && error.code === 'not-found') return null;

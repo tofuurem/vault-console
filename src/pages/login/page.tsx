@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
@@ -147,9 +147,17 @@ export default function LoginPage() {
   };
   const status = connectionStatus === 'idle' ? null : statusContent[connectionStatus];
   const isAuthenticating = session.status === 'authenticating';
+  const selectAuthTabFromKeyboard = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const nextTab: AuthTab = event.key === 'ArrowLeft' || event.key === 'Home' ? 'token' : 'userpass';
+    setAuthTab(nextTab);
+    setErrorMessage('');
+    document.getElementById(`${nextTab}-tab`)?.focus();
+  };
 
   return (
-    <main className="relative flex h-full items-center justify-center overflow-auto bg-background-100 px-4 py-8">
+    <main id="main-content" tabIndex={-1} className="relative flex h-full items-center justify-center overflow-auto bg-background-100 px-4 py-8">
       <div className="pointer-events-none absolute inset-0 opacity-50 [background-image:linear-gradient(to_right,oklch(var(--background-300)/.35)_1px,transparent_1px),linear-gradient(to_bottom,oklch(var(--background-300)/.35)_1px,transparent_1px)] [background-size:32px_32px]" />
       <section aria-labelledby="login-heading" className="relative w-full max-w-[430px] overflow-hidden rounded-xl border border-background-300 bg-background-50 shadow-[0_16px_50px_rgba(30,28,38,0.08)]">
         <header className="border-b border-background-200 px-6 pb-5 pt-6">
@@ -207,7 +215,9 @@ export default function LoginPage() {
             role="tab"
             aria-selected={authTab === 'token'}
             aria-controls="token-panel"
+            tabIndex={authTab === 'token' ? 0 : -1}
             onClick={() => { setAuthTab('token'); setErrorMessage(''); }}
+            onKeyDown={selectAuthTabFromKeyboard}
             className={`border-b-2 px-3 py-2 text-xs font-medium transition-colors ${authTab === 'token' ? 'border-primary-500 text-primary-700' : 'border-transparent text-foreground-500 hover:text-foreground-800'}`}
           >
             Token
@@ -218,7 +228,9 @@ export default function LoginPage() {
             role="tab"
             aria-selected={authTab === 'userpass'}
             aria-controls="userpass-panel"
+            tabIndex={authTab === 'userpass' ? 0 : -1}
             onClick={() => { setAuthTab('userpass'); setErrorMessage(''); }}
+            onKeyDown={selectAuthTabFromKeyboard}
             className={`border-b-2 px-3 py-2 text-xs font-medium transition-colors ${authTab === 'userpass' ? 'border-primary-500 text-primary-700' : 'border-transparent text-foreground-500 hover:text-foreground-800'}`}
           >
             Username &amp; password

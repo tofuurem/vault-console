@@ -17,6 +17,7 @@ function App({ authGateway, kvV2Gateway, accessControlGateway }: AppProps) {
       <KvV2GatewayProvider gateway={kvV2Gateway}>
         <VaultSessionProvider gateway={authGateway}>
           <BrowserRouter basename={import.meta.env.BASE_URL}>
+            <a href="#main-content" className="skip-link">Skip to main content</a>
             <AppRoutes />
           </BrowserRouter>
         </VaultSessionProvider>

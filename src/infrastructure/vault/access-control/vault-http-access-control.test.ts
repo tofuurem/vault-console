@@ -237,4 +237,13 @@ describe('VaultAccessControlAdapter', () => {
       'https://vault.example.test/v1/identity/entity-alias',
     );
   });
+
+  it('treats a no-content identity alias lookup as not found', async () => {
+    const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(jsonResponse(null, 204));
+    const gateway = new VaultAccessControlAdapter(new VaultHttpClient(fetchRequest));
+
+    await expect(
+      gateway.lookupEntityByAlias(session, 'missing', 'auth_userpass_123'),
+    ).resolves.toBeNull();
+  });
 });
