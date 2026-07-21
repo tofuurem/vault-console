@@ -7,6 +7,15 @@ import Button from '@/components/base/Button';
 import Tooltip from '@/components/base/Tooltip';
 import { Input } from '@/components/base/Input';
 import PermissionTree from './PermissionTree';
+import {
+  resolveAccessSelection,
+  resolveEffectiveKvTree,
+} from '@/domain/access-control/effective-access';
+import type { LogicalKvAccessRule } from '@/domain/access-control/kv-v2-policy-compiler';
+import type { PolicySource } from '@/domain/access-control/types';
+import { mockCreateUserAccessCatalog } from '@/mocks/vault-access-catalog';
+import EffectivePermissionTree from './create-user/EffectivePermissionTree';
+import type { DirectKvAccessRule } from './create-user/access';
 
 interface UserProfileProps {
   user: VaultUserAccess;
@@ -37,7 +46,50 @@ export default function UserProfile({ user, onBack }: UserProfileProps) {
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [showHandoff, setShowHandoff] = useState(false);
 
-  const effectiveAccess = getEffectiveAccess(user.username);
+  const directSource: PolicySource = {
+    kind: 'user-rule',
+    id: `vc-user-${user.username}`,
+    label: `${user.username} direct access`,
+  };
+  const profileDirectRules: readonly DirectKvAccessRule[] = user.direct_access.map((permission) => {
+    const normalized = permission.path.replace(/\*$/, '').replace(/\/+$/, '');
+    const [mount, ...pathParts] = normalized.split('/');
+    const path = pathParts.join('/');
+    return {
+      nodeId: `${mount}:${path}`,
+      mount,
+      path,
+      target: 'folder',
+      level: permission.explicitDeny || permission.level === 'none'
+        ? 'deny'
+        : permission.level === 'manage'
+          ? 'manage-versions'
+          : permission.level,
+    };
+  });
+  const logicalDirectRules: readonly LogicalKvAccessRule[] = profileDirectRules.map((rule) => ({
+    mount: rule.mount,
+    path: rule.path,
+    target: rule.target,
+    level: rule.level,
+    source: directSource,
+  }));
+  const directRoleIds = user.direct_roles.flatMap((policyName) => {
+    const role = mockCreateUserAccessCatalog.roles.find((candidate) => candidate.policyNames.includes(policyName));
+    return role ? [role.id] : [];
+  });
+  const profileSelection = resolveAccessSelection({
+    groups: mockCreateUserAccessCatalog.groups,
+    roles: mockCreateUserAccessCatalog.roles,
+    policies: mockCreateUserAccessCatalog.policies,
+    selectedGroupIds: user.groups,
+    directRoleIds,
+    directRules: logicalDirectRules,
+  });
+  const profileEffectiveTree = resolveEffectiveKvTree(
+    mockCreateUserAccessCatalog.tree,
+    profileSelection.rules,
+  );
 
   const tabs = [
     { key: 'overview', label: 'Overview', icon: 'ri-dashboard-line' },
@@ -115,25 +167,19 @@ export default function UserProfile({ user, onBack }: UserProfileProps) {
   const effectiveTab = (
     <div className="p-5 space-y-3">
       <p className="text-xs text-foreground-500">
-        Final resolved permissions combining groups, roles, and direct access.
+        Final resolved permissions combining groups, roles, and direct access using Vault path priority.
       </p>
-      <div className="space-y-1.5">
-        {getEffectiveAccess(user.username).map((perm) => (
-          <div key={perm.path} className="flex items-center justify-between px-3 py-2 rounded-md border border-background-200 text-xs">
-            <div className="flex items-center gap-3">
-              <span className={`text-[10px] px-1.5 py-0 rounded border font-medium flex items-center gap-0.5 ${levelColors[perm.level]}`}>
-                <i className={`${levelIcons[perm.level]} text-[9px]`} />
-                {permissionLevels.find((l) => l.value === perm.level)?.label}
-              </span>
-              <span className="font-mono text-foreground-800">{perm.path}</span>
-            </div>
-            <span className="text-[10px] text-foreground-400">{perm.source || 'Default'}</span>
-          </div>
-        ))}
-        {getEffectiveAccess(user.username).length === 0 && (
-          <p className="text-xs text-foreground-400 text-center py-8">No effective permissions found</p>
-        )}
-      </div>
+      <EffectivePermissionTree
+        nodes={profileEffectiveTree}
+        directRules={profileDirectRules}
+        onDirectRuleChange={() => undefined}
+        readOnly
+      />
+      {profileSelection.unresolvedPolicies.length > 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+          One or more external policies could not be resolved. Vault may grant additional access.
+        </div>
+      )}
     </div>
   );
 
