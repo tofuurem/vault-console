@@ -1,195 +1,53 @@
-import { useState, type MouseEvent } from 'react';
-import type { VaultUserAccess } from '@/mocks/vault-acl';
-import { vaultUsers } from '@/mocks/vault-acl';
-import type { VaultConnection } from '@/mocks/vault';
-import Badge from '@/components/base/Badge';
+import { useState } from 'react';
+
+import type { AccessControlUserRecord } from '@/application/vault/useAccessControlData';
 import Button from '@/components/base/Button';
-import Tooltip from '@/components/base/Tooltip';
 
 interface UsersListProps {
-  onCreateUser: () => void;
-  onViewUser: (user: VaultUserAccess) => void;
-  connection: VaultConnection;
+  readonly users: readonly AccessControlUserRecord[];
+  readonly warnings: readonly string[];
+  readonly onCreateUser: () => void;
+  readonly onViewUser: (user: AccessControlUserRecord) => void;
+  readonly onRefresh: () => void;
 }
 
-function permissionSummary(user: VaultUserAccess): string {
-  const sources: string[] = [];
-  if (user.groups.length > 0) sources.push(`${user.groups.length} group${user.groups.length > 1 ? 's' : ''}`);
-  if (user.direct_roles.length > 0) sources.push(`${user.direct_roles.length} role${user.direct_roles.length > 1 ? 's' : ''}`);
-  if (user.direct_access.length > 0) sources.push('direct access');
-  return sources.length > 0 ? sources.join(', ') : 'No access';
-}
-
-export default function UsersList({ onCreateUser, onViewUser, connection }: UsersListProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; user: VaultUserAccess } | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<VaultUserAccess | null>(null);
-
-  const filteredUsers = vaultUsers.filter((u) =>
-    u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.display_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleContextMenu = (e: MouseEvent, user: VaultUserAccess) => {
-    e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, user });
-  };
+export default function UsersList({ users, warnings, onCreateUser, onViewUser, onRefresh }: UsersListProps) {
+  const [search, setSearch] = useState('');
+  const filtered = users.filter((user) => [user.username, user.displayName, user.mount]
+    .some((value) => value.toLowerCase().includes(search.toLowerCase())));
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-5 py-3 border-b border-background-200 shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold text-foreground-900">Users</h2>
-            <span className="text-xs text-foreground-400">{vaultUsers.length} users</span>
-          </div>
+    <section aria-labelledby="users-heading" className="flex min-h-0 flex-1 flex-col">
+      <header className="shrink-0 border-b border-background-200 px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">Userpass + Identity</p><div className="flex items-center gap-2"><h1 id="users-heading" className="text-sm font-semibold text-foreground-900">Users</h1><span className="text-xs text-foreground-400">{users.length}</span></div></div>
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <i className="ri-search-line absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search users..."
-                className="h-7 pl-6 pr-2.5 text-xs rounded-md border border-background-300 bg-background-50 text-foreground-900 placeholder:text-foreground-400 focus:outline-none focus:border-primary-400 w-48"
-              />
-            </div>
-            <Button size="sm" variant="primary" onClick={onCreateUser}>
-              <i className="ri-user-add-line" />
-              Create user
-            </Button>
+            <label className="relative"><span className="sr-only">Search users</span><i className="ri-search-line absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground-400" aria-hidden="true" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search users" className="h-7 w-48 rounded-md border border-background-300 bg-background-50 pl-6 pr-2.5 text-xs focus:outline-none focus:border-primary-400" /></label>
+            <button type="button" aria-label="Refresh users" onClick={onRefresh} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700"><i className="ri-refresh-line" aria-hidden="true" /></button>
+            <Button size="sm" variant="primary" onClick={onCreateUser}><i className="ri-user-add-line" aria-hidden="true" /> Create user</Button>
           </div>
         </div>
-      </div>
+        {warnings.length > 0 && <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-800">Some auth mounts or aliases could not be read. The list may be partial.</div>}
+      </header>
 
       <div className="flex-1 overflow-y-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-background-200 sticky top-0 bg-background-50">
-              <th className="text-left px-4 py-2.5 text-[11px] font-medium text-foreground-500">Username</th>
-              <th className="text-left px-4 py-2.5 text-[11px] font-medium text-foreground-500">Display name</th>
-              <th className="text-left px-4 py-2.5 text-[11px] font-medium text-foreground-500">Auth Mount</th>
-              <th className="text-left px-4 py-2.5 text-[11px] font-medium text-foreground-500">Groups</th>
-              <th className="text-left px-4 py-2.5 text-[11px] font-medium text-foreground-500">Roles</th>
-              <th className="text-left px-4 py-2.5 text-[11px] font-medium text-foreground-500">Access</th>
-              <th className="w-10 px-2 py-2.5"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredUsers.map((user) => (
-              <tr
-                key={user.username}
-                onClick={() => onViewUser(user)}
-                onContextMenu={(e) => handleContextMenu(e, user)}
-                className="border-b border-background-100 hover:bg-background-100 cursor-pointer transition-colors"
-              >
-                <td className="px-4 py-2.5">
-                  <span className="text-sm font-mono text-foreground-800">{user.username}</span>
-                </td>
-                <td className="px-4 py-2.5">
-                  <span className="text-sm text-foreground-700">{user.display_name}</span>
-                </td>
-                <td className="px-4 py-2.5">
-                  <span className="text-xs font-mono text-foreground-500">{user.auth_mount}</span>
-                </td>
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {user.groups.length === 0 ? (
-                      <span className="text-xs text-foreground-400">—</span>
-                    ) : (
-                      user.groups.map((g) => (
-                        <span key={g} className="text-[11px] px-1.5 py-0 rounded bg-secondary-100 text-secondary-700 font-medium">{g}</span>
-                      ))
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {user.direct_roles.length === 0 ? (
-                      <span className="text-xs text-foreground-400">—</span>
-                    ) : (
-                      user.direct_roles.map((r) => (
-                        <span key={r} className="text-[11px] px-1.5 py-0 rounded bg-primary-100 text-primary-700 font-medium">{r.replace('vc-role-', '')}</span>
-                      ))
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-2.5">
-                  <span className="text-xs text-foreground-600">{permissionSummary(user)}</span>
-                </td>
-                <td className="px-2 py-2.5">
-                  <Tooltip content="More actions">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleContextMenu(e, user); }}
-                      className="w-6 h-6 flex items-center justify-center rounded text-foreground-400 hover:text-foreground-700 hover:bg-background-200 cursor-pointer"
-                    >
-                      <i className="ri-more-2-fill text-xs" />
-                    </button>
-                  </Tooltip>
-                </td>
+        {filtered.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center px-4 text-center"><div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-background-200"><i className="ri-user-search-line text-xl text-foreground-400" aria-hidden="true" /></div><p className="text-sm font-medium text-foreground-700">{users.length ? 'No users match this search' : 'No userpass accounts found'}</p><p className="mt-1 text-xs text-foreground-400">Accounts are discovered across every readable userpass mount.</p></div>
+        ) : (
+          <table className="w-full">
+            <thead className="sticky top-0 bg-background-50"><tr className="border-b border-background-200"><th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">Username</th><th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">Identity entity</th><th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">Auth mount</th><th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">Groups</th><th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">Direct policies</th></tr></thead>
+            <tbody>{filtered.map((user) => (
+              <tr key={user.id} tabIndex={0} onClick={() => onViewUser(user)} onKeyDown={(event) => { if (event.key === 'Enter') onViewUser(user); }} className="cursor-pointer border-b border-background-100 hover:bg-background-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-300">
+                <td className="px-4 py-2.5"><span className="font-mono text-sm text-foreground-800">{user.username}</span></td>
+                <td className="px-4 py-2.5"><span className="text-sm text-foreground-700">{user.entity ? user.displayName : 'No entity alias'}</span></td>
+                <td className="px-4 py-2.5 font-mono text-xs text-foreground-500">{user.mount}/</td>
+                <td className="px-4 py-2.5"><div className="flex flex-wrap gap-1">{user.groups.length ? user.groups.map((group) => <span key={group.id} className="rounded bg-secondary-100 px-1.5 py-0.5 text-[10px] font-medium text-secondary-700">{group.name}</span>) : <span className="text-xs text-foreground-400">—</span>}</div></td>
+                <td className="px-4 py-2.5"><div className="flex flex-wrap gap-1">{[...user.directRolePolicyNames, ...user.directPolicyNames, ...user.externalPolicyNames].length ? [...user.directRolePolicyNames, ...user.directPolicyNames, ...user.externalPolicyNames].map((policy) => <span key={policy} className="rounded bg-primary-100 px-1.5 py-0.5 font-mono text-[10px] text-primary-700">{policy}</span>) : <span className="text-xs text-foreground-400">default only</span>}</div></td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {filteredUsers.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-10 h-10 mb-2 flex items-center justify-center rounded-full bg-background-200">
-              <i className="ri-user-search-line text-lg text-foreground-400" />
-            </div>
-            <p className="text-sm text-foreground-600">No users match your search</p>
-          </div>
+            ))}</tbody>
+          </table>
         )}
       </div>
-
-      {contextMenu && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
-          <div
-            className="fixed z-50 w-44 rounded-md border border-background-300 bg-background-50 py-1 shadow-sm"
-            style={{ left: Math.min(contextMenu.x, window.innerWidth - 180), top: contextMenu.y }}
-          >
-            <button onClick={() => { onViewUser(contextMenu.user); setContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-xs text-foreground-700 hover:bg-background-100 cursor-pointer flex items-center gap-2">
-              <i className="ri-user-line text-sm" /> Open profile
-            </button>
-            <button onClick={() => { navigator.clipboard.writeText(contextMenu.user.username); setContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-xs text-foreground-700 hover:bg-background-100 cursor-pointer flex items-center gap-2">
-              <i className="ri-file-copy-line text-sm" /> Copy username
-            </button>
-            <div className="border-t border-background-200 my-1" />
-            <button onClick={() => { setConfirmDelete(contextMenu.user); setContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 cursor-pointer flex items-center gap-2">
-              <i className="ri-delete-bin-line text-sm" /> Delete account
-            </button>
-          </div>
-        </>
-      )}
-
-      {confirmDelete && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmDelete(null)} />
-          <div className="relative w-[420px] bg-background-50 rounded-lg border border-background-300 shadow-sm p-5">
-            <h3 className="text-sm font-semibold text-foreground-900">Delete user account</h3>
-            <p className="text-xs text-foreground-600 mt-2">
-              This will remove the userpass account <span className="font-mono font-medium">{confirmDelete.username}</span>, its identity entity, and any associated policies. This action cannot be undone.
-            </p>
-            <p className="text-xs text-foreground-500 mt-2">
-              Type <span className="font-mono font-medium">{confirmDelete.username}</span> to confirm:
-            </p>
-            <input
-              type="text"
-              placeholder={confirmDelete.username}
-              className="w-full h-8 mt-2 px-2.5 text-sm font-mono rounded-md border border-background-300 bg-background-50 text-foreground-900 focus:outline-none focus:border-red-400"
-              onChange={(e) => {
-                if (e.target.value === confirmDelete.username) {
-                  setConfirmDelete(null);
-                }
-              }}
-            />
-            <div className="flex justify-end gap-2 mt-4">
-              <Button size="sm" variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button>
-              <Button size="sm" variant="danger">Delete account</Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </section>
   );
 }

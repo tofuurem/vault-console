@@ -124,13 +124,19 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
   }
 
   async listGroups(session: VaultSession, signal?: AbortSignal): Promise<readonly VaultIdentityGroup[]> {
-    const response = asObject(
-      await this.client.request(session.serverUrl, 'identity/group/id', {
-        token: session.token,
-        query: { list: true },
-        signal,
-      }),
-    );
+    let response: Record<string, unknown>;
+    try {
+      response = asObject(
+        await this.client.request(session.serverUrl, 'identity/group/id', {
+          token: session.token,
+          query: { list: true },
+          signal,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof VaultError && error.code === 'not-found') return [];
+      throw error;
+    }
     const ids = asStringArray(asObject(response.data).keys);
     const groups = await Promise.all(
       ids.map(async (id): Promise<VaultIdentityGroup | null> => {
@@ -187,13 +193,19 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
     signal?: AbortSignal,
   ): Promise<readonly VaultUserpassAccount[]> {
     const mountPath = encodeVaultPath(mount);
-    const response = asObject(
-      await this.client.request(session.serverUrl, `auth/${mountPath}/users`, {
-        token: session.token,
-        query: { list: true },
-        signal,
-      }),
-    );
+    let response: Record<string, unknown>;
+    try {
+      response = asObject(
+        await this.client.request(session.serverUrl, `auth/${mountPath}/users`, {
+          token: session.token,
+          query: { list: true },
+          signal,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof VaultError && error.code === 'not-found') return [];
+      throw error;
+    }
     const usernames = asStringArray(asObject(response.data).keys);
     return Promise.all(
       usernames.map(async (username) => {

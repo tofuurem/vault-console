@@ -80,15 +80,19 @@ export default function CreateUserWorkflowModal({
       dispatch({ type: 'failure', error: 'Best-effort rollback could not restore every object. Review the operation list before continuing.' });
     }
   };
-  const close = () => {
-    if (state.stage === 'applying') return;
-    abortController.current?.abort();
-    dispatch({ type: 'close' });
-    onClose();
-  };
   const complete = () => {
     dispatch({ type: 'close' });
     onComplete();
+  };
+  const close = () => {
+    if (state.stage === 'applying') return;
+    if (state.stage === 'success') {
+      complete();
+      return;
+    }
+    abortController.current?.abort();
+    dispatch({ type: 'close' });
+    onClose();
   };
 
   const title = state.stage === 'confirmation'

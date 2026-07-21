@@ -1,145 +1,101 @@
-import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import TopBar from '@/components/feature/TopBar';
-import Sidebar from '@/components/feature/Sidebar';
-import { vaultMounts, vaultConnection, restrictedConnection } from '@/mocks/vault';
-import UsersList from './components/UsersList';
-import CreateUserWizard from './components/CreateUserWizard';
-import UserProfile from './components/UserProfile';
-import RolesList from './components/RolesList';
-import RoleEditor from './components/RoleEditor';
-import GroupsList from './components/GroupsList';
-import GroupDetail from './components/GroupDetail';
-import PolicyExplorer from './components/PolicyExplorer';
-import type { VaultUserAccess, VaultRole, VaultGroup } from '@/mocks/vault-acl';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
-type ViewMode = 'users-list' | 'users-create' | 'users-profile' | 'roles-list' | 'roles-editor' | 'groups-list' | 'groups-detail' | 'policies';
+import { useAccessControlData, type AccessControlUserRecord } from '@/application/vault/useAccessControlData';
+import { useAccessControlGateway } from '@/application/vault/AccessControlGatewayContext';
+import { useKvAccessTree } from '@/application/vault/useKvAccessTree';
+import { useKvMounts } from '@/application/vault/useKvExplorerData';
+import { useVaultSession } from '@/application/vault/VaultSessionContext';
+import Sidebar from '@/components/feature/Sidebar';
+import TopBar from '@/components/feature/TopBar';
+import { classifyPolicyName } from '@/domain/access-control/managed-resources';
+import type { CreateUserAccessCatalog } from './components/create-user/access';
+import CreateUserWizard from './components/CreateUserWizard';
+import GroupsList from './components/GroupsList';
+import PolicyExplorer from './components/PolicyExplorer';
+import RolesList from './components/RolesList';
+import UserProfile from './components/UserProfile';
+import UsersList from './components/UsersList';
+
+type ViewMode = 'users-list' | 'users-create' | 'users-profile' | 'roles' | 'groups' | 'policies';
+const EMPTY_MOUNTS = [] as const;
+const EMPTY_TREE = [] as const;
 
 export default function AccessControlPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const isRestricted = (location.state as any)?.isRestricted || false;
-  const initialSection = (location.state as any)?.activeSection || 'users';
-  const connection = isRestricted ? restrictedConnection : vaultConnection;
-
+  const vault = useVaultSession();
+  const session = vault.session!;
+  const accessGateway = useAccessControlGateway();
+  const initialSection = (location.state as { activeSection?: string } | null)?.activeSection || 'users';
+  const [accessState, refreshAccess] = useAccessControlData(session);
+  const [mountsState] = useKvMounts(session);
+  const mounts = mountsState.data ?? EMPTY_MOUNTS;
+  const [treeState] = useKvAccessTree(session, mounts);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeMount, setActiveMount] = useState('applications/');
-  const [activePath, setActivePath] = useState('applications/');
-  const [activeSection, setActiveSection] = useState<string>(initialSection);
-  const [viewMode, setViewMode] = useState<ViewMode>(initialSection === 'users' ? 'users-list' : initialSection === 'groups' ? 'groups-list' : initialSection === 'roles' ? 'roles-list' : 'policies');
-
-  const [profileUser, setProfileUser] = useState<VaultUserAccess | null>(null);
-  const [editingRole, setEditingRole] = useState<VaultRole | null>(null);
-  const [detailGroup, setDetailGroup] = useState<VaultGroup | null>(null);
+  const [activeMount, setActiveMount] = useState('');
+  const [activeSection, setActiveSection] = useState(initialSection);
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    initialSection === 'groups' ? 'groups' : initialSection === 'roles' ? 'roles' : initialSection === 'policies' ? 'policies' : 'users-list',
+  );
+  const [profileUser, setProfileUser] = useState<AccessControlUserRecord | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const snapshot = accessState.data;
 
-  const handleSignOut = () => navigate('/login');
+  useEffect(() => {
+    const errors = [
+      accessState.status === 'error' ? accessState.error : undefined,
+      mountsState.status === 'error' ? mountsState.error : undefined,
+      treeState.status === 'error' ? treeState.error : undefined,
+    ];
+    if (errors.some((error) => error?.code === 'session-expired')) vault.expireSession();
+  }, [accessState, mountsState, treeState, vault]);
 
-  const handleAccessSectionSelect = (section: string) => {
-    setActiveSection(section);
-    switch (section) {
-      case 'users': setViewMode('users-list'); break;
-      case 'groups': setViewMode('groups-list'); break;
-      case 'roles': setViewMode('roles-list'); break;
-      case 'policies': setViewMode('policies'); break;
-    }
+  const catalog = useMemo<CreateUserAccessCatalog>(() => ({
+    groups: (snapshot?.groups ?? []).map((group) => ({
+      id: group.id,
+      name: group.name,
+      roleIds: group.policies.filter((policy) => classifyPolicyName(policy) === 'role'),
+      policyNames: group.policies.filter((policy) => classifyPolicyName(policy) !== 'role'),
+    })),
+    roles: snapshot?.roles.map((role) => ({ id: role.id, name: role.name, policyNames: [role.policyName] })) ?? [],
+    policies: snapshot?.policies.map((policy) => ({
+      name: policy.name,
+      managed: policy.kind !== 'external',
+      rules: policy.rules,
+    })) ?? [],
+    tree: treeState.data ?? EMPTY_TREE,
+  }), [snapshot, treeState.data]);
+
+  const signOut = () => {
+    vault.signOut();
+    navigate('/login', { replace: true });
   };
-
-  const handleUserCreated = () => {
-    setViewMode('users-list');
+  const selectSection = (section: string) => {
+    setActiveSection(section);
+    setProfileUser(null);
+    setViewMode(section === 'groups' ? 'groups' : section === 'roles' ? 'roles' : section === 'policies' ? 'policies' : 'users-list');
   };
 
   return (
-    <div className="h-full flex flex-col bg-background-50">
-      <TopBar
-        connection={connection}
-        onSignOut={handleSignOut}
-        onCommandPalette={() => setCommandPaletteOpen(true)}
-      />
-
-      <div className="flex-1 flex min-h-0 relative">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          mounts={vaultMounts}
-          connection={connection}
-          activeMount={activeMount}
-          activePath={activePath}
-          onMountSelect={(m) => { setActiveMount(m); setActivePath(m); }}
-          onPathSelect={(mount, path) => { setActiveMount(mount); setActivePath(path); }}
-          showAccessControl
-          activeAccessSection={activeSection}
-          onAccessSectionSelect={handleAccessSectionSelect}
-        />
-
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {viewMode === 'users-list' && (
-            <UsersList
-              onCreateUser={() => setViewMode('users-create')}
-              onViewUser={(user) => { setProfileUser(user); setViewMode('users-profile'); }}
-              connection={connection}
-            />
-          )}
-          {viewMode === 'users-create' && (
-            <CreateUserWizard
-              onDone={handleUserCreated}
-              onCancel={() => setViewMode('users-list')}
-            />
-          )}
-          {viewMode === 'users-profile' && profileUser && (
-            <UserProfile
-              user={profileUser}
-              onBack={() => setViewMode('users-list')}
-            />
-          )}
-          {viewMode === 'roles-list' && (
-            <RolesList
-              onEditRole={(role) => { setEditingRole(role); setViewMode('roles-editor'); }}
-              onCreateRole={() => { setEditingRole(null); setViewMode('roles-editor'); }}
-            />
-          )}
-          {viewMode === 'roles-editor' && (
-            <RoleEditor
-              role={editingRole}
-              onBack={() => setViewMode('roles-list')}
-              onSaved={() => setViewMode('roles-list')}
-            />
-          )}
-          {viewMode === 'groups-list' && (
-            <GroupsList
-              onViewGroup={(group) => { setDetailGroup(group); setViewMode('groups-detail'); }}
-            />
-          )}
-          {viewMode === 'groups-detail' && detailGroup && (
-            <GroupDetail
-              group={detailGroup}
-              onBack={() => setViewMode('groups-list')}
-            />
-          )}
-          {viewMode === 'policies' && (
-            <PolicyExplorer />
-          )}
-        </div>
+    <div className="flex h-full flex-col bg-background-50">
+      <TopBar session={session} health={vault.health} onSignOut={signOut} onCommandPalette={() => setCommandPaletteOpen(true)} />
+      <div className="relative flex min-h-0 flex-1">
+        <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((current) => !current)} mounts={mounts} vaultHealth={vault.health} serverUrl={session.serverUrl} activeMount={activeMount} activePath="" onMountSelect={setActiveMount} showAccessControl activeAccessSection={activeSection} onAccessSectionSelect={selectSection} />
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {accessState.status === 'loading' && !snapshot ? <div className="flex h-full items-center justify-center"><div className="text-center"><i className="ri-loader-4-line animate-spin text-xl text-primary-500" aria-hidden="true" /><p className="mt-2 text-xs text-foreground-500">Loading users, groups, and policies…</p></div></div>
+            : accessState.status === 'error' && !snapshot ? <div className="flex h-full items-center justify-center p-6"><div role="alert" className="max-w-md rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><p className="font-semibold">Access-control data could not be loaded</p><p className="mt-1 text-xs leading-5">{accessState.error.message}</p><button type="button" onClick={refreshAccess} className="mt-2 text-xs font-medium underline">Retry</button></div></div>
+              : snapshot && <>
+                {viewMode === 'users-list' && <UsersList users={snapshot.users} warnings={snapshot.warnings} onCreateUser={() => setViewMode('users-create')} onViewUser={(user) => { setProfileUser(user); setViewMode('users-profile'); }} onRefresh={refreshAccess} />}
+                {viewMode === 'users-create' && <CreateUserWizard catalog={catalog} snapshot={snapshot} gateway={accessGateway} session={session} onSessionExpired={vault.expireSession} onDone={() => { refreshAccess(); setViewMode('users-list'); }} onCancel={() => setViewMode('users-list')} />}
+                {viewMode === 'users-profile' && profileUser && <UserProfile user={profileUser} catalog={catalog} onBack={() => setViewMode('users-list')} />}
+                {viewMode === 'groups' && <GroupsList groups={snapshot.groups} />}
+                {viewMode === 'roles' && <RolesList roles={snapshot.roles} />}
+                {viewMode === 'policies' && <PolicyExplorer policies={snapshot.policies} />}
+              </>}
+        </main>
       </div>
-
-      {commandPaletteOpen && (
-        <div className="fixed inset-0 z-[80] flex items-start justify-center pt-[15vh]">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setCommandPaletteOpen(false)} />
-          <div className="relative w-[500px] bg-background-50 rounded-lg border border-background-300 overflow-hidden shadow-sm">
-            <div className="flex items-center gap-2 px-3 h-9 border-b border-background-200">
-              <i className="ri-search-line text-sm text-foreground-400" />
-              <input
-                autoFocus
-                type="text"
-                placeholder="Search users, groups, roles, or run commands..."
-                className="flex-1 text-sm bg-transparent border-none outline-none text-foreground-900 placeholder:text-foreground-400"
-              />
-              <span className="text-[10px] text-foreground-400 font-mono px-1.5 py-0.5 rounded bg-background-200">esc</span>
-            </div>
-            <div className="px-2 py-2 text-xs text-foreground-400">Type to search across access control</div>
-          </div>
-        </div>
-      )}
+      {commandPaletteOpen && <div className="fixed inset-0 z-[80] flex items-start justify-center pt-[15vh]"><button type="button" aria-label="Close command palette" onClick={() => setCommandPaletteOpen(false)} className="absolute inset-0 bg-black/30" /><div role="dialog" aria-modal="true" className="relative w-[500px] rounded-lg border border-background-300 bg-background-50 p-4 text-xs text-foreground-500">Search across live access-control resources is planned after the mutation workflows.</div></div>}
     </div>
   );
 }

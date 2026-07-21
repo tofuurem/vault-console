@@ -17,6 +17,19 @@ export interface VaultHealth {
   readonly version?: string;
 }
 
+export type VaultCapability =
+  | 'create'
+  | 'read'
+  | 'update'
+  | 'patch'
+  | 'delete'
+  | 'list'
+  | 'sudo'
+  | 'deny'
+  | 'root';
+
+export type VaultCapabilityMap = Readonly<Record<string, readonly VaultCapability[]>>;
+
 export interface UserpassLogin {
   readonly serverUrl: string;
   readonly mount: string;
@@ -28,6 +41,7 @@ export interface VaultAuthGateway {
   getHealth(serverUrl: string, signal?: AbortSignal): Promise<VaultHealth>;
   validateToken(serverUrl: string, token: VaultToken, signal?: AbortSignal): Promise<VaultSession>;
   loginUserpass(input: UserpassLogin, signal?: AbortSignal): Promise<VaultSession>;
+  getCapabilities(session: VaultSession, paths: readonly string[], signal?: AbortSignal): Promise<VaultCapabilityMap>;
 }
 
 export interface KvV2Mount {

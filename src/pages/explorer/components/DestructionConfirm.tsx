@@ -1,116 +1,82 @@
 import { useState } from 'react';
-import Modal from '@/components/base/Modal';
+
 import Button from '@/components/base/Button';
 import { Input } from '@/components/base/Input';
-import type { VaultSecret } from '@/mocks/vault';
+import Modal from '@/components/base/Modal';
+import { normalizeVaultError } from '@/domain/vault/errors';
+
+export type KvDestructiveAction =
+  | { readonly kind: 'delete-latest'; readonly version: number }
+  | { readonly kind: 'delete-version'; readonly version: number }
+  | { readonly kind: 'destroy-version'; readonly version: number }
+  | { readonly kind: 'delete-metadata'; readonly version: number };
 
 interface DestructionConfirmProps {
-  open: boolean;
-  onClose: () => void;
-  secret: VaultSecret | null;
-  mode: 'soft-delete' | 'destroy' | 'destroy-all';
-  onConfirm: (secret: VaultSecret) => void;
+  readonly open: boolean;
+  readonly onClose: () => void;
+  readonly mount: string;
+  readonly path: string | null;
+  readonly action: KvDestructiveAction | null;
+  readonly onConfirm: (action: KvDestructiveAction) => Promise<void>;
 }
 
-const modeConfig = {
-  'soft-delete': {
-    title: 'Delete Current Version',
-    description: 'Soft-delete the current version. This version will be marked as deleted but remains recoverable.',
-    confirmLabel: 'Delete version',
-    variant: 'danger' as const,
-    color: 'red-600',
-    icon: 'ri-delete-bin-line',
+const copy = {
+  'delete-latest': {
+    title: 'Soft-delete current version',
+    description: 'The current version becomes unreadable, but it can be undeleted later.',
+    button: 'Delete current version',
   },
-  'destroy': {
-    title: 'Permanently Destroy Version',
-    description: 'This will permanently destroy the selected version. The data will be irretrievably lost. This action cannot be reversed.',
-    confirmLabel: 'Destroy version',
-    variant: 'danger' as const,
-    color: 'red-600',
-    icon: 'ri-close-circle-line',
+  'delete-version': {
+    title: 'Soft-delete selected version',
+    description: 'The selected version becomes unreadable, but it can be undeleted later.',
+    button: 'Delete version',
   },
-  'destroy-all': {
-    title: 'Destroy All Versions & Metadata',
-    description: 'This will permanently destroy all versions and metadata for this secret. All data will be irretrievably lost. This action cannot be reversed under any circumstances.',
-    confirmLabel: 'Destroy everything',
-    variant: 'danger' as const,
-    color: 'red-600',
-    icon: 'ri-alert-line',
+  'destroy-version': {
+    title: 'Permanently destroy version',
+    description: 'Vault permanently removes this version data. This cannot be undone.',
+    button: 'Destroy version permanently',
   },
-};
+  'delete-metadata': {
+    title: 'Delete all versions and metadata',
+    description: 'Vault permanently removes the secret, every version, and its metadata. This cannot be undone.',
+    button: 'Delete everything permanently',
+  },
+} as const;
 
-export default function DestructionConfirm({ open, onClose, secret, mode, onConfirm }: DestructionConfirmProps) {
+export default function DestructionConfirm({ open, onClose, mount, path, action, onConfirm }: DestructionConfirmProps) {
   const [typedPath, setTypedPath] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-
-  const config = modeConfig[mode];
-
-  const handleConfirm = () => {
-    if (typedPath.trim() !== secret?.path) {
-      setError('The path you typed does not match');
-      return;
-    }
-    if (secret) {
-      onConfirm(secret);
-    }
+  if (!path || !action) return null;
+  const fullPath = `${mount}/${path}`;
+  const content = copy[action.kind];
+  const close = () => {
     setTypedPath('');
     setError('');
+    setSubmitting(false);
     onClose();
   };
-
-  const handleClose = () => {
-    setTypedPath('');
+  const confirm = async () => {
+    if (typedPath.trim() !== fullPath) return;
+    setSubmitting(true);
     setError('');
-    onClose();
+    try {
+      await onConfirm(action);
+      close();
+    } catch (cause) {
+      setError(normalizeVaultError(cause).message);
+      setSubmitting(false);
+    }
   };
-
-  if (!secret) return null;
 
   return (
-    <Modal open={open} onClose={handleClose} title={config.title} width="md">
-      <div className="p-4 space-y-4">
-        <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
-            <i className={`${config.icon} text-red-600 text-sm`} />
-          </div>
-          <div>
-            <p className="text-sm text-foreground-700">{config.description}</p>
-            <div className="mt-2 text-xs text-foreground-500 space-y-0.5">
-              <div>Secret: <span className="font-mono text-foreground-800">{secret.path}</span></div>
-              <div>Mount: <span className="font-mono text-foreground-800">{secret.mount}</span></div>
-              <div>Current version: <span className="font-mono text-foreground-800">v{secret.metadata.current_version}</span></div>
-            </div>
-          </div>
-        </div>
-
-        <div className="px-3 py-2 rounded-md bg-red-50 border border-red-200">
-          <p className="text-xs text-red-700 font-medium">This action is irreversible</p>
-          <p className="text-[11px] text-red-600 mt-0.5">Type the full secret path below to confirm you understand the consequences.</p>
-        </div>
-
-        <div>
-          <label className="text-xs font-medium text-foreground-700">Type the secret path to confirm:</label>
-          <Input
-            value={typedPath}
-            onChange={(e) => { setTypedPath(e.target.value); setError(''); }}
-            placeholder={secret.path}
-            monospace
-            error={error}
-            className="mt-1"
-          />
-        </div>
-
-        <div className="flex items-center justify-end gap-2 pt-1">
-          <Button variant="secondary" size="sm" onClick={handleClose}>Cancel</Button>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={handleConfirm}
-            disabled={typedPath.trim() !== secret.path}
-          >
-            {config.confirmLabel}
-          </Button>
-        </div>
+    <Modal open={open} onClose={close} title={content.title} width="md">
+      <div className="space-y-4 p-4">
+        <div className="flex items-start gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100"><i className="ri-alert-line text-sm text-red-600" aria-hidden="true" /></div><div><p className="text-sm leading-5 text-foreground-700">{content.description}</p><p className="mt-2 break-all font-mono text-xs text-foreground-800">{fullPath} · v{action.version}</p></div></div>
+        {error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>}
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] leading-5 text-red-700">Type the full logical path to confirm. Permanent actions cannot be rolled back.</div>
+        <Input label={`Type ${fullPath} to confirm`} value={typedPath} onChange={(event) => setTypedPath(event.target.value)} placeholder={fullPath} monospace autoComplete="off" />
+        <div className="flex justify-end gap-2"><Button size="sm" onClick={close} disabled={submitting}>Cancel</Button><Button size="sm" variant="danger" disabled={typedPath.trim() !== fullPath} loading={submitting} onClick={() => void confirm()}>{content.button}</Button></div>
       </div>
     </Modal>
   );

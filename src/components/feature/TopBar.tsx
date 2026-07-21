@@ -1,15 +1,24 @@
 import { useState, useRef, useEffect } from 'react';
 import Button from '@/components/base/Button';
 import Tooltip from '@/components/base/Tooltip';
-import type { VaultConnection } from '@/mocks/vault';
+import type { VaultHealth, VaultSession } from '@/domain/vault/contracts';
 
 interface TopBarProps {
-  connection: VaultConnection;
+  session: VaultSession;
+  health?: VaultHealth;
   onSignOut: () => void;
   onCommandPalette: () => void;
 }
 
-export default function TopBar({ connection, onSignOut, onCommandPalette }: TopBarProps) {
+function formatTtl(expiresAt: number | undefined): string {
+  if (!expiresAt) return 'No fixed expiry';
+  const seconds = Math.max(0, Math.floor((expiresAt - Date.now()) / 1_000));
+  if (seconds >= 86_400) return `${Math.floor(seconds / 86_400)}d remaining`;
+  if (seconds >= 3_600) return `${Math.floor(seconds / 3_600)}h remaining`;
+  return `${Math.floor(seconds / 60)}m remaining`;
+}
+
+export default function TopBar({ session, health, onSignOut, onCommandPalette }: TopBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -23,7 +32,7 @@ export default function TopBar({ connection, onSignOut, onCommandPalette }: TopB
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const ttlDays = Math.floor(connection.token_ttl / 86400);
+  const identity = session.displayName || (session.authMethod === 'token' ? 'token session' : 'userpass user');
 
   return (
     <div className="h-11 shrink-0 flex items-center justify-between px-4 border-b border-background-200 bg-background-50">
@@ -34,13 +43,13 @@ export default function TopBar({ connection, onSignOut, onCommandPalette }: TopB
           </div>
           <span className="text-sm font-semibold text-foreground-900 tracking-tight">Vault Console</span>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-foreground-500">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          <span className="font-mono text-[11px]">{connection.server_url}</span>
+        <div className="hidden items-center gap-1.5 text-xs text-foreground-500 sm:flex">
+          <span className={`h-1.5 w-1.5 rounded-full ${health?.sealed ? 'bg-red-500' : 'bg-emerald-500'}`} />
+          <span className="max-w-[260px] truncate font-mono text-[11px]">{session.serverUrl}</span>
         </div>
-        <span className="text-[10px] px-1.5 py-0 bg-background-200 text-foreground-500 rounded font-mono">
-          v{connection.vault_version}
-        </span>
+        {health?.version && (
+          <span className="hidden rounded bg-background-200 px-1.5 py-0 font-mono text-[10px] text-foreground-500 md:inline">v{health.version}</span>
+        )}
       </div>
 
       <div className="flex items-center gap-1.5">
@@ -71,19 +80,19 @@ export default function TopBar({ connection, onSignOut, onCommandPalette }: TopB
           >
             <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center">
               <span className="text-[10px] font-semibold text-primary-700">
-                {connection.identity.charAt(0).toUpperCase()}
+                {identity.charAt(0).toUpperCase()}
               </span>
             </div>
-            <span className="font-medium">{connection.identity}</span>
+            <span className="hidden max-w-28 truncate font-medium sm:inline">{identity}</span>
             <i className="ri-arrow-down-s-line text-xs text-foreground-400" />
           </button>
 
           {menuOpen && (
             <div className="absolute right-0 top-full mt-1 w-52 rounded-md border border-background-300 bg-background-50 shadow-sm z-50 py-1">
               <div className="px-3 py-2 border-b border-background-200">
-                <div className="text-xs font-medium text-foreground-900">{connection.identity}</div>
+                <div className="text-xs font-medium text-foreground-900">{identity}</div>
                 <div className="text-[11px] text-foreground-500 mt-0.5">
-                  Token TTL: {ttlDays}d · via {connection.auth_method}
+                  {formatTtl(session.expiresAt)} · via {session.authMethod}
                 </div>
               </div>
               <button

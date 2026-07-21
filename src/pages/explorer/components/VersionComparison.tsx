@@ -1,164 +1,130 @@
-import { useState } from 'react';
-import Modal from '@/components/base/Modal';
+import { useEffect, useMemo, useState } from 'react';
+
 import Button from '@/components/base/Button';
-import Badge from '@/components/base/Badge';
-import Tooltip from '@/components/base/Tooltip';
-import type { VaultSecret, VaultVersion } from '@/mocks/vault';
+import Modal from '@/components/base/Modal';
+import type { KvV2Secret, KvV2SecretHistory } from '@/domain/vault/contracts';
+import { normalizeVaultError } from '@/domain/vault/errors';
 
 interface VersionComparisonProps {
-  open: boolean;
-  onClose: () => void;
-  secret: VaultSecret | null;
-  onRestore: (secret: VaultSecret, version: number) => void;
+  readonly open: boolean;
+  readonly onClose: () => void;
+  readonly mount: string;
+  readonly path: string | null;
+  readonly history?: KvV2SecretHistory;
+  readonly currentSecret?: KvV2Secret;
+  readonly loadVersion: (version: number) => Promise<KvV2Secret>;
+  readonly onRestore: (version: number, data: Readonly<Record<string, unknown>>) => Promise<void>;
 }
 
-function MaskedDiffValue({ value, side }: { value: string; side: 'left' | 'right' }) {
-  const [revealed, setRevealed] = useState(false);
+function printable(value: unknown): string {
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value) ?? String(value);
+}
 
+function DiffValue({ value }: { value: unknown }) {
+  const [revealed, setRevealed] = useState(false);
+  const text = printable(value);
   return (
-    <div className="flex items-start gap-1 group">
-      <span className={`flex-1 text-xs break-all ${revealed ? 'font-mono text-foreground-800' : 'text-foreground-400 select-none'}`}>
-        {revealed ? value : '•'.repeat(Math.min(value.length, 20))}
-      </span>
-      <button
-        onClick={() => setRevealed(!revealed)}
-        className="w-4 h-4 flex items-center justify-center rounded text-foreground-400 hover:text-foreground-700 cursor-pointer shrink-0 opacity-0 group-hover:opacity-100"
-      >
-        <i className={`${revealed ? 'ri-eye-off-line' : 'ri-eye-line'} text-[10px]`} />
-      </button>
+    <div className="group flex items-start gap-1">
+      <span className={`min-w-0 flex-1 break-all font-mono text-xs ${revealed ? 'text-foreground-800' : 'select-none text-foreground-400'}`}>{revealed ? text : '•'.repeat(Math.min(Math.max(text.length, 6), 18))}</span>
+      <button type="button" aria-label={revealed ? 'Hide comparison value' : 'Reveal comparison value'} onClick={() => setRevealed((current) => !current)} className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-foreground-400 opacity-0 group-hover:opacity-100 focus:opacity-100"><i className={`${revealed ? 'ri-eye-off-line' : 'ri-eye-line'} text-[10px]`} aria-hidden="true" /></button>
     </div>
   );
 }
 
-export default function VersionComparison({ open, onClose, secret, onRestore }: VersionComparisonProps) {
-  const [leftVersion, setLeftVersion] = useState<number | null>(null);
-  const [rightVersion, setRightVersion] = useState<number | null>(null);
+export default function VersionComparison({
+  open,
+  onClose,
+  mount,
+  path,
+  history,
+  currentSecret,
+  loadVersion,
+  onRestore,
+}: VersionComparisonProps) {
+  const readableVersions = useMemo(() => history?.versions.filter((version) => !version.destroyed && !version.deletionTime) ?? [], [history]);
+  const [leftVersion, setLeftVersion] = useState<number>();
+  const [rightVersion, setRightVersion] = useState<number>();
+  const [loaded, setLoaded] = useState<Readonly<Record<number, KvV2Secret>>>({});
+  const [loading, setLoading] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [error, setError] = useState('');
 
-  if (!secret) return null;
+  useEffect(() => {
+    if (!open || !history) return;
+    setLeftVersion(readableVersions[1]?.version ?? readableVersions[0]?.version);
+    setRightVersion(readableVersions[0]?.version);
+    setLoaded(currentSecret ? { [currentSecret.metadata.version]: currentSecret } : {});
+    setError('');
+  }, [currentSecret, history, open, readableVersions]);
 
-  const versions = secret.versions.filter((v) => v.state !== 'destroyed');
+  useEffect(() => {
+    if (!open) return;
+    const missing = [leftVersion, rightVersion].filter((version): version is number => Boolean(version && !loaded[version]));
+    if (!missing.length) return;
+    let active = true;
+    setLoading(true);
+    Promise.all(missing.map(async (version) => [version, await loadVersion(version)] as const)).then(
+      (versions) => {
+        if (!active) return;
+        setLoaded((current) => ({ ...current, ...Object.fromEntries(versions) }));
+        setLoading(false);
+      },
+      (cause) => {
+        if (!active) return;
+        setError(normalizeVaultError(cause).message);
+        setLoading(false);
+      },
+    );
+    return () => { active = false; };
+  }, [leftVersion, loadVersion, loaded, open, rightVersion]);
 
-  if (!leftVersion && versions.length >= 2) {
-    setTimeout(() => {
-      setLeftVersion(versions[1].version);
-      setRightVersion(versions[0].version);
-    }, 0);
-  }
-
-  const left = versions.find((v) => v.version === leftVersion);
-  const right = versions.find((v) => v.version === rightVersion);
-
-  const allKeys = new Set<string>();
-  if (left) Object.keys(left.data).forEach((k) => allKeys.add(k));
-  if (right) Object.keys(right.data).forEach((k) => allKeys.add(k));
-  const keys = Array.from(allKeys);
-
-  const getKeyStatus = (key: string): 'added' | 'removed' | 'changed' | 'unchanged' => {
-    const inLeft = left ? key in left.data : false;
-    const inRight = right ? key in right.data : false;
-    if (!inLeft && inRight) return 'added';
-    if (inLeft && !inRight) return 'removed';
-    if (inLeft && inRight && left!.data[key] !== right!.data[key]) return 'changed';
-    return 'unchanged';
-  };
-
-  const statusColors: Record<string, string> = {
-    added: 'bg-emerald-50 border-l-2 border-emerald-400',
-    removed: 'bg-red-50 border-l-2 border-red-400',
-    changed: 'bg-amber-50 border-l-2 border-amber-400',
-    unchanged: '',
+  if (!path || !history) return null;
+  const left = leftVersion ? loaded[leftVersion] : undefined;
+  const right = rightVersion ? loaded[rightVersion] : undefined;
+  const keys = Array.from(new Set([...Object.keys(left?.data ?? {}), ...Object.keys(right?.data ?? {})])).sort();
+  const restore = async () => {
+    if (!rightVersion || !right) return;
+    setRestoring(true);
+    setError('');
+    try {
+      await onRestore(rightVersion, right.data);
+      setRestoring(false);
+      onClose();
+    } catch (cause) {
+      setError(normalizeVaultError(cause).message);
+      setRestoring(false);
+    }
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Version Comparison" width="xl">
-      <div className="p-4 space-y-4">
-        <div className="text-xs text-foreground-500">
-          Comparing versions of <span className="font-mono text-foreground-800">{secret.path}</span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-[11px] font-medium text-foreground-500">Version A (older)</label>
-            <select
-              value={leftVersion || ''}
-              onChange={(e) => setLeftVersion(Number(e.target.value))}
-              className="w-full h-8 mt-1 px-2 text-xs font-mono rounded-md border border-background-300 bg-background-50 text-foreground-900 focus:outline-none focus:border-primary-400 cursor-pointer"
-            >
-              {versions.map((v) => (
-                <option key={v.version} value={v.version}>v{v.version} - {v.state}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-[11px] font-medium text-foreground-500">Version B (newer)</label>
-            <select
-              value={rightVersion || ''}
-              onChange={(e) => setRightVersion(Number(e.target.value))}
-              className="w-full h-8 mt-1 px-2 text-xs font-mono rounded-md border border-background-300 bg-background-50 text-foreground-900 focus:outline-none focus:border-primary-400 cursor-pointer"
-            >
-              {versions.map((v) => (
-                <option key={v.version} value={v.version}>v{v.version} - {v.state}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {left && right && (
-          <div className="border border-background-200 rounded-md overflow-hidden">
-            <div className="grid grid-cols-[140px_1fr_1fr] bg-background-100 px-3 py-2 border-b border-background-200 text-[11px] font-semibold text-foreground-500 uppercase tracking-wider">
-              <span>Key</span>
-              <span>v{left.version} ({left.state})</span>
-              <span>v{right.version} ({right.state})</span>
+    <Modal open={open} onClose={onClose} title="Compare and restore versions" width="xl">
+      <div className="space-y-4 p-4">
+        <p className="text-xs text-foreground-500">Comparing <span className="font-mono text-foreground-800">{mount}/{path}</span></p>
+        {error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>}
+        {readableVersions.length < 2 ? (
+          <div className="rounded-md border border-background-200 bg-background-100 p-4 text-xs text-foreground-500">At least two readable versions are required for comparison.</div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <label className="text-[11px] font-medium text-foreground-500">Version A<select aria-label="Version A" value={leftVersion ?? ''} onChange={(event) => setLeftVersion(Number(event.target.value))} className="mt-1 h-8 w-full rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs text-foreground-900">{readableVersions.map((version) => <option key={version.version} value={version.version}>v{version.version}</option>)}</select></label>
+              <label className="text-[11px] font-medium text-foreground-500">Version B<select aria-label="Version B" value={rightVersion ?? ''} onChange={(event) => setRightVersion(Number(event.target.value))} className="mt-1 h-8 w-full rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs text-foreground-900">{readableVersions.map((version) => <option key={version.version} value={version.version}>v{version.version}</option>)}</select></label>
             </div>
-            <div className="divide-y divide-background-100">
-              {keys.map((key) => {
-                const status = getKeyStatus(key);
-                return (
-                  <div key={key} className={`grid grid-cols-[140px_1fr_1fr] px-3 py-1.5 ${statusColors[status]}`}>
-                    <span className={`text-xs font-mono font-medium ${
-                      status === 'added' ? 'text-emerald-700' :
-                      status === 'removed' ? 'text-red-700' :
-                      status === 'changed' ? 'text-amber-700' :
-                      'text-foreground-700'
-                    }`}>
-                      {key}
-                    </span>
-                    <div className="pr-2">
-                      {status !== 'added' && <MaskedDiffValue value={left.data[key] || ''} side="left" />}
-                      {status === 'added' && <span className="text-xs text-foreground-400 italic">—</span>}
-                    </div>
-                    <div>
-                      {status !== 'removed' && <MaskedDiffValue value={right.data[key] || ''} side="right" />}
-                      {status === 'removed' && <span className="text-xs text-foreground-400 italic">—</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+            {loading ? <div className="h-28 animate-pulse rounded-md bg-background-100" aria-label="Loading versions" /> : left && right && (
+              <div className="overflow-hidden rounded-md border border-background-200">
+                <div className="grid grid-cols-[130px_1fr_1fr] border-b border-background-200 bg-background-100 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-foreground-500"><span>Key</span><span>v{left.metadata.version}</span><span>v{right.metadata.version}</span></div>
+                <div className="divide-y divide-background-100">{keys.map((key) => {
+                  const leftHas = key in left.data;
+                  const rightHas = key in right.data;
+                  const changed = JSON.stringify(left.data[key]) !== JSON.stringify(right.data[key]);
+                  return <div key={key} className={`grid grid-cols-[130px_1fr_1fr] px-3 py-2 ${changed ? 'border-l-2 border-amber-400 bg-amber-50/60' : ''}`}><span className="break-all pr-2 font-mono text-xs font-medium text-foreground-700">{key}</span><div className="pr-2">{leftHas ? <DiffValue value={left.data[key]} /> : <span className="text-xs text-foreground-400">—</span>}</div><div>{rightHas ? <DiffValue value={right.data[key]} /> : <span className="text-xs text-foreground-400">—</span>}</div></div>;
+                })}</div>
+              </div>
+            )}
+          </>
         )}
-
-        <div className="flex items-center gap-2 text-xs text-foreground-500">
-          <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-emerald-400 rounded" />Added</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-red-400 rounded" />Removed</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-amber-400 rounded" />Changed</span>
-        </div>
-
-        <div className="px-3 py-2 rounded-md bg-background-100 border border-background-200 text-xs text-foreground-600">
-          Restoration creates a new version instead of rewriting history. The old versions remain accessible.
-        </div>
-
-        <div className="flex items-center justify-end gap-2 pt-1">
-          <Button variant="secondary" size="sm" onClick={onClose}>Close</Button>
-          {right && (
-            <Tooltip content={`Create a new version from v${right.version}`}>
-              <Button variant="primary" size="sm" onClick={() => { onRestore(secret, right.version); onClose(); }}>
-                <i className="ri-arrow-go-back-line text-sm" />
-                Restore v{right.version}
-              </Button>
-            </Tooltip>
-          )}
-        </div>
+        <div className="rounded-md border border-background-200 bg-background-100 px-3 py-2 text-[11px] leading-5 text-foreground-500">Restore never rewrites history. It writes the selected data as a new version with CAS {history.currentVersion}.</div>
+        <div className="flex justify-end gap-2"><Button size="sm" onClick={onClose} disabled={restoring}>Close</Button>{right && <Button size="sm" variant="primary" onClick={() => void restore()} loading={restoring}><i className="ri-arrow-go-back-line" aria-hidden="true" /> Restore v{right.metadata.version}</Button>}</div>
       </div>
     </Modal>
   );

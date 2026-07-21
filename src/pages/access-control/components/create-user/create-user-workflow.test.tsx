@@ -67,6 +67,27 @@ describe('CreateUserWorkflowModal', () => {
     expect(applyUser).toHaveBeenCalledOnce();
   });
 
+  it('treats closing a successful handoff as completion so credentials are cleared', async () => {
+    const user = userEvent.setup();
+    const onComplete = vi.fn();
+    render(
+      <CreateUserWorkflowModal
+        open
+        review={{ ...review, dangerous: false }}
+        operationPlan={plan}
+        applyUser={vi.fn(async () => undefined)}
+        onClose={vi.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /Create user/ }));
+    await screen.findByText('User created successfully');
+    await user.keyboard('{Escape}');
+
+    expect(onComplete).toHaveBeenCalledOnce();
+  });
+
   it('shows completed and failed operations with retry actions after a partial failure', async () => {
     const user = userEvent.setup();
     const applyUser: ApplyUser = vi.fn(async ({ report }) => {

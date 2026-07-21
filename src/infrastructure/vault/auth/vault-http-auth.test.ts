@@ -103,4 +103,34 @@ describe('VaultAuthAdapter', () => {
       }),
     ).rejects.toMatchObject({ code: 'authentication' });
   });
+
+  it('queries the current token capabilities for every requested path', async () => {
+    const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(
+      jsonResponse({
+        'sys/auth': ['read', 'sudo'],
+        'identity/group/id': ['deny'],
+      }),
+    );
+    const gateway = new VaultAuthAdapter(new VaultHttpClient(fetchRequest));
+    const session = {
+      serverUrl: 'https://vault.example.test',
+      token: vaultToken('hvs.admin'),
+      authMethod: 'token' as const,
+    };
+
+    await expect(
+      gateway.getCapabilities(session, ['sys/auth', 'identity/group/id']),
+    ).resolves.toEqual({
+      'sys/auth': ['read', 'sudo'],
+      'identity/group/id': ['deny'],
+    });
+
+    expect(String(fetchRequest.mock.calls[0][0])).toBe(
+      'https://vault.example.test/v1/sys/capabilities-self',
+    );
+    expect(fetchRequest.mock.calls[0][1]?.method).toBe('POST');
+    expect(fetchRequest.mock.calls[0][1]?.body).toBe(
+      JSON.stringify({ paths: ['sys/auth', 'identity/group/id'] }),
+    );
+  });
 });

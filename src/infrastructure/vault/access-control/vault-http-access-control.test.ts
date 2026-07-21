@@ -124,6 +124,16 @@ describe('VaultAccessControlAdapter', () => {
     });
   });
 
+  it('treats missing group and user indexes as empty collections', async () => {
+    const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(
+      jsonResponse({ errors: [] }, 404),
+    );
+    const gateway = new VaultAccessControlAdapter(new VaultHttpClient(fetchRequest));
+
+    await expect(gateway.listGroups(session)).resolves.toEqual([]);
+    await expect(gateway.listUserpassAccounts(session, 'userpass')).resolves.toEqual([]);
+  });
+
   it('lists, creates, and deletes userpass accounts at a custom mount', async () => {
     const fetchRequest = vi
       .fn<VaultFetch>()

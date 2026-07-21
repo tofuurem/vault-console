@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import Button from '@/components/base/Button';
 import {
@@ -9,7 +9,6 @@ import {
 import { compileKvV2Policy, type LogicalKvAccessRule } from '@/domain/access-control/kv-v2-policy-compiler';
 import { generateSecurePassword } from '@/domain/access-control/password';
 import type { PolicySource } from '@/domain/access-control/types';
-import { mockCreateUserAccessCatalog } from '@/mocks/vault-access-catalog';
 import AccessScreen from './create-user/AccessScreen';
 import AccountForm from './create-user/AccountForm';
 import type { AccessDraft } from './create-user/access';
@@ -19,10 +18,23 @@ import CreateUserWorkflowModal, {
   type CreateUserReview,
 } from './create-user/CreateUserWorkflowModal';
 import type { ApplyUser, WorkflowOperation } from './create-user/workflow';
+import {
+  CreateUserTransaction,
+  createUserOperationPlan,
+  type CreateUserTransactionInput,
+} from '@/application/vault/createUserTransaction';
+import type { AccessControlSnapshot } from '@/application/vault/useAccessControlData';
+import type { VaultAccessControlGateway, VaultSession } from '@/domain/vault/contracts';
+import { normalizeVaultError } from '@/domain/vault/errors';
 
 interface CreateUserWizardProps {
   readonly onDone: () => void;
   readonly onCancel: () => void;
+  readonly catalog: import('./create-user/access').CreateUserAccessCatalog;
+  readonly snapshot: AccessControlSnapshot;
+  readonly gateway: VaultAccessControlGateway;
+  readonly session: VaultSession;
+  readonly onSessionExpired?: () => void;
 }
 
 type DecisionStep = 'account' | 'access';
@@ -37,31 +49,26 @@ function flatten(nodes: readonly EffectiveKvAccessTreeNode[]): readonly Effectiv
   return nodes.flatMap((node) => [node, ...flatten(node.children)]);
 }
 
-function waitForDemoOperation(signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(resolve, 220);
-    signal.addEventListener(
-      'abort',
-      () => {
-        window.clearTimeout(timeout);
-        reject(new DOMException('Cancelled', 'AbortError'));
-      },
-      { once: true },
-    );
-  });
-}
-
-export default function CreateUserWizard({ onDone, onCancel }: CreateUserWizardProps) {
+export default function CreateUserWizard({
+  onDone,
+  onCancel,
+  catalog,
+  snapshot,
+  gateway,
+  session,
+  onSessionExpired,
+}: CreateUserWizardProps) {
   const [step, setStep] = useState<DecisionStep>('account');
   const [account, setAccount] = useState<AccountDraft>(() => ({
     username: '',
     displayName: '',
-    userpassMount: 'userpass',
+    userpassMount: snapshot.userpassMounts[0]?.path ?? '',
     password: generateSecurePassword(),
   }));
   const [access, setAccess] = useState<AccessDraft>(EMPTY_ACCESS);
   const [showAccountErrors, setShowAccountErrors] = useState(false);
   const [workflowOpen, setWorkflowOpen] = useState(false);
+  const transactionRef = useRef<CreateUserTransaction | null>(null);
 
   const directSource: PolicySource = useMemo(
     () => ({ kind: 'user-rule', id: `vc-user-${account.username || 'new-user'}`, label: 'Per-user rule' }),
@@ -79,47 +86,48 @@ export default function CreateUserWizard({ onDone, onCancel }: CreateUserWizardP
   );
   const selection = useMemo(
     () => resolveAccessSelection({
-      groups: mockCreateUserAccessCatalog.groups,
-      roles: mockCreateUserAccessCatalog.roles,
-      policies: mockCreateUserAccessCatalog.policies,
+      groups: catalog.groups,
+      roles: catalog.roles,
+      policies: catalog.policies,
       selectedGroupIds: access.selectedGroupIds,
       directRoleIds: access.directRoleIds,
       directRules: logicalDirectRules,
     }),
-    [access.directRoleIds, access.selectedGroupIds, logicalDirectRules],
+    [access.directRoleIds, access.selectedGroupIds, catalog, logicalDirectRules],
   );
   const effectiveTree = useMemo(
-    () => resolveEffectiveKvTree(mockCreateUserAccessCatalog.tree, selection.rules),
-    [selection.rules],
+    () => resolveEffectiveKvTree(catalog.tree, selection.rules),
+    [catalog.tree, selection.rules],
   );
   const generatedHcl = useMemo(
     () => compileKvV2Policy(logicalDirectRules).hcl,
     [logicalDirectRules],
   );
+  const transactionInput: CreateUserTransactionInput = useMemo(() => ({
+    username: account.username,
+    displayName: account.displayName,
+    userpassMount: account.userpassMount,
+    password: account.password,
+    directRolePolicyNames: selection.directRoleIds,
+    directPolicy: generatedHcl ? { name: `vc-user-${account.username}`, hcl: generatedHcl } : undefined,
+    groups: selection.groupIds.flatMap((id) => {
+      const group = snapshot.groups.find((candidate) => candidate.id === id);
+      return group ? [group] : [];
+    }),
+  }), [account, generatedHcl, selection.directRoleIds, selection.groupIds, snapshot.groups]);
   const operationPlan: readonly Omit<WorkflowOperation, 'state'>[] = useMemo(
-    () => [
-      ...(access.directRules.length > 0
-        ? [{ id: 'policy', label: `Create managed policy vc-user-${account.username}` }]
-        : []),
-      { id: 'account', label: 'Create userpass account and attach direct roles' },
-      { id: 'entity', label: 'Create identity entity' },
-      { id: 'mount-accessor', label: 'Resolve userpass mount accessor' },
-      { id: 'alias', label: 'Create entity alias' },
-      ...(selection.groupIds.length > 0
-        ? [{ id: 'groups', label: `Add entity to ${selection.groupIds.length} internal group${selection.groupIds.length === 1 ? '' : 's'}` }]
-        : []),
-    ],
-    [access.directRules.length, account.username, selection.groupIds.length],
+    () => createUserOperationPlan(transactionInput),
+    [transactionInput],
   );
 
   const groupNames = selection.groupIds.map(
-    (id) => mockCreateUserAccessCatalog.groups.find((group) => group.id === id)?.name ?? id,
+    (id) => catalog.groups.find((group) => group.id === id)?.name ?? id,
   );
   const inheritedRoleNames = selection.inheritedRoleIds.map(
-    (id) => mockCreateUserAccessCatalog.roles.find((role) => role.id === id)?.name ?? id,
+    (id) => catalog.roles.find((role) => role.id === id)?.name ?? id,
   );
   const directRoleNames = selection.directRoleIds.map(
-    (id) => mockCreateUserAccessCatalog.roles.find((role) => role.id === id)?.name ?? id,
+    (id) => catalog.roles.find((role) => role.id === id)?.name ?? id,
   );
   const dangerous =
     flatten(effectiveTree).some((node) => node.level === 'owner') ||
@@ -138,24 +146,26 @@ export default function CreateUserWizard({ onDone, onCancel }: CreateUserWizardP
   };
 
   const applyUser: ApplyUser = useCallback(
-    async ({ report, signal }) => {
-      for (const operation of operationPlan) {
-        report(operation.id, 'running');
-        await waitForDemoOperation(signal);
-        report(operation.id, 'completed');
+    async (context) => {
+      try {
+        if (!transactionRef.current) {
+          transactionRef.current = new CreateUserTransaction(gateway, session, snapshot, transactionInput);
+        }
+        await transactionRef.current.apply(context);
+      } catch (cause) {
+        const error = normalizeVaultError(cause);
+        if (error.code === 'session-expired') onSessionExpired?.();
+        throw error;
       }
     },
-    [operationPlan],
+    [gateway, onSessionExpired, session, snapshot, transactionInput],
   );
   const rollbackUser: ApplyUser = useCallback(
-    async ({ report, signal }) => {
-      for (const operation of [...operationPlan].reverse()) {
-        report(operation.id, 'compensating');
-        await waitForDemoOperation(signal);
-        report(operation.id, 'compensated');
-      }
+    async (context) => {
+      if (!transactionRef.current) return;
+      await transactionRef.current.rollback(context);
     },
-    [operationPlan],
+    [],
   );
 
   const goToAccess = () => {
@@ -175,6 +185,10 @@ export default function CreateUserWizard({ onDone, onCancel }: CreateUserWizardP
     setWorkflowOpen(false);
     setAccount((current) => ({ ...current, password: '' }));
     onDone();
+  };
+  const openWorkflow = () => {
+    transactionRef.current = new CreateUserTransaction(gateway, session, snapshot, transactionInput);
+    setWorkflowOpen(true);
   };
 
   return (
@@ -215,10 +229,11 @@ export default function CreateUserWizard({ onDone, onCancel }: CreateUserWizardP
             value={account}
             onChange={setAccount}
             onRegeneratePassword={() => setAccount((current) => ({ ...current, password: generateSecurePassword() }))}
+            userpassMounts={snapshot.userpassMounts}
             showErrors={showAccountErrors}
           />
         ) : (
-          <AccessScreen username={account.username} catalog={mockCreateUserAccessCatalog} value={access} onChange={setAccess} />
+          <AccessScreen username={account.username} catalog={catalog} value={access} onChange={setAccess} />
         )}
       </main>
 
@@ -235,7 +250,7 @@ export default function CreateUserWizard({ onDone, onCancel }: CreateUserWizardP
             Continue to access <i className="ri-arrow-right-line" aria-hidden="true" />
           </Button>
         ) : (
-          <Button type="button" variant="primary" size="sm" onClick={() => setWorkflowOpen(true)}>
+          <Button type="button" variant="primary" size="sm" onClick={openWorkflow}>
             Review & create <i className="ri-arrow-right-up-line" aria-hidden="true" />
           </Button>
         )}

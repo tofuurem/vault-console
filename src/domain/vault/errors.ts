@@ -8,6 +8,7 @@ export type VaultErrorCode =
   | 'not-found'
   | 'rate-limited'
   | 'sealed'
+  | 'uninitialized'
   | 'session-expired'
   | 'unavailable'
   | 'unknown';
@@ -22,6 +23,7 @@ const SAFE_MESSAGES: Record<VaultErrorCode, string> = {
   'not-found': 'The requested Vault resource was not found.',
   'rate-limited': 'Vault is receiving too many requests. Try again shortly.',
   sealed: 'Vault is sealed. Unseal it before continuing.',
+  uninitialized: 'Vault has not been initialized yet.',
   'session-expired': 'Your Vault session has expired. Sign in again.',
   unavailable: 'Vault is currently unavailable.',
   unknown: 'The Vault operation could not be completed.',

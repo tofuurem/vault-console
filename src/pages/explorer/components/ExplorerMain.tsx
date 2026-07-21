@@ -1,271 +1,183 @@
-import { useState, useCallback, type MouseEvent } from 'react';
-import type { VaultSecret, VaultMount } from '@/mocks/vault';
-import { getChildrenForPath } from '@/mocks/vault';
+import { useMemo, useState } from 'react';
+
+import type { KvSecretDetails, VaultQueryState } from '@/application/vault/useKvExplorerData';
+import type { KvActionPermissions } from '@/application/vault/useKvActionPermissions';
 import Button from '@/components/base/Button';
 import Tooltip from '@/components/base/Tooltip';
-import SecretTable from './SecretTable';
+import type { KvV2Mount } from '@/domain/vault/contracts';
 import Inspector from './Inspector';
+import SecretTable, { type KvDirectoryEntry } from './SecretTable';
 
 interface ExplorerMainProps {
-  mount: string;
-  currentPath: string;
-  mounts: VaultMount[];
-  secrets: VaultSecret[];
-  allSecrets: VaultSecret[];
-  onNavigateToFolder: (path: string) => void;
-  onNavigateToBreadcrumb: (path: string) => void;
-  onCreateSecret: () => void;
-  onEditSecret?: (secret: VaultSecret) => void;
-  onVersionCompare?: (secret: VaultSecret) => void;
-  onDestroy?: (secret: VaultSecret, mode: 'soft-delete' | 'destroy' | 'destroy-all') => void;
-  connectionPermissions: { can_create: boolean; can_delete: boolean; can_undelete: boolean; can_destroy: boolean };
+  readonly mount: string;
+  readonly currentPath: string;
+  readonly mounts: readonly KvV2Mount[];
+  readonly directory: VaultQueryState<readonly string[]>;
+  readonly selectedPath: string | null;
+  readonly details: VaultQueryState<KvSecretDetails>;
+  readonly onSelectSecret: (path: string) => void;
+  readonly onNavigateToFolder: (path: string) => void;
+  readonly onNavigateToBreadcrumb: (path: string) => void;
+  readonly onRefresh: () => void;
+  readonly onRetrySecret: () => void;
+  readonly onCreateSecret?: () => void;
+  readonly onEditSecret?: () => void;
+  readonly permissions?: KvActionPermissions;
+  readonly onCompare?: () => void;
+  readonly onDeleteLatest?: (version: number) => void;
+  readonly onDeleteVersion?: (version: number) => void;
+  readonly onUndelete?: (version: number) => void;
+  readonly onDestroyVersion?: (version: number) => void;
+  readonly onDeleteMetadata?: (version: number) => void;
+}
+
+function entriesFromKeys(currentPath: string, keys: readonly string[]): readonly KvDirectoryEntry[] {
+  return keys.map((key) => {
+    const folder = key.endsWith('/');
+    const name = key.replace(/\/$/, '');
+    return { kind: folder ? 'folder' as const : 'secret' as const, name, path: `${currentPath}${key}` };
+  }).sort((left, right) => {
+    if (left.kind !== right.kind) return left.kind === 'folder' ? -1 : 1;
+    return left.name.localeCompare(right.name);
+  });
 }
 
 export default function ExplorerMain({
   mount,
   currentPath,
   mounts,
-  secrets,
-  allSecrets,
+  directory,
+  selectedPath,
+  details,
+  onSelectSecret,
   onNavigateToFolder,
   onNavigateToBreadcrumb,
+  onRefresh,
+  onRetrySecret,
   onCreateSecret,
   onEditSecret,
-  onVersionCompare,
-  onDestroy,
-  connectionPermissions,
+  permissions,
+  onCompare,
+  onDeleteLatest,
+  onDeleteVersion,
+  onUndelete,
+  onDestroyVersion,
+  onDeleteMetadata,
 }: ExplorerMainProps) {
-  const [selectedSecret, setSelectedSecret] = useState<VaultSecret | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; secret: VaultSecret } | null>(null);
-  const [clipboardPathMsg, setClipboardPathMsg] = useState('');
+  const [clipboardMessage, setClipboardMessage] = useState('');
+  const entries = useMemo(() => entriesFromKeys(currentPath, directory.data ?? []), [currentPath, directory.data]);
+  const filteredEntries = searchQuery
+    ? entries.filter((entry) => entry.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : entries;
+  const breadcrumbs = currentPath.split('/').filter(Boolean).map((part, index, parts) => ({
+    label: part,
+    path: `${parts.slice(0, index + 1).join('/')}/`,
+  }));
+  const currentMount = mounts.find((candidate) => candidate.path === mount);
 
-  const { folders, secrets: folderSecrets } = getChildrenForPath(mount, currentPath);
-
-  const filteredSecrets = searchQuery
-    ? folderSecrets.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.path.toLowerCase().includes(searchQuery.toLowerCase()))
-    : folderSecrets;
-
-  const filteredFolders = searchQuery
-    ? folders.filter((f) => f.toLowerCase().includes(searchQuery.toLowerCase()))
-    : folders;
-
-  const breadcrumbs = currentPath
-    .replace(mount, '')
-    .split('/')
-    .filter(Boolean)
-    .reduce<{ label: string; path: string }[]>((acc, part, idx, arr) => {
-      const path = mount + arr.slice(0, idx + 1).join('/') + '/';
-      acc.push({ label: part + '/', path });
-      return acc;
-    }, []);
-
-  const handleContextMenu = useCallback((e: MouseEvent, secret: VaultSecret) => {
-    setContextMenu({ x: e.clientX, y: e.clientY, secret });
-  }, []);
-
-  const copyCurrentPath = () => {
-    navigator.clipboard.writeText(currentPath).then(() => {
-      setClipboardPathMsg('Path copied!');
-      setTimeout(() => setClipboardPathMsg(''), 1500);
-    });
+  const copy = async (value: string, success: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setClipboardMessage(success);
+      setTimeout(() => setClipboardMessage(''), 1_500);
+    } catch {
+      setClipboardMessage('Clipboard unavailable');
+    }
   };
-
-  const copyCliCmd = () => {
-    const cmd = `vault kv list -mount=${mount.replace(/\/$/, '')} ${currentPath.replace(mount, '')}`;
-    navigator.clipboard.writeText(cmd).then(() => {
-      setClipboardPathMsg('CLI command copied!');
-      setTimeout(() => setClipboardPathMsg(''), 1500);
-    });
-  };
-
-  const handleEditSecret = (secret: VaultSecret) => {
-    setContextMenu(null);
-    onEditSecret?.(secret);
-  };
-
-  const currentMount = mounts.find((m) => m.name === mount);
 
   return (
-    <div className="flex-1 flex min-w-0">
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="px-4 py-3 border-b border-background-200 shrink-0">
-          <div className="flex items-center gap-1.5 text-xs mb-2">
-            <button onClick={() => onNavigateToBreadcrumb(mount)} className="text-foreground-500 hover:text-primary-600 cursor-pointer font-mono">
-              {mount}
-            </button>
-            {breadcrumbs.map((crumb, idx) => (
+    <div className="flex min-w-0 flex-1">
+      <section aria-labelledby="directory-heading" className="flex min-w-0 flex-1 flex-col">
+        <header className="shrink-0 border-b border-background-200 px-4 py-3">
+          <nav aria-label="Secret path" className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
+            <button type="button" onClick={() => onNavigateToBreadcrumb('')} className="font-mono text-foreground-500 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">{mount}/</button>
+            {breadcrumbs.map((crumb, index) => (
               <span key={crumb.path} className="flex items-center gap-1.5">
                 <span className="text-foreground-300">/</span>
-                <button
-                  onClick={() => onNavigateToBreadcrumb(crumb.path)}
-                  className={`cursor-pointer font-mono ${
-                    idx === breadcrumbs.length - 1 ? 'text-foreground-900 font-medium' : 'text-foreground-500 hover:text-primary-600'
-                  }`}
-                >
-                  {crumb.label}
-                </button>
+                <button type="button" onClick={() => onNavigateToBreadcrumb(crumb.path)} className={`font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${index === breadcrumbs.length - 1 ? 'font-medium text-foreground-900' : 'text-foreground-500 hover:text-primary-600'}`}>{crumb.label}/</button>
               </span>
             ))}
-          </div>
+          </nav>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h2 className="text-sm font-semibold text-foreground-900">
-                {currentMount?.description || currentPath}
-              </h2>
-              <span className="text-xs text-foreground-400">
-                {filteredFolders.length + filteredSecrets.length} items
-              </span>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">KV version 2</p>
+              <div className="flex items-center gap-2">
+                <h1 id="directory-heading" className="text-sm font-semibold text-foreground-900">{currentMount?.description || `${mount}/`}</h1>
+                {directory.status === 'success' && <span className="text-xs text-foreground-400">{filteredEntries.length} items</span>}
+              </div>
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="relative">
-                <i className="ri-search-line absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search in this path..."
-                  className="h-7 pl-6 pr-2.5 text-xs rounded-md border border-background-300 bg-background-50 text-foreground-900 placeholder:text-foreground-400 focus:outline-none focus:border-primary-400 w-44"
-                />
-              </div>
-
-              <Tooltip content="Refresh">
-                <button className="w-7 h-7 flex items-center justify-center rounded-md text-foreground-400 hover:text-foreground-700 hover:bg-background-100 cursor-pointer">
-                  <i className="ri-refresh-line text-sm" />
-                </button>
+              <label className="relative hidden sm:block">
+                <span className="sr-only">Search current folder</span>
+                <i className="ri-search-line absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground-400" aria-hidden="true" />
+                <input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Filter this folder" className="h-7 w-40 rounded-md border border-background-300 bg-background-50 pl-6 pr-2.5 text-xs text-foreground-900 placeholder:text-foreground-400 focus:outline-none focus:border-primary-400" />
+              </label>
+              <Tooltip content="Refresh directory">
+                <button type="button" aria-label="Refresh directory" onClick={onRefresh} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className={`${directory.status === 'loading' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} text-sm`} aria-hidden="true" /></button>
               </Tooltip>
-
-              <Tooltip content={clipboardPathMsg || 'Copy path'}>
-                <button onClick={copyCurrentPath} className="w-7 h-7 flex items-center justify-center rounded-md text-foreground-400 hover:text-foreground-700 hover:bg-background-100 cursor-pointer">
-                  <i className="ri-file-copy-line text-sm" />
-                </button>
+              <Tooltip content={clipboardMessage || 'Copy logical path'}>
+                <button type="button" aria-label="Copy logical path" onClick={() => void copy(`${mount}/${currentPath}`, 'Path copied')} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className="ri-file-copy-line text-sm" aria-hidden="true" /></button>
               </Tooltip>
-
-              <Tooltip content="Copy CLI command">
-                <button onClick={copyCliCmd} className="w-7 h-7 flex items-center justify-center rounded-md text-foreground-400 hover:text-foreground-700 hover:bg-background-100 cursor-pointer">
-                  <i className="ri-terminal-line text-sm" />
-                </button>
+              <Tooltip content="Copy Vault CLI command">
+                <button type="button" aria-label="Copy Vault CLI command" onClick={() => void copy(`vault kv list -mount=${mount} ${currentPath || '/'}`, 'CLI command copied')} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className="ri-terminal-line text-sm" aria-hidden="true" /></button>
               </Tooltip>
-
-              {connectionPermissions.can_create && (
-                <Button size="sm" variant="primary" onClick={onCreateSecret}>
-                  <i className="ri-add-line" />
-                  Create secret
-                </Button>
-              )}
+              {onCreateSecret && <Button size="sm" variant="primary" onClick={onCreateSecret}><i className="ri-add-line" aria-hidden="true" /> Create secret</Button>}
             </div>
           </div>
-        </div>
+        </header>
 
         <div className="flex-1 overflow-y-auto">
-          {searchQuery && filteredFolders.length === 0 && filteredSecrets.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-10 h-10 mb-2 flex items-center justify-center rounded-full bg-background-200">
-                <i className="ri-search-line text-lg text-foreground-400" />
-              </div>
-              <p className="text-sm text-foreground-600">No results for &ldquo;{searchQuery}&rdquo;</p>
-              <p className="text-xs text-foreground-400 mt-1">Try a different search term</p>
+          {directory.status === 'loading' && !directory.data && (
+            <div aria-label="Loading directory" className="space-y-px p-3"><div className="h-10 animate-pulse rounded bg-background-100" /><div className="h-10 animate-pulse rounded bg-background-100" /><div className="h-10 animate-pulse rounded bg-background-100" /></div>
+          )}
+          {directory.status === 'error' && !directory.data && (
+            <div role="alert" className="m-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              <p className="font-semibold">{directory.error.code === 'authorization' ? 'This folder is outside your Vault policy' : 'Directory could not be loaded'}</p>
+              <p className="mt-1 text-xs leading-5">{directory.error.message}</p>
+              <button type="button" onClick={onRefresh} className="mt-2 text-xs font-medium underline underline-offset-2">Retry</button>
             </div>
-          ) : (
-            <SecretTable
-              secrets={filteredSecrets}
-              folders={filteredFolders}
-              currentPath={currentPath}
-              mount={mount}
-              onSelectSecret={setSelectedSecret}
-              onNavigateToFolder={onNavigateToFolder}
-              canCreate={connectionPermissions.can_create}
-              onContextMenu={handleContextMenu}
-            />
+          )}
+          {directory.data && (
+            searchQuery && filteredEntries.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center"><i className="ri-search-line mb-2 text-xl text-foreground-400" aria-hidden="true" /><p className="text-sm text-foreground-600">No matches in this folder</p></div>
+            ) : (
+              <SecretTable entries={filteredEntries} selectedPath={selectedPath} onSelectSecret={onSelectSecret} onNavigateToFolder={onNavigateToFolder} onCreateSecret={onCreateSecret} />
+            )
           )}
         </div>
-      </div>
+      </section>
 
       {inspectorOpen && (
-        <div className="w-[360px] shrink-0 border-l border-background-200 bg-background-50 flex flex-col">
-          <div className="flex items-center justify-between px-3 h-9 border-b border-background-200">
-            <span className="text-[11px] font-semibold text-foreground-500 uppercase tracking-wider">
-              {selectedSecret ? 'Inspector' : 'Details'}
-            </span>
-            <button
-              onClick={() => setInspectorOpen(false)}
-              className="w-5 h-5 flex items-center justify-center rounded text-foreground-400 hover:text-foreground-700 cursor-pointer"
-            >
-              <i className="ri-close-line text-xs" />
-            </button>
+        <aside aria-label="Secret inspector" className="hidden w-[360px] shrink-0 flex-col border-l border-background-200 bg-background-50 lg:flex">
+          <div className="flex h-9 items-center justify-between border-b border-background-200 px-3">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-500">{selectedPath ? 'Inspector' : 'Details'}</span>
+            <button type="button" aria-label="Close inspector" onClick={() => setInspectorOpen(false)} className="flex h-5 w-5 items-center justify-center rounded text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className="ri-close-line text-xs" aria-hidden="true" /></button>
           </div>
           <div className="flex-1 overflow-y-auto">
             <Inspector
-              secret={selectedSecret}
-              currentPath={currentPath}
+              state={details}
               mount={mount}
-              onEdit={handleEditSecret}
-              onVersionCompare={onVersionCompare}
-              connectionPermissions={connectionPermissions}
+              path={selectedPath}
+              onRetry={onRetrySecret}
+              onEdit={onEditSecret}
+              permissions={permissions}
+              onCompare={onCompare}
+              onDeleteLatest={onDeleteLatest}
+              onDeleteVersion={onDeleteVersion}
+              onUndelete={onUndelete}
+              onDestroyVersion={onDestroyVersion}
+              onDeleteMetadata={onDeleteMetadata}
             />
           </div>
-        </div>
+        </aside>
       )}
-
       {!inspectorOpen && (
         <Tooltip content="Open inspector" position="left">
-          <button
-            onClick={() => setInspectorOpen(true)}
-            className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-12 flex items-center justify-center rounded-l-md border border-r-0 border-background-300 bg-background-50 text-foreground-400 hover:text-foreground-700 cursor-pointer"
-          >
-            <i className="ri-arrow-left-s-line text-sm" />
-          </button>
+          <button type="button" aria-label="Open inspector" onClick={() => setInspectorOpen(true)} className="absolute right-0 top-1/2 hidden h-12 w-6 -translate-y-1/2 items-center justify-center rounded-l-md border border-r-0 border-background-300 bg-background-50 text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 lg:flex"><i className="ri-arrow-left-s-line text-sm" aria-hidden="true" /></button>
         </Tooltip>
-      )}
-
-      {contextMenu && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
-          <div
-            className="fixed z-50 w-44 rounded-md border border-background-300 bg-background-50 py-1 shadow-sm"
-            style={{ left: contextMenu.x, top: contextMenu.y }}
-          >
-            <button
-              onClick={() => { setSelectedSecret(contextMenu.secret); setContextMenu(null); }}
-              className="w-full text-left px-3 py-1.5 text-xs text-foreground-700 hover:bg-background-100 cursor-pointer flex items-center gap-2">
-              <i className="ri-eye-line text-sm" />
-              View secret
-            </button>
-            {connectionPermissions.can_create && (
-              <button
-                onClick={() => handleEditSecret(contextMenu.secret)}
-                className="w-full text-left px-3 py-1.5 text-xs text-foreground-700 hover:bg-background-100 cursor-pointer flex items-center gap-2">
-                <i className="ri-pencil-line text-sm" />
-                Edit
-              </button>
-            )}
-            <button
-              onClick={() => { navigator.clipboard.writeText(contextMenu.secret.path); setContextMenu(null); }}
-              className="w-full text-left px-3 py-1.5 text-xs text-foreground-700 hover:bg-background-100 cursor-pointer flex items-center gap-2">
-              <i className="ri-file-copy-line text-sm" />
-              Copy path
-            </button>
-            <div className="border-t border-background-200 my-1" />
-            {connectionPermissions.can_delete && (
-              <button
-                onClick={() => { onDestroy?.(contextMenu.secret, 'soft-delete'); setContextMenu(null); }}
-                className="w-full text-left px-3 py-1.5 text-xs text-foreground-700 hover:bg-background-100 cursor-pointer flex items-center gap-2">
-                <i className="ri-delete-bin-line text-sm" />
-                Soft-delete
-              </button>
-            )}
-            {connectionPermissions.can_destroy && (
-              <button
-                onClick={() => { onDestroy?.(contextMenu.secret, 'destroy-all'); setContextMenu(null); }}
-                className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 cursor-pointer flex items-center gap-2">
-                <i className="ri-close-circle-line text-sm" />
-                Destroy all
-              </button>
-            )}
-          </div>
-        </>
       )}
     </div>
   );

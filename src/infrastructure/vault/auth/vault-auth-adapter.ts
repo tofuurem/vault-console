@@ -1,13 +1,27 @@
 import type {
   UserpassLogin,
   VaultAuthGateway,
+  VaultCapability,
+  VaultCapabilityMap,
   VaultHealth,
   VaultSession,
 } from '../../../domain/vault/contracts';
 import { VaultError } from '../../../domain/vault/errors';
 import { vaultToken, type VaultToken } from '../../../domain/vault/sensitive-value';
 import { encodeVaultPath, VaultHttpClient } from '../http/vault-http-client';
-import { asBoolean, asNumber, asObject, asString, optionalString } from '../http/validation';
+import { asBoolean, asNumber, asObject, asString, asStringArray, optionalString } from '../http/validation';
+
+const VAULT_CAPABILITIES = new Set<VaultCapability>([
+  'create',
+  'read',
+  'update',
+  'patch',
+  'delete',
+  'list',
+  'sudo',
+  'deny',
+  'root',
+]);
 
 function expiresAtFromDate(value: unknown): number | undefined {
   const date = optionalString(value);
@@ -89,5 +103,30 @@ export class VaultAuthAdapter implements VaultAuthGateway {
       }
       throw error;
     }
+  }
+
+  async getCapabilities(
+    session: VaultSession,
+    paths: readonly string[],
+    signal?: AbortSignal,
+  ): Promise<VaultCapabilityMap> {
+    if (paths.length === 0) return {};
+
+    const response = asObject(
+      await this.client.request(session.serverUrl, 'sys/capabilities-self', {
+        method: 'POST',
+        token: session.token,
+        body: { paths },
+        signal,
+      }),
+    );
+
+    return Object.fromEntries(paths.map((path) => {
+      const capabilities = asStringArray(response[path]);
+      if (capabilities.some((capability) => !VAULT_CAPABILITIES.has(capability as VaultCapability))) {
+        throw new VaultError('invalid-response');
+      }
+      return [path, capabilities as readonly VaultCapability[]];
+    }));
   }
 }

@@ -1,64 +1,18 @@
-import { useState } from 'react';
 import Tooltip from '@/components/base/Tooltip';
-import type { VaultMount, VaultSecret, VaultConnection } from '@/mocks/vault';
-import { getFolderPaths, getChildrenForPath } from '@/mocks/vault';
+import type { KvV2Mount, VaultHealth } from '@/domain/vault/contracts';
 
 interface SidebarProps {
-  collapsed: boolean;
-  onToggleCollapse: () => void;
-  mounts: VaultMount[];
-  connection: VaultConnection;
-  activeMount: string;
-  activePath: string;
-  onMountSelect: (mount: string) => void;
-  onPathSelect: (mount: string, path: string) => void;
-  showAccessControl?: boolean;
-  activeAccessSection?: string;
-  onAccessSectionSelect?: (section: string) => void;
-}
-
-interface TreeNode {
-  name: string;
-  fullPath: string;
-  isFolder: boolean;
-  children: TreeNode[];
-}
-
-function buildTree(mount: string): TreeNode[] {
-  const allFolders = getFolderPaths(mount);
-  const root: { [key: string]: TreeNode } = {};
-
-  allFolders.forEach((folderPath) => {
-    const relative = folderPath.replace(mount, '');
-    if (!relative) return;
-    const parts = relative.split('/').filter(Boolean);
-    let currentPath = mount;
-    let parentKey = '__root__';
-
-    parts.forEach((part, idx) => {
-      currentPath += part + '/';
-      const nodeKey = currentPath;
-      if (!root[nodeKey]) {
-        root[nodeKey] = {
-          name: part + '/',
-          fullPath: currentPath,
-          isFolder: true,
-          children: [],
-        };
-        if (parentKey === '__root__') {
-          if (!root.__root_list) {
-            (root as any).__root_list = [];
-          }
-          (root as any).__root_list.push(root[nodeKey]);
-        } else {
-          root[parentKey].children.push(root[nodeKey]);
-        }
-      }
-      parentKey = nodeKey;
-    });
-  });
-
-  return (root as any).__root_list || [];
+  readonly collapsed: boolean;
+  readonly onToggleCollapse: () => void;
+  readonly mounts: readonly KvV2Mount[];
+  readonly vaultHealth?: VaultHealth;
+  readonly serverUrl?: string;
+  readonly activeMount: string;
+  readonly activePath: string;
+  readonly onMountSelect: (mount: string) => void;
+  readonly showAccessControl?: boolean;
+  readonly activeAccessSection?: string;
+  readonly onAccessSectionSelect?: (section: string) => void;
 }
 
 const accessSections = [
@@ -66,189 +20,118 @@ const accessSections = [
   { key: 'groups', label: 'Groups', icon: 'ri-group-line' },
   { key: 'roles', label: 'Roles', icon: 'ri-shield-check-line' },
   { key: 'policies', label: 'Policy Explorer', icon: 'ri-file-code-line' },
-];
+] as const;
 
 export default function Sidebar({
   collapsed,
   onToggleCollapse,
   mounts,
-  connection,
+  vaultHealth,
+  serverUrl,
   activeMount,
-  activePath,
   onMountSelect,
-  onPathSelect,
   showAccessControl,
   activeAccessSection,
   onAccessSectionSelect,
 }: SidebarProps) {
-  const [expandedMounts, setExpandedMounts] = useState<Set<string>>(new Set(['applications/', 'platform/']));
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-
-  const toggleMount = (name: string) => {
-    setExpandedMounts((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-  };
-
-  const toggleFolder = (path: string) => {
-    setExpandedFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
-  };
-
-  const renderTreeNode = (node: TreeNode, depth: number) => {
-    const isExpanded = expandedFolders.has(node.fullPath);
-    const isActive = activePath === node.fullPath && activeMount === node.fullPath.replace(/\/.*$/, '') + '/';
-    const hasChildren = node.children.length > 0;
-
-    return (
-      <div key={node.fullPath}>
-        <button
-          onClick={() => {
-            if (hasChildren) toggleFolder(node.fullPath);
-            onPathSelect(activeMount, node.fullPath);
-          }}
-          className={`w-full flex items-center gap-1 h-6 text-xs cursor-pointer transition-colors rounded
-            ${isActive ? 'bg-primary-100 text-primary-700' : 'text-foreground-600 hover:bg-background-200 hover:text-foreground-800'}`}
-          style={{ paddingLeft: `${12 + depth * 12}px`, paddingRight: '6px' }}
-        >
-          {hasChildren && (
-            isExpanded
-              ? <i className="ri-arrow-down-s-line text-[10px] text-foreground-400 shrink-0" />
-              : <i className="ri-arrow-right-s-line text-[10px] text-foreground-400 shrink-0" />
-          )}
-          {!hasChildren && <span className="w-2.5 shrink-0" />}
-          <i className="ri-folder-3-line text-xs text-amber-500 shrink-0" />
-          <span className="truncate">{node.name}</span>
-        </button>
-        {isExpanded && hasChildren && (
-          <div>
-            {node.children.map((child) => renderTreeNode(child, depth + 1))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   if (collapsed) {
     return (
-      <div className="w-11 shrink-0 border-r border-background-200 bg-background-100 flex flex-col items-center py-3 gap-1">
+      <aside aria-label="Vault navigation" className="flex w-11 shrink-0 flex-col items-center gap-1 border-r border-background-200 bg-background-100 py-3">
         <Tooltip content="Expand sidebar" position="right">
-          <button onClick={onToggleCollapse} className="w-7 h-7 flex items-center justify-center rounded-md text-foreground-400 hover:text-foreground-700 hover:bg-background-200 cursor-pointer">
-            <i className="ri-layout-right-2-line text-sm" />
+          <button type="button" aria-label="Expand sidebar" onClick={onToggleCollapse} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-200 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+            <i className="ri-layout-right-2-line text-sm" aria-hidden="true" />
           </button>
         </Tooltip>
-        {mounts.map((m) => (
-          <Tooltip key={m.name} content={m.name} position="right">
+        {mounts.map((mount) => (
+          <Tooltip key={mount.path} content={mount.path} position="right">
             <button
-              onClick={() => onMountSelect(m.name)}
-              className={`w-7 h-7 flex items-center justify-center rounded-md cursor-pointer text-xs ${
-                activeMount === m.name ? 'bg-primary-100 text-primary-700' : 'text-foreground-400 hover:bg-background-200'
-              }`}
+              type="button"
+              aria-label={`Open ${mount.path} mount`}
+              onClick={() => onMountSelect(mount.path)}
+              className={`flex h-7 w-7 items-center justify-center rounded-md text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${activeMount === mount.path ? 'bg-primary-100 text-primary-700' : 'text-foreground-400 hover:bg-background-200'}`}
             >
-              <i className="ri-folder-keyhole-line text-sm" />
+              <i className="ri-folder-keyhole-line text-sm" aria-hidden="true" />
             </button>
           </Tooltip>
         ))}
         {showAccessControl && (
           <>
-            <div className="w-6 h-px bg-background-300 my-1" />
-            {accessSections.map((s) => (
-              <Tooltip key={s.key} content={s.label} position="right">
+            <div className="my-1 h-px w-6 bg-background-300" />
+            {accessSections.map((section) => (
+              <Tooltip key={section.key} content={section.label} position="right">
                 <button
-                  onClick={() => onAccessSectionSelect?.(s.key)}
-                  className={`w-7 h-7 flex items-center justify-center rounded-md cursor-pointer text-xs ${
-                    activeAccessSection === s.key ? 'bg-primary-100 text-primary-700' : 'text-foreground-400 hover:bg-background-200'
-                  }`}
+                  type="button"
+                  aria-label={section.label}
+                  onClick={() => onAccessSectionSelect?.(section.key)}
+                  className={`flex h-7 w-7 items-center justify-center rounded-md text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${activeAccessSection === section.key ? 'bg-primary-100 text-primary-700' : 'text-foreground-400 hover:bg-background-200'}`}
                 >
-                  <i className={`${s.icon} text-sm`} />
+                  <i className={`${section.icon} text-sm`} aria-hidden="true" />
                 </button>
               </Tooltip>
             ))}
           </>
         )}
-      </div>
+      </aside>
     );
   }
 
   return (
-    <div className="w-[260px] shrink-0 border-r border-background-200 bg-background-100 flex flex-col">
-      <div className="flex items-center justify-between px-3 h-9 border-b border-background-200">
-        <span className="text-[11px] font-semibold text-foreground-500 uppercase tracking-wider">Secrets</span>
+    <aside aria-label="Vault navigation" className="flex w-[240px] shrink-0 flex-col border-r border-background-200 bg-background-100">
+      <div className="flex h-9 items-center justify-between border-b border-background-200 px-3">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-500">KV v2 mounts</span>
         <Tooltip content="Collapse sidebar" position="right">
-          <button onClick={onToggleCollapse} className="w-5 h-5 flex items-center justify-center rounded text-foreground-400 hover:text-foreground-700 cursor-pointer">
-            <i className="ri-layout-left-2-line text-xs" />
+          <button type="button" aria-label="Collapse sidebar" onClick={onToggleCollapse} className="flex h-5 w-5 items-center justify-center rounded text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+            <i className="ri-layout-left-2-line text-xs" aria-hidden="true" />
           </button>
         </Tooltip>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-1">
-        {mounts
-          .filter((m) => connection.permissions.mounts.includes(m.name))
-          .map((mount) => {
-            const isExpanded = expandedMounts.has(mount.name);
-            const tree = buildTree(mount.name);
-            return (
-              <div key={mount.name}>
-                <button
-                  onClick={() => {
-                    toggleMount(mount.name);
-                    onMountSelect(mount.name);
-                  }}
-                  className={`w-full flex items-center gap-1.5 h-7 text-xs cursor-pointer transition-colors ${
-                    activeMount === mount.name && activePath === mount.name
-                      ? 'bg-primary-100 text-primary-700 font-medium'
-                      : 'text-foreground-700 hover:bg-background-200'
-                  }`}
-                  style={{ paddingLeft: '8px', paddingRight: '8px' }}
-                >
-                  <i className={isExpanded ? 'ri-arrow-down-s-line text-[10px] text-foreground-400 shrink-0' : 'ri-arrow-right-s-line text-[10px] text-foreground-400 shrink-0'} />
-                  <i className="ri-folder-keyhole-line text-xs text-primary-500 shrink-0" />
-                  <span className="font-mono text-xs truncate">{mount.name}</span>
-                </button>
-                {isExpanded && tree.map((node) => renderTreeNode(node, 1))}
-              </div>
-            );
-          })}
+      <nav className="flex-1 overflow-y-auto py-1" aria-label="Secret mounts">
+        {mounts.length === 0 && (
+          <p className="px-3 py-4 text-xs leading-5 text-foreground-400">No visible KV v2 mounts.</p>
+        )}
+        {mounts.map((mount) => (
+          <button
+            key={mount.path}
+            type="button"
+            onClick={() => onMountSelect(mount.path)}
+            className={`flex min-h-8 w-full items-center gap-2 px-3 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 ${activeMount === mount.path ? 'bg-primary-100 font-medium text-primary-700' : 'text-foreground-700 hover:bg-background-200'}`}
+          >
+            <i className="ri-folder-keyhole-line shrink-0 text-sm text-primary-500" aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate font-mono">{mount.path}/</span>
+            <span className="rounded bg-background-200 px-1 py-0.5 font-mono text-[9px] text-foreground-400">v2</span>
+          </button>
+        ))}
 
         {showAccessControl && (
-          <div className="mt-3 pt-3 border-t border-background-200">
-            <div className="px-3 h-6 flex items-center">
-              <span className="text-[11px] font-semibold text-foreground-500 uppercase tracking-wider">Access Control</span>
+          <div className="mt-3 border-t border-background-200 pt-3">
+            <div className="flex h-6 items-center px-3">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-500">Access control</span>
             </div>
             {accessSections.map((section) => (
               <button
                 key={section.key}
+                type="button"
                 onClick={() => onAccessSectionSelect?.(section.key)}
-                className={`w-full flex items-center gap-2 h-7 text-xs cursor-pointer transition-colors ${
-                  activeAccessSection === section.key
-                    ? 'bg-primary-100 text-primary-700 font-medium'
-                    : 'text-foreground-700 hover:bg-background-200'
-                }`}
-                style={{ paddingLeft: '8px', paddingRight: '8px' }}
+                className={`flex h-8 w-full items-center gap-2 px-3 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 ${activeAccessSection === section.key ? 'bg-primary-100 font-medium text-primary-700' : 'text-foreground-700 hover:bg-background-200'}`}
               >
-                <i className={`${section.icon} text-xs shrink-0`} />
+                <i className={`${section.icon} shrink-0 text-xs`} aria-hidden="true" />
                 <span className="truncate">{section.label}</span>
               </button>
             ))}
           </div>
         )}
-      </div>
+      </nav>
 
-      <div className="px-3 py-2 border-t border-background-200 text-[10px] text-foreground-400 space-y-0.5">
-        <div className="flex items-center gap-1">
-          <span className={`w-1.5 h-1.5 rounded-full ${connection.sealed ? 'bg-red-500' : 'bg-emerald-500'}`} />
-          <span>{connection.sealed ? 'Sealed' : 'Unsealed'}</span>
+      <div className="space-y-0.5 border-t border-background-200 px-3 py-2 text-[10px] text-foreground-400">
+        <div className="flex items-center gap-1.5">
+          <span className={`h-1.5 w-1.5 rounded-full ${vaultHealth?.sealed ? 'bg-red-500' : 'bg-emerald-500'}`} />
+          <span>{vaultHealth?.sealed ? 'Sealed' : 'Unsealed'}</span>
+          {vaultHealth?.standby && <span>· standby</span>}
         </div>
-        <div>TLS: {connection.tls_enabled ? 'Enabled' : 'Disabled'}</div>
-        <div className="font-mono">v{connection.vault_version}</div>
+        <div>TLS: {serverUrl?.startsWith('https://') ? 'Enabled' : 'Disabled'}</div>
+        {vaultHealth?.version && <div className="font-mono">v{vaultHealth.version}</div>}
       </div>
-    </div>
+    </aside>
   );
 }

@@ -2,12 +2,14 @@ import { useState, type ChangeEvent } from 'react';
 
 import Button from '@/components/base/Button';
 import { assessPassword } from '@/domain/access-control/password';
+import type { VaultAuthMount } from '@/domain/vault/contracts';
 import { validateAccount, type AccountDraft } from './account';
 
 interface AccountFormProps {
   readonly value: AccountDraft;
   readonly onChange: (next: AccountDraft) => void;
   readonly onRegeneratePassword: () => void;
+  readonly userpassMounts: readonly VaultAuthMount[];
   readonly showErrors?: boolean;
 }
 
@@ -15,12 +17,13 @@ export default function AccountForm({
   value,
   onChange,
   onRegeneratePassword,
+  userpassMounts,
   showErrors = false,
 }: AccountFormProps) {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const validation = showErrors ? validateAccount(value) : {};
   const strength = assessPassword(value.password);
-  const update = (field: keyof AccountDraft) => (event: ChangeEvent<HTMLInputElement>) => {
+  const update = (field: keyof AccountDraft) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const nextValue = field === 'username' ? event.target.value.toLowerCase() : event.target.value;
     onChange({ ...value, [field]: nextValue });
   };
@@ -101,15 +104,19 @@ export default function AccountForm({
             </label>
             <div className="flex max-w-md items-center rounded-md border border-background-300 bg-background-50 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-200">
               <span className="border-r border-background-200 px-2.5 font-mono text-xs text-foreground-400">auth/</span>
-              <input
+              <select
                 id="create-user-mount"
                 value={value.userpassMount}
                 onChange={update('userpassMount')}
-                spellCheck={false}
                 aria-invalid={Boolean(validation.userpassMount)}
                 className="h-9 min-w-0 flex-1 bg-transparent px-2.5 font-mono text-sm text-foreground-900 outline-none"
-              />
+              >
+                {userpassMounts.map((mount) => (
+                  <option key={mount.path} value={mount.path}>{mount.path}</option>
+                ))}
+              </select>
             </div>
+            {userpassMounts.length === 0 && <p className="mt-1 text-[11px] text-amber-700">No enabled userpass auth mount is visible to this token.</p>}
             {validation.userpassMount && <p className="mt-1 text-[11px] text-red-600">{validation.userpassMount}</p>}
           </div>
 

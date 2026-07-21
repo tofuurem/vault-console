@@ -1,177 +1,262 @@
-import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import TopBar from '@/components/feature/TopBar';
+import { useCallback, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+import { useVaultSession } from '@/application/vault/VaultSessionContext';
+import { useKvV2Gateway } from '@/application/vault/KvV2GatewayContext';
+import { kvActionPaths, useKvActionPermissions } from '@/application/vault/useKvActionPermissions';
+import { useKvDirectory, useKvMounts, useKvSecretDetails } from '@/application/vault/useKvExplorerData';
 import Sidebar from '@/components/feature/Sidebar';
-import ExplorerMain from './components/ExplorerMain';
+import TopBar from '@/components/feature/TopBar';
+import type { VaultCapability } from '@/domain/vault/contracts';
+import { normalizeVaultError, VaultError } from '@/domain/vault/errors';
 import CreateSecretDrawer from './components/CreateSecretDrawer';
+import DestructionConfirm, { type KvDestructiveAction } from './components/DestructionConfirm';
 import EditSecretDrawer from './components/EditSecretDrawer';
+import ExplorerMain from './components/ExplorerMain';
 import VersionComparison from './components/VersionComparison';
-import DestructionConfirm from './components/DestructionConfirm';
-import type { VaultSecret } from '@/mocks/vault';
-import { vaultMounts, vaultSecrets, vaultConnection, restrictedConnection } from '@/mocks/vault';
+
+const NO_MOUNTS = [] as const;
 
 export default function ExplorerPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const isRestricted = (location.state as any)?.isRestricted || false;
-
-  const connection = isRestricted ? restrictedConnection : vaultConnection;
+  const vault = useVaultSession();
+  const kvGateway = useKvV2Gateway();
+  const session = vault.session!;
+  const [mountsState, refreshMounts] = useKvMounts(session);
+  const mounts = mountsState.data ?? NO_MOUNTS;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeMount, setActiveMount] = useState('applications/');
-  const [activePath, setActivePath] = useState('applications/');
+  const [activeMount, setActiveMount] = useState('');
+  const [activePath, setActivePath] = useState('');
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-
-  const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
-  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
-  const [editingSecret, setEditingSecret] = useState<VaultSecret | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
-  const [comparingSecret, setComparingSecret] = useState<VaultSecret | null>(null);
-  const [destroyOpen, setDestroyOpen] = useState(false);
-  const [destroyMode, setDestroyMode] = useState<'soft-delete' | 'destroy' | 'destroy-all'>('soft-delete');
-  const [destroySecret, setDestroySecret] = useState<VaultSecret | null>(null);
+  const [destructiveAction, setDestructiveAction] = useState<KvDestructiveAction | null>(null);
+  const [mutationNotice, setMutationNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
+  const [directory, refreshDirectory] = useKvDirectory(session, activeMount, activePath);
+  const [details, refreshDetails] = useKvSecretDetails(session, activeMount, selectedPath);
+  const [permissionsState, refreshPermissions] = useKvActionPermissions(activeMount, selectedPath);
+  const accessNotice = (location.state as { notice?: string } | null)?.notice === 'access-control-denied';
 
-  const handleSignOut = () => {
-    navigate('/login');
+  useEffect(() => {
+    if (!mounts.length) {
+      setActiveMount('');
+      return;
+    }
+    if (!mounts.some((mount) => mount.path === activeMount)) {
+      setActiveMount(mounts[0].path);
+      setActivePath('');
+      setSelectedPath(null);
+    }
+  }, [activeMount, mounts]);
+
+  useEffect(() => {
+    const errors = [
+      mountsState.status === 'error' ? mountsState.error : undefined,
+      directory.status === 'error' ? directory.error : undefined,
+      details.status === 'error' ? details.error : undefined,
+      permissionsState.status === 'error' ? permissionsState.error : undefined,
+    ];
+    if (errors.some((error) => error?.code === 'session-expired')) vault.expireSession();
+  }, [details, directory, mountsState, permissionsState, vault]);
+
+  const selectMount = (mount: string) => {
+    setActiveMount(mount);
+    setActivePath('');
+    setSelectedPath(null);
   };
-
-  const handleAccessSectionSelect = (section: string) => {
-    navigate('/access-control', { state: { isRestricted: false, activeSection: section } });
-  };
-
-  const handleNavigateToFolder = (path: string) => {
+  const navigateFolder = (path: string) => {
     setActivePath(path);
+    setSelectedPath(null);
   };
-
-  const handleNavigateToBreadcrumb = (path: string) => {
-    setActivePath(path);
-    const mountMatch = vaultMounts.find((m) => path.startsWith(m.name));
-    if (mountMatch) setActiveMount(mountMatch.name);
+  const signOut = () => {
+    vault.signOut();
+    navigate('/login', { replace: true });
   };
+  const selectAccessSection = (section: string) => navigate('/access-control', { state: { activeSection: section } });
+  const selectedDetails = details.status === 'success' ? details.data : undefined;
 
-  const handleCreateSecret = () => {
-    setCreateDrawerOpen(true);
+  const ensureCapability = async (path: string, capability: VaultCapability) => {
+    const result = await vault.queryCapabilities([path]);
+    const available = result[path] ?? [];
+    if (available.includes('deny') || (!available.includes('root') && !available.includes(capability))) {
+      throw new VaultError('authorization');
+    }
   };
-
-  const handleCreateSave = (name: string, data: Record<string, string>) => {
-    // In a real app, this would call the Vault API
+  const handleMutationError = (cause: unknown): never => {
+    const error = normalizeVaultError(cause);
+    if (error.code === 'session-expired') vault.expireSession();
+    throw error;
   };
-
-  const handleEditSecret = (secret: VaultSecret) => {
-    setEditingSecret(secret);
-    setEditDrawerOpen(true);
+  const refreshSelected = () => {
+    refreshDirectory();
+    refreshDetails();
+    refreshPermissions();
   };
-
-  const handleEditSave = (secret: VaultSecret, data: Record<string, string>) => {
-    // In a real app, this would call the Vault API
+  const createSecret = async (name: string, data: Readonly<Record<string, unknown>>) => {
+    const path = `${activePath}${name}`;
+    try {
+      await ensureCapability(kvActionPaths(activeMount, path).data, 'create');
+      const version = await kvGateway.writeSecret(session, activeMount, path, data, 0);
+      setSelectedPath(path);
+      refreshDirectory();
+      setMutationNotice({ kind: 'success', message: `Created ${activeMount}/${path} at version ${version}.` });
+    } catch (cause) { handleMutationError(cause); }
   };
-
-  const handleVersionCompare = (secret: VaultSecret) => {
-    setComparingSecret(secret);
-    setCompareOpen(true);
+  const editSecret = async (data: Readonly<Record<string, unknown>>) => {
+    if (!selectedPath || !selectedDetails?.secret) throw new VaultError('invalid-request');
+    try {
+      const path = kvActionPaths(activeMount, selectedPath).data;
+      await ensureCapability(path, 'update');
+      const version = await kvGateway.writeSecret(
+        session,
+        activeMount,
+        selectedPath,
+        data,
+        selectedDetails.secret.metadata.version,
+      );
+      refreshSelected();
+      setMutationNotice({ kind: 'success', message: `Saved version ${version} with check-and-set.` });
+    } catch (cause) { handleMutationError(cause); }
   };
-
-  const handleRestore = (secret: VaultSecret, version: number) => {
-    // In a real app, this would create a new version from the old version
+  const loadVersion = useCallback(async (version: number) => {
+    if (!selectedPath) throw new VaultError('invalid-request');
+    return kvGateway.readSecret(session, activeMount, selectedPath, version);
+  }, [activeMount, kvGateway, selectedPath, session]);
+  const restoreVersion = async (version: number, data: Readonly<Record<string, unknown>>) => {
+    if (!selectedPath || !selectedDetails) throw new VaultError('invalid-request');
+    try {
+      await ensureCapability(kvActionPaths(activeMount, selectedPath).data, 'update');
+      const restoredVersion = await kvGateway.writeSecret(
+        session,
+        activeMount,
+        selectedPath,
+        data,
+        selectedDetails.history.currentVersion,
+      );
+      refreshSelected();
+      setMutationNotice({ kind: 'success', message: `Restored v${version} as new version ${restoredVersion}.` });
+    } catch (cause) { handleMutationError(cause); }
   };
-
-  const handleDestroy = (secret: VaultSecret) => {
-    // In a real app, this would call the Vault API
+  const undeleteVersion = async (version: number) => {
+    if (!selectedPath) return;
+    try {
+      await kvGateway.undeleteVersions(session, activeMount, selectedPath, [version]);
+      refreshSelected();
+      setMutationNotice({ kind: 'success', message: `Undeleted version ${version}.` });
+    } catch (cause) {
+      const error = normalizeVaultError(cause);
+      if (error.code === 'session-expired') vault.expireSession();
+      setMutationNotice({ kind: 'error', message: error.message });
+    }
   };
-
-  const filteredSecrets = vaultSecrets.filter((s) => connection.permissions.mounts.includes(s.mount));
+  const confirmDestructiveAction = async (action: KvDestructiveAction) => {
+    if (!selectedPath) throw new VaultError('invalid-request');
+    try {
+      if (action.kind === 'delete-latest') await kvGateway.deleteLatestVersion(session, activeMount, selectedPath);
+      if (action.kind === 'delete-version') await kvGateway.deleteVersions(session, activeMount, selectedPath, [action.version]);
+      if (action.kind === 'destroy-version') await kvGateway.destroyVersions(session, activeMount, selectedPath, [action.version]);
+      if (action.kind === 'delete-metadata') await kvGateway.deleteMetadata(session, activeMount, selectedPath);
+      setMutationNotice({
+        kind: 'success',
+        message: action.kind === 'delete-metadata' ? `Deleted ${activeMount}/${selectedPath}.` : `Applied ${action.kind} to version ${action.version}.`,
+      });
+      if (action.kind === 'delete-metadata') setSelectedPath(null);
+      else refreshSelected();
+      refreshDirectory();
+    } catch (cause) { handleMutationError(cause); }
+  };
 
   return (
-    <div className="h-full flex flex-col bg-background-50">
-      <TopBar
-        connection={connection}
-        onSignOut={handleSignOut}
-        onCommandPalette={() => setCommandPaletteOpen(true)}
-      />
-
-      {isRestricted && (
-        <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-700">
-          <i className="ri-shield-user-line text-sm shrink-0" />
-          <span>Restricted access — You can only view secrets in mounts allowed by your Vault policy. Edit, create, and delete operations are not available.</span>
+    <div className="flex h-full flex-col bg-background-50">
+      <TopBar session={session} health={vault.health} onSignOut={signOut} onCommandPalette={() => setCommandPaletteOpen(true)} />
+      {accessNotice && (
+        <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-700" role="status">
+          <i className="ri-shield-user-line shrink-0 text-sm" aria-hidden="true" />
+          <span>Your Vault policy does not allow access-control administration.</span>
         </div>
       )}
-
-      <div className="flex-1 flex min-h-0 relative">
+      {mutationNotice && (
+        <div role="status" className={`flex items-center gap-2 border-b px-4 py-1.5 text-xs ${mutationNotice.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+          <i className={mutationNotice.kind === 'success' ? 'ri-check-line' : 'ri-error-warning-line'} aria-hidden="true" />
+          <span>{mutationNotice.message}</span>
+          <button type="button" aria-label="Dismiss notification" onClick={() => setMutationNotice(null)} className="ml-auto"><i className="ri-close-line" aria-hidden="true" /></button>
+        </div>
+      )}
+      <div className="relative flex min-h-0 flex-1">
         <Sidebar
           collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          mounts={vaultMounts}
-          connection={connection}
+          onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
+          mounts={mounts}
+          vaultHealth={vault.health}
+          serverUrl={session.serverUrl}
           activeMount={activeMount}
           activePath={activePath}
-          onMountSelect={(m) => { setActiveMount(m); setActivePath(m); }}
-          onPathSelect={(mount, path) => { setActiveMount(mount); setActivePath(path); }}
-          showAccessControl={!isRestricted}
-          onAccessSectionSelect={handleAccessSectionSelect}
+          onMountSelect={selectMount}
+          showAccessControl={vault.canManageAccess}
+          onAccessSectionSelect={selectAccessSection}
         />
 
-        <ExplorerMain
-          mount={activeMount}
-          currentPath={activePath}
-          mounts={vaultMounts}
-          secrets={filteredSecrets}
-          allSecrets={vaultSecrets}
-          onNavigateToFolder={handleNavigateToFolder}
-          onNavigateToBreadcrumb={handleNavigateToBreadcrumb}
-          onCreateSecret={handleCreateSecret}
-          onEditSecret={handleEditSecret}
-          onVersionCompare={handleVersionCompare}
-          onDestroy={(secret, mode) => { setDestroySecret(secret); setDestroyMode(mode); setDestroyOpen(true); }}
-          connectionPermissions={connection.permissions}
-        />
+        {mountsState.status === 'loading' && !mountsState.data ? (
+          <main className="flex flex-1 items-center justify-center" aria-label="Loading KV v2 mounts"><div className="text-center"><i className="ri-loader-4-line animate-spin text-xl text-primary-500" aria-hidden="true" /><p className="mt-2 text-xs text-foreground-500">Discovering visible KV v2 mounts…</p></div></main>
+        ) : mountsState.status === 'error' && !mountsState.data ? (
+          <main className="flex flex-1 items-center justify-center p-6"><div role="alert" className="max-w-md rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><p className="font-semibold">KV mounts could not be discovered</p><p className="mt-1 text-xs leading-5">{mountsState.error.message}</p><button type="button" onClick={refreshMounts} className="mt-3 text-xs font-medium underline underline-offset-2">Retry</button></div></main>
+        ) : mounts.length === 0 ? (
+          <main className="flex flex-1 items-center justify-center p-6"><div className="max-w-md text-center"><div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-background-200"><i className="ri-folder-shield-2-line text-xl text-foreground-400" aria-hidden="true" /></div><h1 className="text-sm font-semibold text-foreground-800">No visible KV v2 mounts</h1><p className="mt-1 text-xs leading-5 text-foreground-500">Vault only returns mounts available to this token. Ask an administrator for metadata access if a mount is missing.</p></div></main>
+        ) : (
+          <ExplorerMain
+            mount={activeMount}
+            currentPath={activePath}
+            mounts={mounts}
+            directory={directory}
+            selectedPath={selectedPath}
+            details={details}
+            onSelectSecret={setSelectedPath}
+            onNavigateToFolder={navigateFolder}
+            onNavigateToBreadcrumb={navigateFolder}
+            onRefresh={refreshDirectory}
+            onRetrySecret={refreshDetails}
+            onCreateSecret={() => setCreateOpen(true)}
+            onEditSecret={selectedDetails?.secret ? () => setEditOpen(true) : undefined}
+            permissions={permissionsState.data}
+            onCompare={selectedDetails ? () => setCompareOpen(true) : undefined}
+            onDeleteLatest={(version) => setDestructiveAction({ kind: 'delete-latest', version })}
+            onDeleteVersion={(version) => setDestructiveAction({ kind: 'delete-version', version })}
+            onUndelete={(version) => void undeleteVersion(version)}
+            onDestroyVersion={(version) => setDestructiveAction({ kind: 'destroy-version', version })}
+            onDeleteMetadata={(version) => setDestructiveAction({ kind: 'delete-metadata', version })}
+          />
+        )}
       </div>
 
-      <CreateSecretDrawer
-        open={createDrawerOpen}
-        onClose={() => setCreateDrawerOpen(false)}
-        mount={activeMount}
-        currentPath={activePath}
-        onSave={handleCreateSave}
-      />
-
-      <EditSecretDrawer
-        open={editDrawerOpen}
-        onClose={() => { setEditDrawerOpen(false); setEditingSecret(null); }}
-        secret={editingSecret}
-        onSave={handleEditSave}
-      />
-
+      <CreateSecretDrawer open={createOpen} onClose={() => setCreateOpen(false)} mount={activeMount} currentPath={activePath} onSave={createSecret} />
+      <EditSecretDrawer open={editOpen} onClose={() => setEditOpen(false)} secret={selectedDetails?.secret} onSave={editSecret} />
       <VersionComparison
         open={compareOpen}
-        onClose={() => { setCompareOpen(false); setComparingSecret(null); }}
-        secret={comparingSecret}
-        onRestore={handleRestore}
+        onClose={() => setCompareOpen(false)}
+        mount={activeMount}
+        path={selectedPath}
+        history={selectedDetails?.history}
+        currentSecret={selectedDetails?.secret}
+        loadVersion={loadVersion}
+        onRestore={restoreVersion}
       />
-
       <DestructionConfirm
-        open={destroyOpen}
-        onClose={() => { setDestroyOpen(false); setDestroySecret(null); }}
-        secret={destroySecret}
-        mode={destroyMode}
-        onConfirm={handleDestroy}
+        open={Boolean(destructiveAction)}
+        onClose={() => setDestructiveAction(null)}
+        mount={activeMount}
+        path={selectedPath}
+        action={destructiveAction}
+        onConfirm={confirmDestructiveAction}
       />
 
       {commandPaletteOpen && (
         <div className="fixed inset-0 z-[80] flex items-start justify-center pt-[15vh]">
-          <div className="absolute inset-0 bg-black/30 modal-backdrop-enter" onClick={() => setCommandPaletteOpen(false)} />
-          <div className="relative w-[500px] bg-background-50 rounded-lg border border-background-300 overflow-hidden modal-content-enter shadow-sm">
-            <div className="flex items-center gap-2 px-3 h-9 border-b border-background-200">
-              <i className="ri-search-line text-sm text-foreground-400" />
-              <input
-                autoFocus
-                type="text"
-                placeholder="Search secrets, folders, or run commands..."
-                className="flex-1 text-sm bg-transparent border-none outline-none text-foreground-900 placeholder:text-foreground-400"
-              />
-              <span className="text-[10px] text-foreground-400 font-mono px-1.5 py-0.5 rounded bg-background-200">esc</span>
-            </div>
-            <div className="px-2 py-2 text-xs text-foreground-400">
-              Type to search across all mounts
-            </div>
+          <button type="button" aria-label="Close command palette" className="absolute inset-0 bg-black/30" onClick={() => setCommandPaletteOpen(false)} />
+          <div role="dialog" aria-modal="true" aria-label="Command palette" className="relative w-[min(500px,calc(100vw-32px))] overflow-hidden rounded-lg border border-background-300 bg-background-50 shadow-sm">
+            <div className="flex h-9 items-center gap-2 border-b border-background-200 px-3"><i className="ri-terminal-box-line text-sm text-foreground-400" aria-hidden="true" /><span className="text-xs text-foreground-500">Web terminal is planned for a later release.</span></div>
           </div>
         </div>
       )}

@@ -11,6 +11,12 @@ const validAccount: AccountDraft = {
   userpassMount: 'userpass',
   password: 'Abcdefghijk2345!',
 };
+const userpassMounts = [{
+  path: 'userpass',
+  accessor: 'auth_userpass_123',
+  type: 'userpass',
+  description: '',
+}] as const;
 
 describe('validateAccount', () => {
   it('returns field-local errors for invalid account input', () => {
@@ -33,6 +39,7 @@ describe('AccountForm', () => {
         value={{ ...validAccount, username: '' }}
         onChange={onChange}
         onRegeneratePassword={() => undefined}
+        userpassMounts={userpassMounts}
         showErrors
       />,
     );
@@ -46,7 +53,12 @@ describe('AccountForm', () => {
     const user = userEvent.setup();
     const onRegenerate = vi.fn();
     render(
-      <AccountForm value={validAccount} onChange={() => undefined} onRegeneratePassword={onRegenerate} />,
+      <AccountForm
+        value={validAccount}
+        onChange={() => undefined}
+        onRegeneratePassword={onRegenerate}
+        userpassMounts={userpassMounts}
+      />,
     );
 
     expect(screen.getByLabelText(/Initial password/)).toHaveAttribute('type', 'password');

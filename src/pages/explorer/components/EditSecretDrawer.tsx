@@ -1,307 +1,135 @@
-import { useState } from 'react';
-import Drawer from '@/components/base/Drawer';
-import Button from '@/components/base/Button';
-import { Textarea } from '@/components/base/Input';
-import type { VaultSecret } from '@/mocks/vault';
+import { useEffect, useMemo, useState } from 'react';
 
-interface KeyValuePair {
-  id: string;
-  key: string;
-  value: string;
-  originalValue: string;
-  changed: boolean;
-}
+import Button from '@/components/base/Button';
+import Drawer from '@/components/base/Drawer';
+import { Textarea } from '@/components/base/Input';
+import type { KvV2Secret } from '@/domain/vault/contracts';
+import { normalizeVaultError } from '@/domain/vault/errors';
 
 interface EditSecretDrawerProps {
-  open: boolean;
-  onClose: () => void;
-  secret: VaultSecret | null;
-  onSave: (secret: VaultSecret, data: Record<string, string>) => void;
+  readonly open: boolean;
+  readonly onClose: () => void;
+  readonly secret?: KvV2Secret;
+  readonly onSave: (data: Readonly<Record<string, unknown>>) => Promise<void>;
 }
 
-let pairId = 1000;
-function nextId() {
-  pairId += 1;
-  return `edit-${pairId}`;
+interface EditablePair {
+  readonly id: number;
+  readonly key: string;
+  readonly originalValue: unknown;
+  readonly value: string;
+}
+
+let nextEditPairId = 0;
+
+function printable(value: unknown): string {
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value) ?? String(value);
 }
 
 export default function EditSecretDrawer({ open, onClose, secret, onSave }: EditSecretDrawerProps) {
   const [step, setStep] = useState<'edit' | 'review'>('edit');
-  const [pairs, setPairs] = useState<KeyValuePair[]>([]);
-  const [rawJsonMode, setRawJsonMode] = useState(false);
-  const [rawJson, setRawJson] = useState('');
-  const [errors, setErrors] = useState<string[]>([]);
-  const [initialized, setInitialized] = useState(false);
+  const [pairs, setPairs] = useState<EditablePair[]>([]);
+  const [rawMode, setRawMode] = useState(false);
+  const [rawJson, setRawJson] = useState('{}');
+  const [errors, setErrors] = useState<readonly string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
-  if (secret && !initialized) {
-    const cv = secret.versions.find((v) => v.state === 'current') || secret.versions[0];
-    const entries = Object.entries(cv.data || {}).map(([k, v]) => ({
-      id: nextId(),
-      key: k,
-      value: v,
-      originalValue: v,
-      changed: false,
-    }));
-    if (entries.length === 0) {
-      entries.push({ id: nextId(), key: '', value: '', originalValue: '', changed: false });
-    }
-    setPairs(entries);
-    setRawJson(JSON.stringify(cv.data || {}, null, 2));
-    setInitialized(true);
-  }
-
-  const addPair = () => {
-    setPairs([...pairs, { id: nextId(), key: '', value: '', originalValue: '', changed: true }]);
-  };
-
-  const removePair = (id: string) => {
-    if (pairs.length <= 1) return;
-    setPairs(pairs.filter((p) => p.id !== id));
-  };
-
-  const updatePair = (id: string, field: 'key' | 'value', val: string) => {
-    setPairs(pairs.map((p) => {
-      if (p.id !== id) return p;
-      const updated = { ...p, [field]: val };
-      updated.changed = updated.key !== p.originalValue || updated.value !== p.originalValue ||
-        (field === 'key' && updated.key !== p.originalValue) ||
-        (field === 'value' && updated.value !== p.originalValue);
-      return updated;
-    }));
-  };
-
-  const validate = (): boolean => {
-    const errs: string[] = [];
-
-    if (!rawJsonMode) {
-      const filledPairs = pairs.filter((p) => p.key.trim() || p.value.trim());
-      if (filledPairs.length === 0) {
-        errs.push('At least one key/value pair is required');
-      }
-      const keys = filledPairs.filter((p) => p.key.trim()).map((p) => p.key.trim());
-      const dupes = keys.filter((k, i) => keys.indexOf(k) !== i);
-      if (dupes.length > 0) {
-        errs.push(`Duplicate keys: ${dupes.join(', ')}`);
-      }
-    } else {
-      try {
-        JSON.parse(rawJson);
-      } catch {
-        errs.push('Invalid JSON');
-      }
-    }
-
-    setErrors(errs);
-    return errs.length === 0;
-  };
-
-  const getFinalData = (): Record<string, string> => {
-    if (rawJsonMode) return JSON.parse(rawJson);
-    const data: Record<string, string> = {};
-    pairs.filter((p) => p.key.trim()).forEach((p) => { data[p.key.trim()] = p.value; });
-    return data;
-  };
-
-  const getAddedKeys = (): string[] => {
-    if (!secret) return [];
-    const cv = secret.versions.find((v) => v.state === 'current') || secret.versions[0];
-    const oldKeys = Object.keys(cv.data || {});
-    const newKeys = Object.keys(getFinalData());
-    return newKeys.filter((k) => !oldKeys.includes(k));
-  };
-
-  const getChangedKeys = (): string[] => {
-    return pairs.filter((p) => p.changed && p.key.trim() && p.originalValue !== undefined).map((p) => p.key.trim());
-  };
-
-  const getRemovedKeys = (): string[] => {
-    if (!secret) return [];
-    const cv = secret.versions.find((v) => v.state === 'current') || secret.versions[0];
-    const oldKeys = Object.keys(cv.data || {});
-    const newKeys = Object.keys(getFinalData());
-    return oldKeys.filter((k) => !newKeys.includes(k));
-  };
-
-  const handleNext = () => {
-    if (validate()) setStep('review');
-  };
-
-  const handleSave = () => {
-    if (secret) {
-      onSave(secret, getFinalData());
-    }
-    reset();
-    onClose();
-  };
-
-  const reset = () => {
+  useEffect(() => {
+    if (!open || !secret) return;
+    setPairs(Object.entries(secret.data).map(([key, value]) => ({ id: ++nextEditPairId, key, originalValue: value, value: printable(value) })));
+    setRawJson(JSON.stringify(secret.data, null, 2));
     setStep('edit');
-    setPairs([]);
-    setRawJson('');
+    setRawMode(false);
     setErrors([]);
-    setRawJsonMode(false);
-    setInitialized(false);
-  };
+    setSaveError('');
+  }, [open, secret]);
 
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
+  const data = useMemo<Readonly<Record<string, unknown>>>(() => {
+    if (rawMode) {
+      try { return JSON.parse(rawJson) as Record<string, unknown>; } catch { return {}; }
+    }
+    return Object.fromEntries(pairs.filter((pair) => pair.key.trim()).map((pair) => [
+      pair.key.trim(),
+      pair.value === printable(pair.originalValue) ? pair.originalValue : pair.value,
+    ]));
+  }, [pairs, rawJson, rawMode]);
 
   if (!secret) return null;
 
-  const sourceVersion = secret.versions.find((v) => v.state === 'current') || secret.versions[0];
+  const validate = () => {
+    const nextErrors: string[] = [];
+    if (rawMode) {
+      try {
+        const parsed = JSON.parse(rawJson);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) nextErrors.push('Raw JSON must be an object.');
+      } catch { nextErrors.push('Raw JSON is not valid.'); }
+    } else {
+      const keys = pairs.map((pair) => pair.key.trim()).filter(Boolean);
+      if (!keys.length) nextErrors.push('Keep at least one secret key.');
+      if (new Set(keys).size !== keys.length) nextErrors.push('Secret keys must be unique.');
+    }
+    setErrors(nextErrors);
+    return nextErrors.length === 0;
+  };
+  const save = async () => {
+    setSaving(true);
+    setSaveError('');
+    try {
+      await onSave(data);
+      setSaving(false);
+      onClose();
+    } catch (cause) {
+      const error = normalizeVaultError(cause);
+      setSaveError(error.code === 'conflict'
+        ? 'Vault has a newer version. Close this editor, reload the secret, and apply your changes again.'
+        : error.message);
+      setSaving(false);
+    }
+  };
+  const oldKeys = Object.keys(secret.data);
+  const newKeys = Object.keys(data);
+  const added = newKeys.filter((key) => !oldKeys.includes(key));
+  const removed = oldKeys.filter((key) => !newKeys.includes(key));
+  const changed = newKeys.filter((key) => oldKeys.includes(key) && JSON.stringify(secret.data[key]) !== JSON.stringify(data[key]));
 
   return (
-    <Drawer open={open} onClose={handleClose} title="Edit Secret" width="560px">
-      {step === 'edit' && (
-        <div className="p-4 space-y-4">
-          {errors.length > 0 && (
-            <div className="px-3 py-2 rounded-md bg-red-50 border border-red-200 space-y-0.5">
-              {errors.map((e, i) => (
-                <div key={i} className="text-xs text-red-700 flex items-center gap-1.5">
-                  <i className="ri-error-warning-line text-sm shrink-0" />{e}
-                </div>
-              ))}
+    <Drawer open={open} onClose={onClose} title="Edit secret" width="560px">
+      <div className="space-y-4 p-4">
+        {(errors.length > 0 || saveError) && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{errors.map((error) => <p key={error}>{error}</p>)}{saveError && <p>{saveError}</p>}</div>}
+        {step === 'edit' ? (
+          <>
+            <div className="rounded-md border border-background-200 bg-background-100/50 p-3 text-xs">
+              <p className="break-all font-mono text-foreground-800">{secret.mount}/{secret.path}</p>
+              <p className="mt-1 text-[11px] text-foreground-500">Source v{secret.metadata.version} · save creates v{secret.metadata.version + 1}</p>
             </div>
-          )}
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-foreground-500 shrink-0">Path</span>
-              <span className="font-mono text-foreground-800">{secret.path}</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-foreground-500 shrink-0">Source version</span>
-              <span className="font-mono text-foreground-800">v{sourceVersion.version}</span>
-            </div>
-            <p className="text-[11px] text-foreground-400">
-              Saving will create a new version (v{secret.metadata.current_version + 1}). The current version is preserved.
-            </p>
-          </div>
-
-          <div className="border-t border-background-200 pt-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-foreground-700">Key / Value Pairs</span>
-                <button
-                  onClick={() => setRawJsonMode(!rawJsonMode)}
-                  className="text-[10px] px-1.5 py-0.5 rounded border border-background-300 text-foreground-500 hover:text-foreground-700 cursor-pointer"
-                >
-                  {rawJsonMode ? 'Structured' : 'Raw JSON'}
-                </button>
-              </div>
-              {!rawJsonMode && (
-                <button onClick={addPair} className="text-xs text-primary-600 hover:text-primary-700 cursor-pointer flex items-center gap-1">
-                  <i className="ri-add-line text-sm" />Add field
-                </button>
-              )}
-            </div>
-
-            {rawJsonMode ? (
-              <Textarea value={rawJson} onChange={(e) => setRawJson(e.target.value)} rows={10} monospace className="text-xs" />
+              <div className="flex items-center justify-between"><h3 className="text-xs font-semibold text-foreground-700">Secret data</h3><div className="flex gap-3"><button type="button" onClick={() => setRawMode((current) => !current)} className="text-[11px] text-primary-600">{rawMode ? 'Structured fields' : 'Raw JSON'}</button>{!rawMode && <button type="button" onClick={() => setPairs((current) => [...current, { id: ++nextEditPairId, key: '', originalValue: undefined, value: '' }])} className="text-[11px] text-primary-600">+ Add field</button>}</div></div>
+            {rawMode ? (
+              <Textarea aria-label="Secret JSON" value={rawJson} onChange={(event) => setRawJson(event.target.value)} rows={14} monospace className="text-xs" />
             ) : (
               <div className="space-y-1.5">
-                <div className="grid grid-cols-[1fr_1fr_32px] gap-2 text-[11px] font-medium text-foreground-500 px-1">
-                  <span>Key</span><span>Value</span><span />
-                </div>
-                {pairs.map((pair) => (
-                  <div key={pair.id} className={`grid grid-cols-[1fr_1fr_32px] gap-2 ${pair.changed ? 'bg-amber-50/50 rounded -mx-1 px-1 py-0.5' : ''}`}>
-                    <input
-                      type="text"
-                      value={pair.key}
-                      onChange={(e) => updatePair(pair.id, 'key', e.target.value)}
-                      className={`h-8 px-2 text-xs font-mono rounded-md border bg-background-50 focus:outline-none focus:border-primary-400 text-foreground-900 ${pair.changed && pair.key !== pair.originalValue ? 'border-amber-400' : 'border-background-300'}`}
-                    />
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={pair.value}
-                        onChange={(e) => updatePair(pair.id, 'value', e.target.value)}
-                        className={`w-full h-8 px-2 text-xs font-mono rounded-md border bg-background-50 focus:outline-none focus:border-primary-400 text-foreground-900 ${pair.changed ? 'border-amber-400' : 'border-background-300'}`}
-                      />
-                    </div>
-                    <button
-                      onClick={() => removePair(pair.id)}
-                      disabled={pairs.length <= 1}
-                      className="w-8 h-8 flex items-center justify-center rounded-md text-foreground-400 hover:text-red-500 hover:bg-background-100 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      <i className="ri-close-line text-sm" />
-                    </button>
+                {pairs.map((pair, index) => (
+                  <div key={pair.id} className="grid grid-cols-[1fr_1fr_32px] gap-2">
+                    <input aria-label="Secret key" value={pair.key} onChange={(event) => setPairs((current) => current.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, key: event.target.value } : candidate))} className="h-8 rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:outline-none focus:border-primary-400" />
+                    <input aria-label={`Value for ${pair.key || 'new key'}`} value={pair.value} onChange={(event) => setPairs((current) => current.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, value: event.target.value } : candidate))} className="h-8 rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:outline-none focus:border-primary-400" />
+                    <button type="button" aria-label="Remove field" onClick={() => setPairs((current) => current.filter((_, candidateIndex) => candidateIndex !== index))} className="flex h-8 w-8 items-center justify-center rounded-md text-foreground-400 hover:bg-red-50 hover:text-red-600"><i className="ri-close-line" aria-hidden="true" /></button>
                   </div>
                 ))}
               </div>
             )}
-          </div>
-
-          <div className="px-3 py-2 rounded-md bg-amber-50 border border-amber-200">
-            <p className="text-[11px] text-amber-700">
-              Check-and-set: if this secret has been modified since you opened it, saving will fail with a version conflict.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <Button variant="secondary" size="sm" onClick={handleClose}>Cancel</Button>
-            <Button variant="primary" size="sm" onClick={handleNext}>Review changes</Button>
-          </div>
-        </div>
-      )}
-
-      {step === 'review' && (
-        <div className="p-4 space-y-4">
-          <span className="text-[11px] font-semibold text-foreground-500 uppercase tracking-wider">Review Changes</span>
-
-          <div className="space-y-3">
-            <div>
-              <span className="text-xs font-medium text-foreground-700">Target</span>
-              <div className="text-xs font-mono text-foreground-800 mt-0.5">{secret.path} → v{secret.metadata.current_version + 1}</div>
-            </div>
-
-            {getAddedKeys().length > 0 && (
-              <div>
-                <span className="text-xs font-medium text-emerald-700">Keys being added</span>
-                <div className="mt-1 space-y-0.5">
-                  {getAddedKeys().map((k) => (
-                    <div key={k} className="text-xs font-mono text-emerald-700 pl-2 border-l-2 border-emerald-400">+ {k}</div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {getChangedKeys().length > 0 && (
-              <div>
-                <span className="text-xs font-medium text-amber-700">Keys being changed</span>
-                <div className="mt-1 space-y-0.5">
-                  {getChangedKeys().map((k) => (
-                    <div key={k} className="text-xs font-mono text-amber-700 pl-2 border-l-2 border-amber-400">~ {k}</div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {getRemovedKeys().length > 0 && (
-              <div>
-                <span className="text-xs font-medium text-red-700">Keys being removed</span>
-                <div className="mt-1 space-y-0.5">
-                  {getRemovedKeys().map((k) => (
-                    <div key={k} className="text-xs font-mono text-red-700 pl-2 border-l-2 border-red-400">- {k}</div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between pt-2">
-            <Button variant="secondary" size="sm" onClick={() => setStep('edit')}>
-              <i className="ri-arrow-left-line" />Back to edit
-            </Button>
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={handleClose}>Cancel</Button>
-              <Button variant="primary" size="sm" onClick={handleSave}>Save version {secret.metadata.current_version + 1}</Button>
-            </div>
-          </div>
-        </div>
-      )}
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-800">Check-and-set is fixed to version {secret.metadata.version}. A concurrent update will fail instead of being overwritten.</div>
+            <div className="flex justify-end gap-2"><Button size="sm" onClick={onClose}>Cancel</Button><Button size="sm" variant="primary" onClick={() => { if (validate()) setStep('review'); }}>Review changes</Button></div>
+          </>
+        ) : (
+          <>
+            <div><p className="font-mono text-[9px] font-semibold uppercase tracking-[0.15em] text-primary-600">CAS {secret.metadata.version}</p><h3 className="mt-1 text-sm font-semibold text-foreground-900">Create version {secret.metadata.version + 1}</h3></div>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs"><div className="rounded bg-emerald-50 p-2 text-emerald-700"><strong className="block font-mono text-base">{added.length}</strong>added</div><div className="rounded bg-amber-50 p-2 text-amber-700"><strong className="block font-mono text-base">{changed.length}</strong>changed</div><div className="rounded bg-red-50 p-2 text-red-700"><strong className="block font-mono text-base">{removed.length}</strong>removed</div></div>
+            <p className="text-[11px] leading-5 text-foreground-500">Secret values stay hidden in this review. Vault preserves the previous version.</p>
+            <div className="flex justify-between"><Button size="sm" onClick={() => setStep('edit')} disabled={saving}>Back</Button><div className="flex gap-2"><Button size="sm" onClick={onClose} disabled={saving}>Cancel</Button><Button size="sm" variant="primary" onClick={() => void save()} loading={saving}>Save version {secret.metadata.version + 1}</Button></div></div>
+          </>
+        )}
+      </div>
     </Drawer>
   );
 }
