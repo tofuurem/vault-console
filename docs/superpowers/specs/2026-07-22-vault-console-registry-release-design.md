@@ -1,7 +1,7 @@
 # Vault Console registry release design
 
 Date: 2026-07-22
-Status: approved for specification review
+Status: published
 
 ## Goal
 
@@ -77,3 +77,14 @@ vault-console:
 
 `latest` is available for convenience, but production Compose should remain
 pinned to `0.1.0` until the next explicitly selected release.
+
+## Release result
+
+Published on 2026-07-22 from source revision
+`6e40f453a8f579750f9d76149cd08b7411915f03`.
+
+- OCI index: `sha256:d162ba90ac181c58415271b54785929211445e5908fe3ff4981f8db29a196520`
+- `linux/amd64`: `sha256:1ea4984dc5c4beeb8a07120c09fb518c159f44684728e8f2b02af1593b0dfb3b`
+- `linux/arm64`: `sha256:46bbb67c7b1a6fa0659b478e75586fee0ac429b1caf6eb62ecf079517054f8d6`
+- Tags: `0.1.0` and `latest` resolve to the same OCI index.
+- Pull and runtime smoke checks passed for `0.1.0`.
