@@ -12,7 +12,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:vault": "./scripts/test-vault.sh",
-    "test:e2e": "playwright test",
+    "test:e2e": "./scripts/test-compose-e2e.sh",
+    "test:e2e:playwright": "playwright test",
     "quality": "npm run type-check && npm run lint && npm run test:run"
   },
   "dependencies": {

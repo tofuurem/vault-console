@@ -1,17 +1,18 @@
 import { expect, test } from '@playwright/test';
 
-import { mockVaultApi } from './vault-api';
+const vaultToken = process.env.E2E_VAULT_TOKEN;
+
+test.skip(!vaultToken, 'E2E_VAULT_TOKEN is supplied by the disposable real-Vault harness.');
 
 async function login(page: import('@playwright/test').Page) {
   await page.goto('/login');
-  await page.getByLabel('Vault server').fill('http://vault.test:8200');
-  await page.getByLabel('Vault token').fill('hvs.browser-fixture');
+  await expect(page.getByLabel('Vault server')).toHaveValue(new URL(page.url()).origin);
+  await page.getByLabel('Vault token').fill(vaultToken!);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();
 }
 
-test('browses KV v2 and safely resumes a partial create-user transaction', async ({ page }) => {
-  const state = await mockVaultApi(page, { failAliasOnce: true });
+test('browses KV v2 and creates an identity-backed user in real Vault', async ({ page }) => {
   await login(page);
 
   await page.getByText('shared', { exact: true }).first().click();
@@ -19,23 +20,26 @@ test('browses KV v2 and safely resumes a partial create-user transaction', async
   await page.getByRole('button', { name: 'Users' }).click();
   await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
   await page.getByRole('button', { name: /Create user/ }).click();
-  await page.getByLabel(/Username/).fill('bob');
-  await page.getByLabel(/Display name/).fill('Bob');
+  await page.getByLabel(/Username/).fill('e2e-user');
+  await page.getByLabel(/Display name/).fill('E2E User');
   await page.getByRole('button', { name: /Continue to access/ }).click();
   await page.getByRole('checkbox', { name: /platform-team/i }).click();
   await expect(page.getByTestId('effective-level-applications:')).toContainText('View');
   await page.getByRole('button', { name: /Review & create/ }).click();
   await page.getByRole('button', { name: 'Create user' }).click();
 
-  await expect(page.getByText('The user was not fully created')).toBeVisible();
-  await page.getByRole('button', { name: /Retry from safe point/ }).click();
   await expect(page.getByText('User created successfully')).toBeVisible();
-  expect(state).toEqual({ accountCreates: 1, entityCreates: 1, aliasAttempts: 2, groupUpdates: 1 });
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByText('e2e-user', { exact: true })).toBeVisible();
+
+  const account = await page.request.get('/v1/auth/userpass/users/e2e-user', {
+    headers: { 'X-Vault-Token': vaultToken! },
+  });
+  expect(account.ok()).toBe(true);
 });
 
 test('keeps navigation and the secret inspector usable on a narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 600, height: 800 });
-  await mockVaultApi(page);
   await login(page);
 
   await expect(page.getByRole('complementary', { name: 'Vault navigation' })).toHaveCSS('width', '44px');

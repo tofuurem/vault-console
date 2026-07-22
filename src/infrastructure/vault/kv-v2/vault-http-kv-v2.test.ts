@@ -25,23 +25,26 @@ describe('VaultKvV2Adapter', () => {
     const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(
       jsonResponse({
         data: {
-          'secret/': {
-            type: 'kv',
-            accessor: 'kv_123',
-            description: 'Application secrets',
-            options: { version: '2' },
-          },
-          'legacy/': {
-            type: 'kv',
-            accessor: 'kv_456',
-            description: '',
-            options: { version: '1' },
-          },
-          'transit/': {
-            type: 'transit',
-            accessor: 'transit_123',
-            description: '',
-            options: null,
+          auth: {},
+          secret: {
+            'secret/': {
+              type: 'kv',
+              accessor: 'kv_123',
+              description: 'Application secrets',
+              options: { version: '2' },
+            },
+            'legacy/': {
+              type: 'kv',
+              accessor: 'kv_456',
+              description: '',
+              options: { version: '1' },
+            },
+            'transit/': {
+              type: 'transit',
+              accessor: 'transit_123',
+              description: '',
+              options: null,
+            },
           },
         },
       }),

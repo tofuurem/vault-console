@@ -2,22 +2,22 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { resolveAccessSelection, resolveEffectiveKvTree } from '@/domain/access-control/effective-access';
-import { mockCreateUserAccessCatalog } from '@/mocks/vault-access-catalog';
+import { createUserAccessCatalogFixture } from '@/test/fixtures/create-user-access-catalog';
 import AccessSummary from './AccessSummary';
 
 describe('AccessSummary', () => {
   it('summarizes selected groups, inherited roles, and effective paths', () => {
     const selection = resolveAccessSelection({
-      ...mockCreateUserAccessCatalog,
+      ...createUserAccessCatalogFixture,
       selectedGroupIds: ['platform-team'],
       directRoleIds: [],
       directRules: [],
     });
-    const tree = resolveEffectiveKvTree(mockCreateUserAccessCatalog.tree, selection.rules);
+    const tree = resolveEffectiveKvTree(createUserAccessCatalogFixture.tree, selection.rules);
     render(
       <AccessSummary
-        groups={mockCreateUserAccessCatalog.groups}
-        roles={mockCreateUserAccessCatalog.roles}
+        groups={createUserAccessCatalogFixture.groups}
+        roles={createUserAccessCatalogFixture.roles}
         selection={selection}
         effectiveTree={tree}
         directRules={[]}

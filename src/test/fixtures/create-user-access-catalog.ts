@@ -4,7 +4,7 @@ import type { KvPermissionLevel } from '@/domain/access-control/permission-prese
 import type { PolicySource } from '@/domain/access-control/types';
 import type { CreateUserAccessCatalog } from '@/pages/access-control/components/create-user/access';
 
-const source: PolicySource = { kind: 'policy', id: 'mock-catalog', label: 'Mock catalog' };
+const source: PolicySource = { kind: 'policy', id: 'fixture-catalog', label: 'Test fixture' };
 
 function policyRules(
   rules: readonly {
@@ -85,7 +85,7 @@ const platformTree: KvAccessTreeNode = {
   ],
 };
 
-export const mockCreateUserAccessCatalog: CreateUserAccessCatalog = {
+export const createUserAccessCatalogFixture: CreateUserAccessCatalog = {
   groups: [
     { id: 'platform-team', name: 'platform-team', roleIds: ['platform-readers'], policyNames: [] },
     { id: 'billing-team', name: 'billing-team', roleIds: ['billing-editors'], policyNames: [] },

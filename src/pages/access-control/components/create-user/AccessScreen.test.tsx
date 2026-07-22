@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import { mockCreateUserAccessCatalog } from '@/mocks/vault-access-catalog';
+import { createUserAccessCatalogFixture } from '@/test/fixtures/create-user-access-catalog';
 import AccessScreen from './AccessScreen';
 import type { AccessDraft } from './access';
 
@@ -11,7 +11,7 @@ const emptyAccess: AccessDraft = { selectedGroupIds: [], directRoleIds: [], dire
 
 function Harness() {
   const [access, setAccess] = useState(emptyAccess);
-  return <AccessScreen username="alice" catalog={mockCreateUserAccessCatalog} value={access} onChange={setAccess} />;
+  return <AccessScreen username="alice" catalog={createUserAccessCatalogFixture} value={access} onChange={setAccess} />;
 }
 
 describe('AccessScreen', () => {

@@ -57,8 +57,9 @@ export class VaultKvV2Adapter implements KvV2Gateway {
       }),
     );
     const data = asObject(response.data);
+    const mounts = data.secret === undefined ? data : asObject(data.secret);
 
-    return Object.entries(data).flatMap(([path, value]) => {
+    return Object.entries(mounts).flatMap(([path, value]) => {
       const mount = asObject(value);
       const options = mount.options === null || mount.options === undefined ? {} : asObject(mount.options);
       if (mount.type !== 'kv' || options.version !== '2') return [];

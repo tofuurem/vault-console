@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { mockCreateUserAccessCatalog } from '@/mocks/vault-access-catalog';
+import { createUserAccessCatalogFixture } from '@/test/fixtures/create-user-access-catalog';
 import AccessSourcePicker from './AccessSourcePicker';
 
 describe('AccessSourcePicker', () => {
@@ -11,8 +11,8 @@ describe('AccessSourcePicker', () => {
     const onToggleGroup = vi.fn();
     render(
       <AccessSourcePicker
-        groups={mockCreateUserAccessCatalog.groups}
-        roles={mockCreateUserAccessCatalog.roles}
+        groups={createUserAccessCatalogFixture.groups}
+        roles={createUserAccessCatalogFixture.roles}
         selectedGroupIds={['platform-team']}
         directRoleIds={[]}
         inheritedRoleIds={['platform-readers']}

@@ -6,12 +6,12 @@ import type { AccessControlSnapshot } from '@/application/vault/useAccessControl
 import type { VaultAccessControlGateway, VaultSession } from '@/domain/vault/contracts';
 import { vaultToken } from '@/domain/vault/sensitive-value';
 import CreateUserWizard from '../CreateUserWizard';
-import { mockCreateUserAccessCatalog } from '@/mocks/vault-access-catalog';
+import { createUserAccessCatalogFixture } from '@/test/fixtures/create-user-access-catalog';
 
 const snapshot = {
   authMounts: [],
   userpassMounts: [{ path: 'userpass', accessor: 'auth_userpass_123', type: 'userpass', description: '' }],
-  groups: mockCreateUserAccessCatalog.groups.map((group) => ({
+  groups: createUserAccessCatalogFixture.groups.map((group) => ({
     id: group.id,
     name: group.name,
     policies: group.roleIds,
@@ -36,7 +36,7 @@ describe('CreateUserWizard', () => {
     const user = userEvent.setup();
     render(
       <CreateUserWizard
-        catalog={mockCreateUserAccessCatalog}
+        catalog={createUserAccessCatalogFixture}
         snapshot={snapshot}
         gateway={gateway}
         session={session}
