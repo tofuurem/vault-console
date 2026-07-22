@@ -1,0 +1,3 @@
+vault-console.example.com {
+    reverse_proxy vault-console:8080
+}

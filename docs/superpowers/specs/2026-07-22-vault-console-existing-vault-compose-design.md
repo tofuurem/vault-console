@@ -1,7 +1,7 @@
 # Vault Console: existing Vault Compose deployment design
 
 Date: 2026-07-22
-Status: approved for specification review
+Status: implemented
 
 ## Goal
 

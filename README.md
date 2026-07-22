@@ -21,12 +21,11 @@
 Требования: Node.js 22+ и npm.
 
 ```bash
-cp .env.example .env.local
 npm ci
-npm run dev
+VITE_VAULT_ADDR=http://127.0.0.1:8200 npm run dev
 ```
 
-Откройте `http://localhost:3000`. `VITE_VAULT_ADDR` задаёт только начальный адрес в форме; его можно изменить перед входом. Это публичная build-time настройка, а не место для token.
+Откройте `http://localhost:3000`. Для local development `VITE_VAULT_ADDR` задаёт начальный адрес реального Vault в форме; его можно изменить перед входом. Если переменная не задана, UI использует собственный origin — это режим production proxy. Token и пароль никогда не размещайте в `.env.local`.
 
 Production build:
 
@@ -36,31 +35,81 @@ npm run build
 npm run preview
 ```
 
-Для развёртывания под `/console/` задайте `BASE_PATH=/console/` до сборки. Все шрифты и иконки входят в build; внешние CDN приложению не нужны.
+Все шрифты и иконки входят в build; внешние CDN приложению не нужны.
 
-## Docker
+## Production Compose с существующим Vault
 
-Standalone image (для отдельного origin):
+`compose.yml` запускает только Vault Console. Он не создаёт, не перезапускает и не удаляет Vault или сеть. Оба контейнера должны находиться в существующей external network `caddy_net`.
+
+Проверьте сеть и подключение Vault:
 
 ```bash
-docker build \
-  --build-arg VITE_VAULT_ADDR=https://vault.example.com \
-  -t vault-console:local .
-docker run --rm -p 8080:8080 vault-console:local
+docker network inspect caddy_net
+docker network connect caddy_net vault  # только если Vault ещё не подключён
 ```
 
-Контейнер обслуживает SPA на порту `8080`. Конфигурация находится в `deploy/nginx.spa.conf`.
+Скопируйте настройки и укажите внутреннее имя контейнера Vault:
 
-## Рекомендуемая схема: один origin
+```bash
+cp .env.example .env
+```
 
-Безопаснее и проще обслуживать UI и `/v1/` Vault через один TLS hostname:
+```dotenv
+VAULT_DOCKER_NETWORK=caddy_net
+VAULT_UPSTREAM=http://vault:8200
+VAULT_CONSOLE_BIND=127.0.0.1
+VAULT_CONSOLE_PORT=8080
+```
+
+`VAULT_UPSTREAM` должен быть доступен из `caddy_net`; не добавляйте к нему `/v1` или завершающий `/`. В `.env` не должно быть Vault token, паролей, unseal или recovery keys.
+
+Соберите и запустите UI:
+
+```bash
+docker compose config
+docker compose up -d --build
+docker compose ps
+curl --fail http://127.0.0.1:8080/healthz
+curl --fail http://127.0.0.1:8080/v1/sys/health
+```
+
+Контейнер обслуживает SPA на `8080`, а Nginx проксирует `/v1/*` в `VAULT_UPSTREAM`. Адрес upstream подставляется при старте контейнера, поэтому после его изменения достаточно выполнить:
+
+```bash
+docker compose up -d --force-recreate
+```
+
+Остановка UI не затрагивает Vault и external network:
+
+```bash
+docker compose down
+```
+
+### Caddy
+
+Если существующий Caddy также подключён к `caddy_net`, он может обращаться к сервису по Docker DNS имени `vault-console`. Минимальный пример находится в `deploy/Caddyfile.example`:
+
+```caddyfile
+vault-console.example.com {
+    reverse_proxy vault-console:8080
+}
+```
+
+В этой схеме браузер видит один TLS origin:
+
 
 ```text
-browser ── https://vault.example.com/     ──> static Vault Console
-        └─ https://vault.example.com/v1/ ──> Vault :8200
+browser ── https://vault-console.example.com/     ──> Caddy ──> Vault Console
+        └─ https://vault-console.example.com/v1/ ──> Caddy ──> Vault Console ──> Vault
 ```
 
-Пример — `deploy/nginx.same-origin.conf.example`. Reverse proxy не должен подставлять или логировать `X-Vault-Token`; этот header приходит только от браузера и проверяется самим Vault. Для production используйте доверенный TLS certificate и обычные правила защиты/редакции access logs вашей инфраструктуры.
+Caddy и Nginx не подставляют `X-Vault-Token`: он приходит из памяти вкладки браузера и проверяется самим Vault.
+
+### TLS до Vault и private CA
+
+Для `VAULT_UPSTREAM=https://...` Nginx проверяет сертификат и SNI. Имя в URL должно присутствовать в сертификате и разрешаться внутри `caddy_net`. Для внутреннего CA положите только публичный PEM certificate с расширением `.crt` в `deploy/ca-certificates/`, затем пересоздайте контейнер. Каталог монтируется read-only, а `*.crt` исключены из Git и Docker build context.
+
+Отключение проверки upstream TLS намеренно не поддерживается. Если внутри Docker network используется HTTP, TLS должен завершаться на доверенном внешнем proxy в соответствии с вашей моделью угроз.
 
 ## Отдельный origin и CORS
 
@@ -73,7 +122,7 @@ vault read sys/config/cors
 
 Vault уже разрешает стандартные `X-Vault-Token`, `Authorization` и content headers; дополнительные headers добавляйте только при реальной необходимости. Не используйте `*` для production. Официальный контракт: [Vault CORS API](https://developer.hashicorp.com/vault/api-docs/system/config-cors).
 
-Если браузер показывает `Vault could not be reached`, сначала проверьте TLS trust, затем CORS и доступность `/v1/sys/health` из браузерной сети.
+Если браузер показывает `Vault could not be reached`, для Compose-схемы сначала проверьте `docker compose logs`, Docker DNS имени из `VAULT_UPSTREAM`, seal status и CA trust. CORS относится только к прямому отдельному origin.
 
 ## Vault prerequisites
 
@@ -105,11 +154,11 @@ vault policy write vault-console-admin deploy/vault-console-admin-policy.hcl.exa
 ```bash
 npm run quality       # TypeScript, ESLint, Vitest
 npm run build         # production bundle
-npm run test:e2e      # Chromium: login, KV, create user, retry, narrow layout
+npm run test:e2e      # production Compose + disposable real Vault + Chromium
 npm run test:vault    # disposable Vault Community container
 ```
 
-`npm run test:vault` требует Docker. Скрипт генерирует временный root token, не печатает его, поднимает отдельный Vault dev container, проверяет создание identity-backed пользователя и allowed/denied KV paths, затем останавливает контейнер.
+Обе интеграционные команды требуют Docker и используют временный root token, который не печатается. `test:vault` проверяет API adapters и allowed/denied KV paths. `test:e2e` создаёт временную external network, поднимает отдельно управляемый disposable Vault, запускает production `compose.yml`, проверяет token login, KV v2, создание identity-backed `userpass`-пользователя и narrow layout, затем удаляет только созданные тестом контейнеры, сеть и UI image.
 
 Перед первым E2E-запуском при необходимости установите браузер:
 
