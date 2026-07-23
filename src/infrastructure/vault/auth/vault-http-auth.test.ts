@@ -53,6 +53,22 @@ describe('VaultAuthAdapter', () => {
     expect(new Headers(fetchRequest.mock.calls[0][1]?.headers).get('X-Vault-Token')).toBe('hvs.token');
   });
 
+  it('opens a degraded token session when lookup-self is forbidden', async () => {
+    const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(
+      jsonResponse({ errors: ['permission denied'] }, 403),
+    );
+    const gateway = new VaultAuthAdapter(new VaultHttpClient(fetchRequest));
+    const token = vaultToken('hvs.least-privilege');
+
+    await expect(
+      gateway.validateToken('https://vault.example.test', token),
+    ).resolves.toEqual({
+      serverUrl: 'https://vault.example.test',
+      token,
+      authMethod: 'token',
+    });
+  });
+
   it('logs in through a custom userpass mount and encodes the username', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-21T12:00:00Z'));

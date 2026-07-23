@@ -7,11 +7,22 @@ test.skip(!vaultToken, 'E2E_VAULT_TOKEN is supplied by the disposable real-Vault
 
 async function login(page: import('@playwright/test').Page, token = vaultToken) {
   await page.goto('/login');
-  await expect(page.getByLabel('Vault server')).toHaveValue(new URL(page.url()).origin);
+  await expect(page.getByLabel('Vault server')).toHaveCount(0);
+  await expect(page.getByText('Vault is ready')).toBeVisible();
   await page.getByLabel('Vault token').fill(token!);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();
 }
+
+test('restores the authenticated route after a full page reload', async ({ page }) => {
+  await login(page);
+
+  await page.reload();
+
+  await expect(page).toHaveURL(/\/explorer$/);
+  await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Vault Console' })).toHaveCount(0);
+});
 
 test('reads secret data when metadata history is denied', async ({ page }) => {
   test.skip(!limitedVaultToken, 'E2E_LIMITED_VAULT_TOKEN is supplied by the disposable real-Vault harness.');

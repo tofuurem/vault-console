@@ -23,6 +23,7 @@ services:
     environment:
       VAULT_UPSTREAM: http://vault:8200
       NGINX_ENVSUBST_FILTER: VAULT_UPSTREAM
+      VAULT_UI_USERPASS_MOUNT: userpass
     ports:
       - "127.0.0.1:8080:8080"
     healthcheck:
@@ -41,6 +42,19 @@ networks:
 
 `VAULT_UPSTREAM` — внутренний URL Vault, доступный из контейнера UI. Не добавляйте к нему `/v1` или завершающий `/`. В примере имя сервиса Vault — `vault`.
 
+Адрес Vault и стандартный auth mount скрыты на форме входа: их уже задаёт
+deployment. Для редких конфигураций можно разрешить секцию Advanced:
+
+```yaml
+environment:
+  VAULT_UI_ALLOW_CUSTOM_ADDRESS: "true"
+  VAULT_UI_USERPASS_MOUNT: team/userpass
+  VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT: "true"
+```
+
+Эти параметры не содержат credentials. Token, username и password нельзя
+передавать через environment.
+
 Запустите и проверьте сервис:
 
 ```bash
@@ -51,7 +65,10 @@ curl --fail http://127.0.0.1:8080/healthz
 curl --fail http://127.0.0.1:8080/v1/sys/health
 ```
 
-Маршрут `/v1/*` проксируется в Vault. Nginx не подставляет `X-Vault-Token`: браузер отправляет token из памяти текущей вкладки, а права проверяет Vault.
+Маршрут `/v1/*` проксируется в Vault. Nginx не подставляет `X-Vault-Token`:
+браузер отправляет token из `sessionStorage` текущей вкладки, а права проверяет
+Vault. Token удаляется при logout или окончании известного lease; пароль
+`userpass` не сохраняется.
 
 ### Запуск через Compose из репозитория
 
@@ -64,6 +81,9 @@ cp .env.example .env
 ```dotenv
 VAULT_DOCKER_NETWORK=caddy_net
 VAULT_UPSTREAM=http://vault:8200
+VAULT_UI_ALLOW_CUSTOM_ADDRESS=false
+VAULT_UI_USERPASS_MOUNT=userpass
+VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT=false
 VAULT_CONSOLE_BIND=127.0.0.1
 VAULT_CONSOLE_PORT=8080
 VAULT_CONSOLE_IMAGE=zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.1

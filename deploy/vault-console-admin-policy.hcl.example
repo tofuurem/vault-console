@@ -9,6 +9,9 @@ path "sys/capabilities-self" {
   capabilities = ["update"]
 }
 
+# Optional but recommended: without this path the UI remains usable and lets
+# each Vault API call decide, but it cannot disable forbidden actions in advance.
+
 path "sys/auth" {
   capabilities = ["read", "sudo"]
 }

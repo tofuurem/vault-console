@@ -1,13 +1,23 @@
 import { createContext, useContext } from 'react';
 
 import type {
+  VaultCapability,
   VaultCapabilityMap,
   VaultHealth,
   VaultSession,
 } from '@/domain/vault/contracts';
 import type { VaultError } from '@/domain/vault/errors';
+import type {
+  CapabilityDiscoveryState,
+  PermissionDecision,
+} from './capability-permissions';
 
-export type VaultSessionStatus = 'anonymous' | 'authenticating' | 'authenticated' | 'expired';
+export type VaultSessionStatus =
+  | 'anonymous'
+  | 'restoring'
+  | 'authenticating'
+  | 'authenticated'
+  | 'expired';
 
 export interface UserpassCredentials {
   readonly serverUrl: string;
@@ -21,10 +31,16 @@ export interface VaultSessionContextValue {
   readonly session?: VaultSession;
   readonly health?: VaultHealth;
   readonly capabilities: VaultCapabilityMap;
-  readonly canManageAccess: boolean;
+  readonly capabilityDiscovery: CapabilityDiscoveryState;
+  readonly accessControlPermission: PermissionDecision;
+  readonly sessionPersistenceAvailable: boolean;
   readonly error?: VaultError;
   checkHealth(serverUrl: string, signal?: AbortSignal): Promise<VaultHealth>;
   queryCapabilities(paths: readonly string[], signal?: AbortSignal): Promise<VaultCapabilityMap>;
+  permissionFor(
+    path: string,
+    required: VaultCapability | readonly VaultCapability[],
+  ): PermissionDecision;
   signInWithToken(serverUrl: string, rawToken: string, signal?: AbortSignal): Promise<void>;
   signInWithUserpass(credentials: UserpassCredentials, signal?: AbortSignal): Promise<void>;
   expireSession(): void;

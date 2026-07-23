@@ -211,7 +211,7 @@ export default function ExplorerPage() {
           activeMount={activeMount}
           activePath={activePath}
           onMountSelect={selectMount}
-          showAccessControl={vault.canManageAccess}
+          showAccessControl={vault.accessControlPermission.state !== 'denied'}
           onAccessSectionSelect={selectAccessSection}
         />
 

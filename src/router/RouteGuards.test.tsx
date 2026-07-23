@@ -13,9 +13,15 @@ function context(overrides: Partial<VaultSessionContextValue> = {}): VaultSessio
   return {
     status: 'anonymous',
     capabilities: {},
-    canManageAccess: false,
+    capabilityDiscovery: 'idle',
+    accessControlPermission: {
+      state: 'denied',
+      reason: 'Vault policy does not allow access-control discovery.',
+    },
+    sessionPersistenceAvailable: true,
     checkHealth: vi.fn(),
     queryCapabilities: vi.fn(),
+    permissionFor: vi.fn(() => ({ state: 'unknown' as const, reason: 'Not queried.' })),
     signInWithToken: vi.fn(),
     signInWithUserpass: vi.fn(),
     expireSession: vi.fn(),
@@ -42,6 +48,12 @@ function GuardHarness({ value, accessControl = false }: { value: VaultSessionCon
 }
 
 describe('RouteGuards', () => {
+  it('waits for a persisted session to finish restoring', () => {
+    render(<GuardHarness value={context({ status: 'restoring' })} />);
+    expect(screen.getByText('Restoring Vault session…')).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Login route' })).not.toBeInTheDocument();
+  });
+
   it('redirects anonymous sessions to login', () => {
     render(<GuardHarness value={context()} />);
     expect(screen.getByRole('heading', { name: 'Login route' })).toBeVisible();
@@ -70,10 +82,33 @@ describe('RouteGuards', () => {
         accessControl
         value={context({
           status: 'authenticated',
-          canManageAccess: true,
+          capabilityDiscovery: 'ready',
+          accessControlPermission: { state: 'allowed' },
           session: {
             serverUrl: 'https://vault.example.test',
             token: vaultToken('hvs.admin'),
+            authMethod: 'token',
+          },
+        })}
+      />,
+    );
+    expect(screen.getByRole('heading', { name: 'Protected route' })).toBeVisible();
+  });
+
+  it('lets Vault resource requests decide when capability discovery is unavailable', () => {
+    render(
+      <GuardHarness
+        accessControl
+        value={context({
+          status: 'authenticated',
+          capabilityDiscovery: 'unavailable',
+          accessControlPermission: {
+            state: 'unknown',
+            reason: 'Vault capability discovery is unavailable for this token.',
+          },
+          session: {
+            serverUrl: 'https://vault.example.test',
+            token: vaultToken('hvs.unknown'),
             authMethod: 'token',
           },
         })}

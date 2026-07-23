@@ -127,7 +127,7 @@ path "applications/metadata/*" {
 }
 HCL
 
-limited_token="$(vault_exec token create -policy=e2e-data-only -ttl=10m -field=token)"
+limited_token="$(vault_exec token create -no-default-policy -policy=e2e-data-only -ttl=10m -field=token)"
 
 docker compose up --detach --build
 

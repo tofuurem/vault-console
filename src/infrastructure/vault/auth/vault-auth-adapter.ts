@@ -68,7 +68,14 @@ export class VaultAuthAdapter implements VaultAuthGateway {
         expiresAt: expiresAtFromDate(data.expire_time),
       };
     } catch (error) {
-      if (error instanceof VaultError && (error.status === 401 || error.status === 403)) {
+      if (error instanceof VaultError && error.status === 403) {
+        return {
+          serverUrl,
+          token,
+          authMethod: 'token',
+        };
+      }
+      if (error instanceof VaultError && error.status === 401) {
         throw new VaultError('session-expired', { cause: error, status: error.status });
       }
       throw error;

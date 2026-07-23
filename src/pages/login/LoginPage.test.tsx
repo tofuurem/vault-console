@@ -34,21 +34,25 @@ class LoginGateway implements VaultAuthGateway {
 }
 
 describe('LoginPage', () => {
-  it('defaults to the console origin for same-origin Vault proxying', () => {
+  it('uses the fixed same-origin Vault proxy without asking for deployment details', async () => {
     const gateway = new LoginGateway();
     window.history.replaceState({}, '', '/login');
     render(<App authGateway={gateway} />);
 
-    expect(screen.getByLabelText('Vault server')).toHaveValue(window.location.origin);
+    expect(screen.queryByLabelText('Vault server')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Auth mount path')).not.toBeInTheDocument();
+    expect(await screen.findByText('Vault is ready')).toBeVisible();
+    expect(gateway.getHealth).toHaveBeenCalledWith(window.location.origin, expect.any(AbortSignal));
   });
 
-  it('checks the actual Vault health endpoint and renders sealed state', async () => {
+  it('checks a custom Vault address and renders sealed state from Advanced', async () => {
     const user = userEvent.setup();
     const gateway = new LoginGateway();
     gateway.health = { ...gateway.health, sealed: true };
     window.history.replaceState({}, '', '/login');
-    render(<App authGateway={gateway} />);
+    render(<App authGateway={gateway} runtimeConfig={{ allowCustomVaultAddress: true }} />);
 
+    await user.click(screen.getByText('Advanced connection settings'));
     await user.clear(screen.getByLabelText('Vault server'));
     await user.type(screen.getByLabelText('Vault server'), 'https://vault.example.test:8200');
     await user.click(screen.getByRole('button', { name: 'Test' }));
@@ -61,8 +65,9 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     const gateway = new LoginGateway();
     window.history.replaceState({}, '', '/login');
-    render(<App authGateway={gateway} />);
+    render(<App authGateway={gateway} runtimeConfig={{ allowCustomVaultAddress: true }} />);
 
+    await user.click(screen.getByText('Advanced connection settings'));
     await user.clear(screen.getByLabelText('Vault server'));
     await user.type(screen.getByLabelText('Vault server'), 'https://vault.example.test:8200');
     await user.type(screen.getByLabelText('Vault token'), 'hvs.operator');
@@ -77,9 +82,17 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     const gateway = new LoginGateway();
     window.history.replaceState({}, '', '/login');
-    render(<App authGateway={gateway} />);
+    render(<App
+      authGateway={gateway}
+      runtimeConfig={{
+        allowCustomVaultAddress: true,
+        userpassMount: 'userpass',
+        allowCustomUserpassMount: true,
+      }}
+    />);
 
     await user.click(screen.getByRole('tab', { name: 'Username & password' }));
+    await user.click(screen.getByText('Advanced connection settings'));
     await user.clear(screen.getByLabelText('Vault server'));
     await user.type(screen.getByLabelText('Vault server'), 'https://vault.example.test:8200');
     await user.clear(screen.getByLabelText('Auth mount path'));

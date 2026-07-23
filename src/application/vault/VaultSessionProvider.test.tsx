@@ -10,6 +10,7 @@ import type {
 } from '@/domain/vault/contracts';
 import { VaultError } from '@/domain/vault/errors';
 import { vaultToken, type VaultToken } from '@/domain/vault/sensitive-value';
+import { SESSION_STORAGE_KEY, createVaultSessionStorage } from './session-storage';
 import { useVaultSession } from './VaultSessionContext';
 import { VaultSessionProvider } from './VaultSessionProvider';
 
@@ -43,7 +44,9 @@ function SessionProbe() {
     <div>
       <output data-testid="status">{session.status}</output>
       <output data-testid="identity">{session.session?.displayName ?? 'none'}</output>
-      <output data-testid="admin">{String(session.canManageAccess)}</output>
+      <output data-testid="admin">{session.accessControlPermission.state}</output>
+      <output data-testid="capability-discovery">{session.capabilityDiscovery}</output>
+      <output data-testid="persistence">{String(session.sessionPersistenceAvailable)}</output>
       <output data-testid="error">{session.error?.code ?? 'none'}</output>
       <button
         type="button"
@@ -57,12 +60,13 @@ function SessionProbe() {
 }
 
 afterEach(() => {
+  sessionStorage.clear();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
 describe('VaultSessionProvider', () => {
-  it('opens an in-memory token session and derives access navigation from Vault capabilities', async () => {
+  it('opens and persists a token session for this browser tab', async () => {
     const gateway = new StubAuthGateway();
     gateway.capabilities = {
       'sys/auth': ['read', 'sudo'],
@@ -70,8 +74,6 @@ describe('VaultSessionProvider', () => {
       'identity/group/id': ['deny'],
       'identity/entity/id': ['deny'],
     };
-    const storageWrite = vi.spyOn(Storage.prototype, 'setItem');
-
     render(
       <VaultSessionProvider gateway={gateway}>
         <SessionProbe />
@@ -81,13 +83,101 @@ describe('VaultSessionProvider', () => {
 
     await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
     expect(screen.getByTestId('identity')).toHaveTextContent('alice');
-    expect(screen.getByTestId('admin')).toHaveTextContent('true');
+    expect(screen.getByTestId('admin')).toHaveTextContent('allowed');
     expect(gateway.validateToken.mock.calls[0][1].reveal()).toBe('hvs.raw');
-    expect(storageWrite).not.toHaveBeenCalled();
+    expect(JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY)!)).toMatchObject({
+      version: 1,
+      token: 'hvs.session',
+      displayName: 'alice',
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(screen.getByTestId('status')).toHaveTextContent('anonymous');
     expect(screen.getByTestId('identity')).toHaveTextContent('none');
+    expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
+  });
+
+  it('restores a saved tab session without asking for credentials again', async () => {
+    const gateway = new StubAuthGateway();
+    gateway.capabilities = { 'sys/auth': ['read'] };
+    createVaultSessionStorage(sessionStorage).save({
+      ...gateway.session,
+      token: vaultToken('hvs.restored'),
+    });
+
+    render(
+      <VaultSessionProvider gateway={gateway}>
+        <SessionProbe />
+      </VaultSessionProvider>,
+    );
+
+    expect(screen.getByTestId('status')).toHaveTextContent('restoring');
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+    expect(screen.getByTestId('identity')).toHaveTextContent('alice');
+    expect(gateway.validateToken).not.toHaveBeenCalled();
+    expect(gateway.getHealth).toHaveBeenCalledWith(
+      'https://vault.example.test',
+      expect.any(AbortSignal),
+    );
+    expect(gateway.getCapabilities).toHaveBeenCalled();
+  });
+
+  it('keeps authentication in memory when sessionStorage is blocked', async () => {
+    const gateway = new StubAuthGateway();
+    const unavailable = {
+      getItem: vi.fn(() => { throw new DOMException('Blocked', 'SecurityError'); }),
+      setItem: vi.fn(() => { throw new DOMException('Blocked', 'SecurityError'); }),
+      removeItem: vi.fn(() => { throw new DOMException('Blocked', 'SecurityError'); }),
+    };
+
+    render(
+      <VaultSessionProvider gateway={gateway} storage={unavailable}>
+        <SessionProbe />
+      </VaultSessionProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Token login' }));
+
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+    expect(screen.getByTestId('persistence')).toHaveTextContent('false');
+  });
+
+  it('keeps a valid session open when capability discovery is forbidden', async () => {
+    const gateway = new StubAuthGateway();
+    gateway.getCapabilities.mockRejectedValue(
+      new VaultError('authorization', { status: 403 }),
+    );
+
+    render(
+      <VaultSessionProvider gateway={gateway}>
+        <SessionProbe />
+      </VaultSessionProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Token login' }));
+
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+    expect(screen.getByTestId('capability-discovery')).toHaveTextContent('unavailable');
+    expect(screen.getByTestId('admin')).toHaveTextContent('unknown');
+    expect(screen.getByTestId('error')).toHaveTextContent('none');
+  });
+
+  it('does not publish an authenticated route before capability discovery settles', async () => {
+    const gateway = new StubAuthGateway();
+    let resolveCapabilities!: (value: VaultCapabilityMap) => void;
+    gateway.getCapabilities.mockReturnValue(new Promise((resolve) => {
+      resolveCapabilities = resolve;
+    }));
+
+    render(
+      <VaultSessionProvider gateway={gateway}>
+        <SessionProbe />
+      </VaultSessionProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Token login' }));
+
+    await waitFor(() => expect(gateway.getCapabilities).toHaveBeenCalled());
+    expect(screen.getByTestId('status')).toHaveTextContent('authenticating');
+    await act(async () => resolveCapabilities({}));
+    expect(screen.getByTestId('status')).toHaveTextContent('authenticated');
   });
 
   it('blocks authentication while Vault is sealed', async () => {
@@ -128,6 +218,7 @@ describe('VaultSessionProvider', () => {
     act(() => vi.advanceTimersByTime(1_000));
     expect(screen.getByTestId('status')).toHaveTextContent('expired');
     expect(screen.getByTestId('identity')).toHaveTextContent('none');
+    expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
   });
 
   it('invalidates the active session when a capability query receives a 401', async () => {

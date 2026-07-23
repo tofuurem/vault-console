@@ -1,4 +1,5 @@
 import { BrowserRouter } from 'react-router-dom';
+import { RuntimeConfigProvider } from './application/config/RuntimeConfigProvider';
 import type { KvV2Gateway, VaultAccessControlGateway, VaultAuthGateway } from './domain/vault/contracts';
 import { AccessControlGatewayProvider } from './application/vault/AccessControlGatewayProvider';
 import { KvV2GatewayProvider } from './application/vault/KvV2GatewayProvider';
@@ -9,20 +10,23 @@ interface AppProps {
   readonly authGateway?: VaultAuthGateway;
   readonly kvV2Gateway?: KvV2Gateway;
   readonly accessControlGateway?: VaultAccessControlGateway;
+  readonly runtimeConfig?: Readonly<Record<string, unknown>>;
 }
 
-function App({ authGateway, kvV2Gateway, accessControlGateway }: AppProps) {
+function App({ authGateway, kvV2Gateway, accessControlGateway, runtimeConfig }: AppProps) {
   return (
-    <AccessControlGatewayProvider gateway={accessControlGateway}>
-      <KvV2GatewayProvider gateway={kvV2Gateway}>
-        <VaultSessionProvider gateway={authGateway}>
-          <BrowserRouter basename={import.meta.env.BASE_URL}>
-            <a href="#main-content" className="skip-link">Skip to main content</a>
-            <AppRoutes />
-          </BrowserRouter>
-        </VaultSessionProvider>
-      </KvV2GatewayProvider>
-    </AccessControlGatewayProvider>
+    <RuntimeConfigProvider config={runtimeConfig}>
+      <AccessControlGatewayProvider gateway={accessControlGateway}>
+        <KvV2GatewayProvider gateway={kvV2Gateway}>
+          <VaultSessionProvider gateway={authGateway}>
+            <BrowserRouter basename={import.meta.env.BASE_URL}>
+              <a href="#main-content" className="skip-link">Skip to main content</a>
+              <AppRoutes />
+            </BrowserRouter>
+          </VaultSessionProvider>
+        </KvV2GatewayProvider>
+      </AccessControlGatewayProvider>
+    </RuntimeConfigProvider>
   );
 }
 

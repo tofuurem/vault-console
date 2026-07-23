@@ -1,0 +1,5 @@
+window.__VAULT_CONSOLE_CONFIG__ = Object.freeze({
+  allowCustomVaultAddress: ${VAULT_UI_ALLOW_CUSTOM_ADDRESS},
+  userpassMount: "${VAULT_UI_USERPASS_MOUNT}",
+  allowCustomUserpassMount: ${VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT},
+});

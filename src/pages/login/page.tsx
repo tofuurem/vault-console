@@ -1,6 +1,14 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+import { useRuntimeConfig } from '@/application/config/RuntimeConfigContext';
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import Button from '@/components/base/Button';
 import { Input } from '@/components/base/Input';
@@ -33,10 +41,14 @@ function serverErrorMessage(error: VaultError): string {
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const runtimeConfig = useRuntimeConfig();
   const session = useVaultSession();
+  const checkHealth = session.checkHealth;
   const requestRef = useRef<AbortController | null>(null);
   const [authTab, setAuthTab] = useState<AuthTab>('token');
-  const [serverUrl, setServerUrl] = useState(DEFAULT_VAULT_ADDRESS);
+  const [serverUrl, setServerUrl] = useState(
+    runtimeConfig.allowCustomVaultAddress ? DEFAULT_VAULT_ADDRESS : window.location.origin,
+  );
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle');
   const [health, setHealth] = useState<VaultHealth>();
   const [errorMessage, setErrorMessage] = useState(
@@ -46,20 +58,18 @@ export default function LoginPage() {
   );
   const [serverError, setServerError] = useState('');
   const [token, setToken] = useState('');
-  const [userpassPath, setUserpassPath] = useState('userpass');
+  const [userpassPath, setUserpassPath] = useState(runtimeConfig.userpassMount);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  useEffect(() => () => requestRef.current?.abort(), []);
-
-  const beginRequest = () => {
+  const beginRequest = useCallback(() => {
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
     return controller;
-  };
+  }, []);
 
-  const validatedServerUrl = (): string | null => {
+  const validatedServerUrl = useCallback((): string | null => {
     try {
       const normalized = normalizeServerUrl(serverUrl);
       setServerError('');
@@ -68,9 +78,9 @@ export default function LoginPage() {
       setServerError('Enter a complete HTTP or HTTPS Vault address.');
       return null;
     }
-  };
+  }, [serverUrl]);
 
-  const checkConnection = async () => {
+  const checkConnection = useCallback(async () => {
     const normalized = validatedServerUrl();
     if (!normalized) return;
     const controller = beginRequest();
@@ -78,7 +88,7 @@ export default function LoginPage() {
     setErrorMessage('');
     setHealth(undefined);
     try {
-      const result = await session.checkHealth(normalized, controller.signal);
+      const result = await checkHealth(normalized, controller.signal);
       setHealth(result);
       if (!result.initialized) setConnectionStatus('uninitialized');
       else if (result.sealed) setConnectionStatus('sealed');
@@ -89,7 +99,12 @@ export default function LoginPage() {
       setConnectionStatus('unavailable');
       setErrorMessage(serverErrorMessage(error));
     }
-  };
+  }, [beginRequest, checkHealth, validatedServerUrl]);
+
+  useEffect(() => {
+    if (!runtimeConfig.allowCustomVaultAddress) void checkConnection();
+    return () => requestRef.current?.abort();
+  }, [checkConnection, runtimeConfig.allowCustomVaultAddress]);
 
   const handleTokenLogin = async (event: FormEvent) => {
     event.preventDefault();
@@ -117,7 +132,9 @@ export default function LoginPage() {
     const normalized = validatedServerUrl();
     if (!normalized) return;
     if (!userpassPath.trim() || !username.trim() || !password) {
-      setErrorMessage('Enter the auth mount, username, and password.');
+      setErrorMessage(runtimeConfig.allowCustomUserpassMount
+        ? 'Enter the auth mount, username, and password.'
+        : 'Enter the username and password.');
       return;
     }
     const controller = beginRequest();
@@ -170,34 +187,57 @@ export default function LoginPage() {
               <h1 id="login-heading" className="text-lg font-semibold tracking-tight text-foreground-900">Vault Console</h1>
             </div>
           </div>
-          <p className="text-xs leading-5 text-foreground-500">Connect directly to your Vault Community server. Credentials stay in this tab's memory.</p>
+          <p className="text-xs leading-5 text-foreground-500">Sign in to the Vault server configured for this console. Credentials stay in this tab's memory.</p>
         </header>
 
-        <div className="border-b border-background-200 px-6 py-4">
-          <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-            <Input
-              id="vault-address"
-              label="Vault server"
-              type="url"
-              value={serverUrl}
-              onChange={(event) => {
-                setServerUrl(event.target.value);
-                setConnectionStatus('idle');
-                setHealth(undefined);
-                setServerError('');
-              }}
-              error={serverError}
-              placeholder="https://vault.example.com:8200"
-              monospace
-              spellCheck={false}
-            />
-            <Button type="button" size="md" onClick={() => void checkConnection()} loading={connectionStatus === 'checking'}>
-              Test
-            </Button>
-          </div>
+        {(runtimeConfig.allowCustomVaultAddress || runtimeConfig.allowCustomUserpassMount) && (
+          <details className="border-b border-background-200 px-6 py-3">
+            <summary className="cursor-pointer text-[11px] font-medium text-foreground-500 hover:text-foreground-800">
+              Advanced connection settings
+            </summary>
+            <div className="mt-3 space-y-3">
+              {runtimeConfig.allowCustomVaultAddress && (
+                <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                  <Input
+                    id="vault-address"
+                    label="Vault server"
+                    type="url"
+                    value={serverUrl}
+                    onChange={(event) => {
+                      setServerUrl(event.target.value);
+                      setConnectionStatus('idle');
+                      setHealth(undefined);
+                      setServerError('');
+                    }}
+                    error={serverError}
+                    placeholder="https://vault.example.com:8200"
+                    monospace
+                    spellCheck={false}
+                  />
+                  <Button type="button" size="md" onClick={() => void checkConnection()} loading={connectionStatus === 'checking'}>
+                    Test
+                  </Button>
+                </div>
+              )}
+              {runtimeConfig.allowCustomUserpassMount && authTab === 'userpass' && (
+                <Input
+                  id="userpass-mount"
+                  label="Auth mount path"
+                  value={userpassPath}
+                  onChange={(event) => setUserpassPath(event.target.value)}
+                  placeholder="userpass"
+                  autoComplete="off"
+                  monospace
+                  icon="ri-folder-3-line"
+                />
+              )}
+            </div>
+          </details>
+        )}
 
-          {status && (
-            <div className="mt-2.5 flex items-center gap-2 text-[11px]" aria-live="polite">
+        {status && (
+          <div className="border-b border-background-200 px-6 py-3">
+            <div className="flex items-center gap-2 text-[11px]" aria-live="polite">
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.dot}`} />
               <span className="font-medium text-foreground-700">{status.title}</span>
               {health?.version && <span className="font-mono text-foreground-400">v{health.version}</span>}
@@ -205,8 +245,8 @@ export default function LoginPage() {
                 <span className="ml-auto text-foreground-400">{serverUrl.trim().startsWith('https://') ? 'TLS' : 'No TLS'}</span>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <div role="tablist" aria-label="Authentication method" className="grid grid-cols-2 border-b border-background-200 bg-background-100/50 px-6 pt-2">
           <button
@@ -267,16 +307,6 @@ export default function LoginPage() {
           ) : (
             <form id="userpass-panel" role="tabpanel" aria-labelledby="userpass-tab" onSubmit={(event) => void handleUserpassLogin(event)} className="space-y-3">
               <Input
-                id="userpass-mount"
-                label="Auth mount path"
-                value={userpassPath}
-                onChange={(event) => setUserpassPath(event.target.value)}
-                placeholder="userpass"
-                autoComplete="off"
-                monospace
-                icon="ri-folder-3-line"
-              />
-              <Input
                 id="userpass-username"
                 label="Username"
                 value={username}
@@ -306,7 +336,9 @@ export default function LoginPage() {
 
         <footer className="flex items-center justify-center gap-2 border-t border-background-200 bg-background-100 px-6 py-3 text-[10px] text-foreground-400">
           <i className="ri-shield-check-line text-emerald-600" aria-hidden="true" />
-          Tokens and passwords are never written to browser storage
+          {session.sessionPersistenceAvailable
+            ? 'Token stays in this tab until sign out or expiry; passwords are never stored'
+            : 'Session restore is unavailable; credentials remain in memory only'}
         </footer>
       </section>
     </main>
