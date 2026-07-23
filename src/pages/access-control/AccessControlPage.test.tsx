@@ -49,7 +49,10 @@ function authGateway(): VaultAuthGateway {
 
 function kvGateway(): KvV2Gateway {
   return {
-    listMounts: vi.fn(async () => [{ path: 'applications', accessor: 'kv_apps', description: 'Applications', version: 2 as const }]),
+    listMounts: vi.fn(async () => [
+      { path: 'applications', accessor: 'kv_apps', description: 'Applications', version: 2 as const },
+      { path: 'infrastructure', accessor: 'kv_infra', description: 'Infrastructure', version: 2 as const },
+    ]),
     listPaths: vi.fn(async () => []),
     readSecret: vi.fn(),
     writeSecret: vi.fn(),
@@ -96,9 +99,13 @@ function accessGateway(): VaultAccessControlGateway {
   };
 }
 
-async function loginAndOpenUsers(user: ReturnType<typeof userEvent.setup>, access: VaultAccessControlGateway) {
+async function loginAndOpenUsers(
+  user: ReturnType<typeof userEvent.setup>,
+  access: VaultAccessControlGateway,
+  kv: KvV2Gateway = kvGateway(),
+) {
   window.history.replaceState({}, '', '/login');
-  render(<App authGateway={authGateway()} kvV2Gateway={kvGateway()} accessControlGateway={access} />);
+  render(<App authGateway={authGateway()} kvV2Gateway={kv} accessControlGateway={access} />);
   await user.type(screen.getByLabelText('Vault token'), 'hvs.admin');
   await user.click(screen.getByRole('button', { name: 'Sign in' }));
   await user.click(await screen.findByRole('button', { name: 'Users' }));
@@ -106,6 +113,23 @@ async function loginAndOpenUsers(user: ReturnType<typeof userEvent.setup>, acces
 }
 
 describe('AccessControlPage', () => {
+  it('opens the selected KV mount when leaving access control', async () => {
+    const user = userEvent.setup();
+    const access = accessGateway();
+    const kv = kvGateway();
+    await loginAndOpenUsers(user, access, kv);
+
+    await user.click(screen.getByRole('button', { name: 'Open infrastructure mount' }));
+
+    expect(await screen.findByRole('heading', { name: 'Infrastructure' })).toBeVisible();
+    await waitFor(() => expect(kv.listPaths).toHaveBeenCalledWith(
+      session,
+      'infrastructure',
+      '',
+      expect.any(AbortSignal),
+    ));
+  });
+
   it('renders live users, groups, managed roles, and external policies', async () => {
     const user = userEvent.setup();
     const access = accessGateway();

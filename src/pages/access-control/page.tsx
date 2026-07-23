@@ -33,7 +33,6 @@ export default function AccessControlPage() {
   const mounts = mountsState.data ?? EMPTY_MOUNTS;
   const [treeState] = useKvAccessTree(session, mounts);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeMount, setActiveMount] = useState('');
   const [activeSection, setActiveSection] = useState(initialSection);
   const [viewMode, setViewMode] = useState<ViewMode>(
     initialSection === 'groups' ? 'groups' : initialSection === 'roles' ? 'roles' : initialSection === 'policies' ? 'policies' : 'users-list',
@@ -81,7 +80,7 @@ export default function AccessControlPage() {
     <div className="flex h-full flex-col bg-background-50">
       <TopBar session={session} health={vault.health} onSignOut={signOut} onCommandPalette={() => setCommandPaletteOpen(true)} />
       <div className="relative flex min-h-0 flex-1">
-        <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((current) => !current)} mounts={mounts} vaultHealth={vault.health} serverUrl={session.serverUrl} activeMount={activeMount} activePath="" onMountSelect={setActiveMount} showAccessControl activeAccessSection={activeSection} onAccessSectionSelect={selectSection} />
+        <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((current) => !current)} mounts={mounts} vaultHealth={vault.health} serverUrl={session.serverUrl} activeMount="" activePath="" onMountSelect={(mount) => navigate('/explorer', { state: { activeMount: mount } })} showAccessControl activeAccessSection={activeSection} onAccessSectionSelect={selectSection} />
         <main id="main-content" tabIndex={-1} className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {accessState.status === 'loading' && !snapshot ? <div className="flex h-full items-center justify-center"><div className="text-center"><i className="ri-loader-4-line animate-spin text-xl text-primary-500" aria-hidden="true" /><p className="mt-2 text-xs text-foreground-500">Loading users, groups, and policies…</p></div></div>
             : accessState.status === 'error' && !snapshot ? <div className="flex h-full items-center justify-center p-6"><div role="alert" className="max-w-md rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><p className="font-semibold">Access-control data could not be loaded</p><p className="mt-1 text-xs leading-5">{accessState.error.message}</p><button type="button" onClick={refreshAccess} className="mt-2 text-xs font-medium underline">Retry</button></div></div>

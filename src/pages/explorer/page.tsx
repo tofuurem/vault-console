@@ -17,6 +17,11 @@ import VersionComparison from './components/VersionComparison';
 
 const NO_MOUNTS = [] as const;
 
+interface ExplorerLocationState {
+  readonly activeMount?: string;
+  readonly notice?: string;
+}
+
 export default function ExplorerPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -25,8 +30,9 @@ export default function ExplorerPage() {
   const session = vault.session!;
   const [mountsState, refreshMounts] = useKvMounts(session);
   const mounts = mountsState.data ?? NO_MOUNTS;
+  const locationState = location.state as ExplorerLocationState | null;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeMount, setActiveMount] = useState('');
+  const [activeMount, setActiveMount] = useState(locationState?.activeMount ?? '');
   const [activePath, setActivePath] = useState('');
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -38,9 +44,10 @@ export default function ExplorerPage() {
   const [directory, refreshDirectory] = useKvDirectory(session, activeMount, activePath);
   const [details, refreshDetails] = useKvSecretDetails(session, activeMount, selectedPath);
   const [permissionsState, refreshPermissions] = useKvActionPermissions(activeMount, selectedPath);
-  const accessNotice = (location.state as { notice?: string } | null)?.notice === 'access-control-denied';
+  const accessNotice = locationState?.notice === 'access-control-denied';
 
   useEffect(() => {
+    if (mountsState.status !== 'success') return;
     if (!mounts.length) {
       setActiveMount('');
       return;
@@ -50,7 +57,7 @@ export default function ExplorerPage() {
       setActivePath('');
       setSelectedPath(null);
     }
-  }, [activeMount, mounts]);
+  }, [activeMount, mounts, mountsState.status]);
 
   useEffect(() => {
     const errors = [
