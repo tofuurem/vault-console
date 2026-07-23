@@ -7,6 +7,7 @@
 - вход по Vault token и `userpass` (в том числе на нестандартном mount path);
 - обнаружение доступных KV v2 mounts, виртуальные папки и поиск в текущей папке;
 - создание и редактирование секретов с check-and-set;
+- полноэкранный просмотр вложенных объектов и массивов как Tree/JSON и редактирование больших JSON-документов без flattening;
 - историю, сравнение, восстановление, soft delete, undelete, destroy и удаление metadata;
 - чтение реальных userpass accounts, identity entities/aliases, внутренних groups и ACL policies;
 - двухшаговое создание пользователя: `Account` → единый экран `Access`;

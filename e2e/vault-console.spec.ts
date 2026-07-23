@@ -38,16 +38,54 @@ test('browses KV v2 and creates an identity-backed user in real Vault', async ({
   expect(account.ok()).toBe(true);
 });
 
+test('reads and edits nested JSON without flattening it', async ({ page }) => {
+  await login(page);
+
+  await page.getByText('nested', { exact: true }).first().click();
+  await expect(page.getByText('service', { exact: true })).toBeVisible();
+  await expect(page.getByText('object', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Open secret full screen' }).click();
+
+  const workspace = page.getByRole('dialog', { name: 'applications/nested' });
+  await expect(workspace).toBeVisible();
+  await expect(workspace.getByText('real-vault-nested-value', { exact: true })).toHaveCount(0);
+  await workspace.getByRole('button', { name: 'Edit secret' }).click();
+
+  const nextData = {
+    service: {
+      credentials: { access: 'rotated-real-vault-value' },
+      ports: [443, 9443],
+      enabled: false,
+    },
+  };
+  await workspace.getByLabel('Secret JSON editor').fill(JSON.stringify(nextData, null, 2));
+  await workspace.getByRole('button', { name: 'Save version 2' }).click();
+  await expect(workspace).toHaveCount(0);
+
+  const response = await page.request.get('/v1/applications/data/nested', {
+    headers: { 'X-Vault-Token': vaultToken! },
+  });
+  expect(response.ok()).toBe(true);
+  const body = await response.json();
+  expect(body.data.data).toEqual(nextData);
+});
+
 test('keeps navigation and the secret inspector usable on a narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 600, height: 800 });
   await login(page);
 
   await expect(page.getByRole('complementary', { name: 'Vault navigation' })).toHaveCSS('width', '44px');
-  await page.getByText('shared', { exact: true }).first().click();
+  await page.getByText('nested', { exact: true }).first().click();
   await expect(page.getByRole('complementary', { name: 'Secret inspector' })).toBeVisible();
-  await expect(page.getByText('API_KEY')).toBeVisible();
+  await expect(page.getByText('service', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Open secret full screen' }).click();
+  await expect(page.getByRole('dialog', { name: 'applications/nested' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Close secret workspace' }).click();
   await page.getByRole('button', { name: 'Close inspector' }).click();
   await page.getByRole('button', { name: 'Users' }).click();
   await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open applications mount' }).click();
+  await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });

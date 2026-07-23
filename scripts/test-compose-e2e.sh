@@ -74,6 +74,22 @@ docker exec \
   --interactive \
   --env VAULT_ADDR=http://127.0.0.1:8200 \
   --env "VAULT_TOKEN=${root_token}" \
+  "${vault_container}" vault write applications/data/nested - >/dev/null <<'JSON'
+{
+  "data": {
+    "service": {
+      "credentials": { "access": "real-vault-nested-value" },
+      "ports": [443, 8443],
+      "enabled": true
+    }
+  }
+}
+JSON
+
+docker exec \
+  --interactive \
+  --env VAULT_ADDR=http://127.0.0.1:8200 \
+  --env "VAULT_TOKEN=${root_token}" \
   "${vault_container}" vault policy write vc-role-platform-readers - >/dev/null <<'HCL'
 path "applications/data/*" {
   capabilities = ["read"]
