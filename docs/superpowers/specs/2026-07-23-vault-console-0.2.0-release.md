@@ -1,7 +1,7 @@
 # Vault Console 0.2.0 registry release
 
 Date: 2026-07-23
-Status: prepared
+Status: published
 
 ## Artifact contract
 
@@ -35,4 +35,17 @@ passed as a build argument or stored in an image layer.
 
 ## Release result
 
-Pending publication.
+Published on 2026-07-23 from source revision
+`f3017f6aaef52f2c07b973ff9f6b5507713680b0`.
+
+- Replaced arm64-only index:
+  `sha256:2e1b4269f2ecc3555e48ba0ff0a7e490a90b44d72ae7f5994e8c5c6d152aee0d`.
+- OCI index:
+  `sha256:dbd16307fca1ff6bbf69fb1f8901ad3709b4fb27c584d6695607dbb68ed0a1c7`.
+- `linux/amd64`:
+  `sha256:e0476d59a9d54f3df3bb03f3ac718fb58de5fabbbb74188edc570acabd415f31`.
+- `linux/arm64`:
+  `sha256:2a3f1775bf852ae7d17f889df4e1868876254aa5b2713020c4ded28d61bbdbdf`.
+- `0.2.0` and `latest` resolve to the same OCI index.
+- A direct pull and runtime smoke test of the amd64 child manifest returned
+  `ok` from `/healthz`.
