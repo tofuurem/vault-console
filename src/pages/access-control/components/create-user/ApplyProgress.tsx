@@ -21,6 +21,9 @@ export default function ApplyProgress({ operations, error }: ApplyProgressProps)
       <div>
         <p className="text-xs font-medium text-foreground-700">Applying the Vault mutation plan</p>
         <p className="mt-0.5 text-[11px] text-foreground-400">Completed writes are tracked so a partial failure can be retried or compensated safely.</p>
+        <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10px] leading-4 text-amber-800">
+          Vault does not provide one atomic transaction for this workflow. A completed row may already exist even if a later row fails.
+        </p>
       </div>
       <div className="space-y-1.5">
         {operations.map((operation) => {

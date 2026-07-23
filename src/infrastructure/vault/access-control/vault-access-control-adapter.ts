@@ -12,6 +12,7 @@ import type {
   VaultUserpassAccount,
 } from '../../../domain/vault/contracts';
 import { VaultError } from '../../../domain/vault/errors';
+import { mapWithConcurrency } from '../../../shared/async/map-with-concurrency';
 import { encodeVaultPath, VaultHttpClient } from '../http/vault-http-client';
 import {
   asArray,
@@ -50,6 +51,19 @@ function parseEntity(value: unknown): VaultIdentityEntity {
     aliases: entity.aliases === null || entity.aliases === undefined
       ? []
       : asArray(entity.aliases).map((alias) => parseAlias(alias, id)),
+  };
+}
+
+function parseGroup(value: unknown): VaultIdentityGroup | null {
+  const group = asObject(value);
+  if (asString(group.type) !== 'internal') return null;
+  return {
+    id: asString(group.id),
+    name: asString(group.name),
+    policies: optionalStringArray(group.policies),
+    memberEntityIds: optionalStringArray(group.member_entity_ids),
+    memberGroupIds: optionalStringArray(group.member_group_ids),
+    metadata: optionalStringRecord(group.metadata),
   };
 }
 
@@ -138,8 +152,10 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
       throw error;
     }
     const ids = asStringArray(asObject(response.data).keys);
-    const groups = await Promise.all(
-      ids.map(async (id): Promise<VaultIdentityGroup | null> => {
+    const groups = await mapWithConcurrency(
+      ids,
+      4,
+      async (id): Promise<VaultIdentityGroup | null> => {
         const groupResponse = asObject(
           await this.client.request(
             session.serverUrl,
@@ -147,19 +163,27 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
             sessionRequest(session, signal),
           ),
         );
-        const group = asObject(groupResponse.data);
-        if (asString(group.type) !== 'internal') return null;
-        return {
-          id: asString(group.id),
-          name: asString(group.name),
-          policies: optionalStringArray(group.policies),
-          memberEntityIds: optionalStringArray(group.member_entity_ids),
-          memberGroupIds: optionalStringArray(group.member_group_ids),
-          metadata: optionalStringRecord(group.metadata),
-        };
-      }),
+        return parseGroup(groupResponse.data);
+      },
     );
     return groups.filter((group): group is VaultIdentityGroup => group !== null);
+  }
+
+  async readGroup(
+    session: VaultSession,
+    groupId: string,
+    signal?: AbortSignal,
+  ): Promise<VaultIdentityGroup> {
+    const response = asObject(
+      await this.client.request(
+        session.serverUrl,
+        `identity/group/id/${encodeURIComponent(groupId)}`,
+        sessionRequest(session, signal),
+      ),
+    );
+    const group = parseGroup(response.data);
+    if (!group) throw new VaultError('invalid-request');
+    return group;
   }
 
   async updateGroupMembers(
@@ -207,23 +231,38 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
       throw error;
     }
     const usernames = asStringArray(asObject(response.data).keys);
-    return Promise.all(
-      usernames.map(async (username) => {
-        const accountResponse = asObject(
-          await this.client.request(
-            session.serverUrl,
-            `auth/${mountPath}/users/${encodeURIComponent(username)}`,
-            sessionRequest(session, signal),
-          ),
-        );
-        const account = asObject(accountResponse.data);
-        return {
-          username,
-          mount: encodeVaultPath(mount),
-          tokenPolicies: optionalStringArray(account.token_policies ?? account.policies),
-        };
-      }),
+    const accounts = await mapWithConcurrency(
+      usernames,
+      4,
+      async (username) => this.readUserpassAccount(session, mount, username, signal),
     );
+    return accounts.filter((account): account is VaultUserpassAccount => account !== null);
+  }
+
+  async readUserpassAccount(
+    session: VaultSession,
+    mount: string,
+    username: string,
+    signal?: AbortSignal,
+  ): Promise<VaultUserpassAccount | null> {
+    try {
+      const response = asObject(
+        await this.client.request(
+          session.serverUrl,
+          `auth/${encodeVaultPath(mount)}/users/${encodeURIComponent(username)}`,
+          sessionRequest(session, signal),
+        ),
+      );
+      const account = asObject(response.data);
+      return {
+        username,
+        mount: encodeVaultPath(mount),
+        tokenPolicies: optionalStringArray(account.token_policies ?? account.policies),
+      };
+    } catch (error) {
+      if (error instanceof VaultError && error.code === 'not-found') return null;
+      throw error;
+    }
   }
 
   async createUserpassAccount(

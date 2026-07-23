@@ -11,6 +11,7 @@ import type { PolicySource } from '@/domain/access-control/types';
 import type { VaultSession } from '@/domain/vault/contracts';
 import AccessSourcePicker from './AccessSourcePicker';
 import AccessSummary from './AccessSummary';
+import CustomAccessTarget from './CustomAccessTarget';
 import EffectivePermissionTree from './EffectivePermissionTree';
 import LazyEffectivePermissionTree from './LazyEffectivePermissionTree';
 import type { AccessDraft, CreateUserAccessCatalog, DirectKvAccessRule } from './access';
@@ -84,6 +85,13 @@ export default function AccessScreen({
         <h2 id="access-heading" className="text-base font-semibold text-foreground-900">Choose access in one place</h2>
         <p className="mt-1 text-xs leading-5 text-foreground-500">Groups provide the baseline. The tree always shows the final Vault result before you create the user.</p>
       </div>
+
+      <CustomAccessTarget
+        mounts={catalog.tree}
+        source={directSource}
+        directRules={value.directRules}
+        onDirectRuleChange={updateDirectRule}
+      />
 
       <div className="grid items-start gap-3 lg:grid-cols-[230px_minmax(0,1fr)] xl:grid-cols-[250px_minmax(430px,1fr)_230px]">
         <AccessSourcePicker

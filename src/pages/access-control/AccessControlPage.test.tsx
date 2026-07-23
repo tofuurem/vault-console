@@ -53,6 +53,7 @@ function kvGateway(): KvV2Gateway {
       { path: 'applications', accessor: 'kv_apps', description: 'Applications', version: 2 as const },
       { path: 'infrastructure', accessor: 'kv_infra', description: 'Infrastructure', version: 2 as const },
     ]),
+    createKvV2Mount: vi.fn(),
     listPaths: vi.fn(async () => []),
     readSecret: vi.fn(),
     writeSecret: vi.fn(),
@@ -66,28 +67,36 @@ function kvGateway(): KvV2Gateway {
 }
 
 function accessGateway(): VaultAccessControlGateway {
-  const group = {
+  let memberEntityIds = ['entity-alice'];
+  const currentGroup = () => ({
     id: 'platform-team',
     name: 'platform-team',
     policies: ['vc-role-platform-readers'],
-    memberEntityIds: ['entity-alice'],
+    memberEntityIds: [...memberEntityIds],
     memberGroupIds: [],
     metadata: {},
-  } as const;
+  });
   return {
     listAuthMounts: vi.fn(async () => [{ path: 'userpass', accessor: 'auth_userpass_123', type: 'userpass', description: 'People' }]),
     listPolicies: vi.fn(async () => ['default', 'vc-role-platform-readers', 'legacy-operator']),
-    readPolicy: vi.fn(async (_session, name) => ({
-      name,
-      policy: name === 'vc-role-platform-readers'
-        ? 'path "applications/metadata/*" { capabilities = ["read", "list"] }'
-        : 'path "sys/health" { capabilities = ["read"] }',
-    })),
+    readPolicy: vi.fn(async (_session, name) => {
+      if (name.startsWith('vc-user-')) throw new VaultError('not-found', { status: 404 });
+      return {
+        name,
+        policy: name === 'vc-role-platform-readers'
+          ? 'path "applications/metadata/*" { capabilities = ["read", "list"] }'
+          : 'path "sys/health" { capabilities = ["read"] }',
+      };
+    }),
     writePolicy: vi.fn(async () => undefined),
     deletePolicy: vi.fn(async () => undefined),
-    listGroups: vi.fn(async () => [group]),
-    updateGroupMembers: vi.fn(async () => undefined),
+    listGroups: vi.fn(async () => [currentGroup()]),
+    readGroup: vi.fn(async () => currentGroup()),
+    updateGroupMembers: vi.fn(async (_session, _group, nextMembers) => {
+      memberEntityIds = [...nextMembers];
+    }),
     listUserpassAccounts: vi.fn(async () => [{ username: 'alice', mount: 'userpass', tokenPolicies: ['default'] }]),
+    readUserpassAccount: vi.fn(async () => null),
     createUserpassAccount: vi.fn(async () => undefined),
     deleteUserpassAccount: vi.fn(async () => undefined),
     readEntityByName: vi.fn(async () => { throw new VaultError('not-found'); }),
@@ -108,6 +117,8 @@ async function loginAndOpenUsers(
   render(<App authGateway={authGateway()} kvV2Gateway={kv} accessControlGateway={access} />);
   await user.type(screen.getByLabelText('Vault token'), 'hvs.admin');
   await user.click(screen.getByRole('button', { name: 'Sign in' }));
+  await screen.findByRole('heading', { name: 'Applications' });
+  await waitFor(() => expect(kv.listPaths).toHaveBeenCalled());
   await user.click(await screen.findByRole('button', { name: 'Users' }));
   await screen.findByRole('heading', { name: 'Users' });
 }

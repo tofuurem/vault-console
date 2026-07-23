@@ -1,4 +1,5 @@
 import type { VaultPassword, VaultToken } from './sensitive-value';
+import type { CreateKvV2Mount } from './kv-mount';
 
 export type VaultAuthMethod = 'token' | 'userpass';
 
@@ -82,6 +83,7 @@ export interface KvV2Secret {
 
 export interface KvV2Gateway {
   listMounts(session: VaultSession, signal?: AbortSignal): Promise<readonly KvV2Mount[]>;
+  createKvV2Mount(session: VaultSession, mount: CreateKvV2Mount, signal?: AbortSignal): Promise<void>;
   listPaths(session: VaultSession, mount: string, path: string, signal?: AbortSignal): Promise<readonly string[]>;
   readSecret(session: VaultSession, mount: string, path: string, version?: number, signal?: AbortSignal): Promise<KvV2Secret>;
   writeSecret(
@@ -169,8 +171,10 @@ export interface VaultAccessControlGateway {
   writePolicy(session: VaultSession, policy: VaultAclPolicy, signal?: AbortSignal): Promise<void>;
   deletePolicy(session: VaultSession, name: string, signal?: AbortSignal): Promise<void>;
   listGroups(session: VaultSession, signal?: AbortSignal): Promise<readonly VaultIdentityGroup[]>;
+  readGroup(session: VaultSession, groupId: string, signal?: AbortSignal): Promise<VaultIdentityGroup>;
   updateGroupMembers(session: VaultSession, group: VaultIdentityGroup, memberEntityIds: readonly string[], signal?: AbortSignal): Promise<void>;
   listUserpassAccounts(session: VaultSession, mount: string, signal?: AbortSignal): Promise<readonly VaultUserpassAccount[]>;
+  readUserpassAccount(session: VaultSession, mount: string, username: string, signal?: AbortSignal): Promise<VaultUserpassAccount | null>;
   createUserpassAccount(session: VaultSession, mount: string, account: CreateVaultUserpassAccount, signal?: AbortSignal): Promise<void>;
   deleteUserpassAccount(session: VaultSession, mount: string, username: string, signal?: AbortSignal): Promise<void>;
   readEntityByName(session: VaultSession, name: string, signal?: AbortSignal): Promise<VaultIdentityEntity>;

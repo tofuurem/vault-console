@@ -21,7 +21,7 @@ const session: VaultSession = {
   displayName: 'reader',
 };
 
-function authGateway(options: { metadataRead?: boolean } = {}): VaultAuthGateway {
+function authGateway(options: { metadataRead?: boolean; mountAdmin?: boolean } = {}): VaultAuthGateway {
   return {
     getHealth: vi.fn(async (): Promise<VaultHealth> => ({ initialized: true, sealed: false, standby: false, version: '1.21.0' })),
     validateToken: vi.fn(async (_serverUrl: string, _token: VaultToken) => session),
@@ -29,7 +29,9 @@ function authGateway(options: { metadataRead?: boolean } = {}): VaultAuthGateway
     getCapabilities: vi.fn(async (_session, paths): Promise<VaultCapabilityMap> => Object.fromEntries(
       paths.map((path) => [
         path,
-        path.startsWith('sys/') || path.startsWith('identity/')
+        path.startsWith('sys/mounts/') && options.mountAdmin
+          ? ['create', 'update', 'sudo']
+          : path.startsWith('sys/') || path.startsWith('identity/')
           ? ['deny']
           : path.includes('/data/')
             ? ['create', 'read', 'update', 'delete']
@@ -44,6 +46,7 @@ function authGateway(options: { metadataRead?: boolean } = {}): VaultAuthGateway
 function kvGateway(options: { denied?: boolean } = {}): KvV2Gateway {
   return {
     listMounts: vi.fn(async () => [{ path: 'applications', accessor: 'kv_apps', description: 'Application secrets', version: 2 as const }]),
+    createKvV2Mount: vi.fn(async () => undefined),
     listPaths: vi.fn(async () => {
       if (options.denied) throw new VaultError('authorization');
       return ['billing/', 'nested', 'shared'];
@@ -86,6 +89,58 @@ async function login(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('ExplorerPage', () => {
+  it('creates a KV v2 mount, refreshes the sidebar, and opens it without a page reload', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    const mounts = [
+      { path: 'applications', accessor: 'kv_apps', description: 'Application secrets', version: 2 as const },
+    ];
+    gateway.listMounts = vi.fn(async () => mounts);
+    gateway.createKvV2Mount = vi.fn(async (_session, mount) => {
+      mounts.push({
+        path: mount.path,
+        accessor: 'kv_platform',
+        description: mount.description,
+        version: 2,
+      });
+    });
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway({ mountAdmin: true })} kvV2Gateway={gateway} />);
+    await login(user);
+    await screen.findByRole('heading', { name: 'Application secrets' });
+
+    await user.click(screen.getByRole('button', { name: 'Create KV v2 mount' }));
+    await user.type(screen.getByLabelText('Mount path'), 'team/platform');
+    await user.type(screen.getByLabelText('Description'), 'Platform secrets');
+    expect(screen.getByText(/POST \/v1\/sys\/mounts\/team\/platform/)).toBeVisible();
+    expect(await screen.findByText('Permission verified for this path.')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Create mount' }));
+
+    await waitFor(() => expect(gateway.createKvV2Mount).toHaveBeenCalledWith(
+      session,
+      { path: 'team/platform', description: 'Platform secrets' },
+    ));
+    expect(await screen.findByRole('heading', { name: 'Platform secrets' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Open team/platform mount' })).toBeVisible();
+    expect(window.location.pathname).toBe('/explorer/team%2Fplatform');
+  });
+
+  it('blocks mount creation when capabilities explicitly deny the target path', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
+    await login(user);
+    await screen.findByRole('heading', { name: 'Application secrets' });
+
+    await user.click(screen.getByRole('button', { name: 'Create KV v2 mount' }));
+    await user.type(screen.getByLabelText('Mount path'), 'forbidden');
+
+    expect(await screen.findByText(/cannot enable a secrets engine/)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Create mount' })).toBeDisabled();
+    expect(gateway.createKvV2Mount).not.toHaveBeenCalled();
+  });
+
   it('discovers visible KV v2 mounts, lists a folder, and lazily reads a selected secret', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();

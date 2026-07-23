@@ -41,6 +41,25 @@ test('reads secret data when metadata history is denied', async ({ page }) => {
   expect(metadata.status()).toBe(403);
 });
 
+test('creates and opens a KV v2 mount through real Vault', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('button', { name: 'Create KV v2 mount' }).click();
+  await page.getByLabel('Mount path').fill('e2e-created');
+  await page.getByLabel('Description').fill('Created by browser E2E');
+  await expect(page.getByText('Permission verified for this path.')).toBeVisible();
+  await page.getByRole('button', { name: 'Create mount' }).click();
+
+  await expect(page).toHaveURL(/\/explorer\/e2e-created$/);
+  await expect(page.getByRole('heading', { name: 'Created by browser E2E' })).toBeVisible();
+  const mounts = await page.request.get('/v1/sys/mounts', {
+    headers: { 'X-Vault-Token': vaultToken! },
+  });
+  expect(mounts.ok()).toBe(true);
+  const body = await mounts.json();
+  expect(body.data['e2e-created/'].options.version).toBe('2');
+});
+
 test('browses KV v2 and creates an identity-backed user in real Vault', async ({ page }) => {
   await login(page);
 

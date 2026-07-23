@@ -5,6 +5,7 @@ import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import { useKvMounts } from '@/application/vault/useKvExplorerData';
 import Sidebar from '@/components/feature/Sidebar';
 import TopBar from '@/components/feature/TopBar';
+import CreateKvMountDialog from '@/components/feature/CreateKvMountDialog';
 import type { AuthenticatedShellContextValue } from './authenticated-shell';
 
 const NO_MOUNTS = [] as const;
@@ -22,6 +23,7 @@ export default function AuthenticatedAppShell() {
   const session = vault.session!;
   const [mountsState, refreshMounts] = useKvMounts(session);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [createMountOpen, setCreateMountOpen] = useState(false);
   const mounts = mountsState.data ?? NO_MOUNTS;
   const explorer = matchPath('/explorer/:mount/*', location.pathname);
   const activeMount = explorer?.params.mount ? decodeURIComponent(explorer.params.mount) : '';
@@ -64,11 +66,21 @@ export default function AuthenticatedAppShell() {
           activeMount={activeMount}
           activePath={activePath}
           onMountSelect={(mount) => navigate(`/explorer/${encodeURIComponent(mount)}`)}
+          onCreateMount={() => setCreateMountOpen(true)}
           showAccessControl={vault.accessControlPermission.state !== 'denied'}
           activeAccessSection={activeAccessSection}
           onAccessSectionSelect={(section) => navigate(`/access-control/${section}`)}
         />
         <Outlet context={context} />
+        <CreateKvMountDialog
+          open={createMountOpen}
+          existingMountPaths={mounts.map((mount) => mount.path)}
+          onClose={() => setCreateMountOpen(false)}
+          onCreated={(mount) => {
+            setCreateMountOpen(false);
+            navigate(`/explorer/${encodeURIComponent(mount)}`);
+          }}
+        />
       </div>
     </div>
   );

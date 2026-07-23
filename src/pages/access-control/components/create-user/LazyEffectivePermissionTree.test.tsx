@@ -28,6 +28,7 @@ const roots: readonly KvAccessTreeNode[] = [{
 function gateway(): KvV2Gateway {
   return {
     listMounts: vi.fn(),
+    createKvV2Mount: vi.fn(),
     listPaths: vi.fn(async (_session, _mount, path) => (
       path === '' ? ['billing/', 'shared'] : ['database']
     )),

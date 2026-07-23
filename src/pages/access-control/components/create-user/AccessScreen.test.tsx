@@ -40,4 +40,19 @@ describe('AccessScreen', () => {
     expect(screen.getByTestId('effective-level-applications:billing')).toHaveTextContent('No access');
     expect(screen.queryByText('Direct deny')).not.toBeInTheDocument();
   });
+
+  it('adds a future nested path from the manual target preview', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.type(screen.getByLabelText('Logical path'), 'future/database');
+    await user.selectOptions(screen.getByLabelText('Access level'), 'owner');
+
+    expect(screen.getByText('applications/data/future/database/*')).toBeVisible();
+    expect(screen.getByText(/create, read, update/)).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Add target' }));
+
+    expect(screen.getAllByText('applications/future/database').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Remove direct target applications/future/database' })).toBeVisible();
+  });
 });

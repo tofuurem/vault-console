@@ -20,6 +20,7 @@ export interface CreateUserTransactionInput {
 
 interface TransactionState {
   preflightComplete: boolean;
+  mountAccessor?: string;
   policyCreated: boolean;
   accountCreated: boolean;
   entityId?: string;
@@ -41,7 +42,6 @@ export function createUserOperationPlan(input: CreateUserTransactionInput): read
 export class CreateUserTransaction {
   private readonly gateway: VaultAccessControlGateway;
   private readonly session: VaultSession;
-  private readonly snapshot: AccessControlSnapshot;
   private readonly input: CreateUserTransactionInput;
   private readonly state: TransactionState = {
     preflightComplete: false,
@@ -53,12 +53,11 @@ export class CreateUserTransaction {
   constructor(
     gateway: VaultAccessControlGateway,
     session: VaultSession,
-    snapshot: AccessControlSnapshot,
+    _snapshot: AccessControlSnapshot,
     input: CreateUserTransactionInput,
   ) {
     this.gateway = gateway;
     this.session = session;
-    this.snapshot = snapshot;
     this.input = input;
   }
 
@@ -101,23 +100,30 @@ export class CreateUserTransaction {
     });
     await this.run('alias', report, async () => {
       if (this.state.aliasId) return;
-      const mount = this.snapshot.userpassMounts.find((candidate) => candidate.path === this.input.userpassMount)!;
       this.state.aliasId = await this.gateway.createEntityAlias(this.session, {
         name: this.input.username,
         canonicalId: this.state.entityId!,
-        mountAccessor: mount.accessor,
+        mountAccessor: this.state.mountAccessor!,
       }, signal);
     });
     if (this.input.groups.length) {
       await this.run('groups', report, async () => {
         for (const group of this.input.groups) {
-          if (this.state.groupIds.has(group.id)) continue;
+          const current = await this.gateway.readGroup(this.session, group.id, signal);
+          if (
+            this.state.groupIds.has(group.id)
+            && current.memberEntityIds.includes(this.state.entityId!)
+          ) continue;
           await this.gateway.updateGroupMembers(
             this.session,
-            group,
-            [...new Set([...group.memberEntityIds, this.state.entityId!])],
+            current,
+            [...new Set([...current.memberEntityIds, this.state.entityId!])],
             signal,
           );
+          const verified = await this.gateway.readGroup(this.session, group.id, signal);
+          if (!verified.memberEntityIds.includes(this.state.entityId!)) {
+            throw new VaultError('conflict');
+          }
           this.state.groupIds.add(group.id);
         }
       });
@@ -140,12 +146,17 @@ export class CreateUserTransaction {
       await compensate('groups', async () => {
         for (const group of [...this.input.groups].reverse()) {
           if (!this.state.groupIds.has(group.id)) continue;
+          const current = await this.gateway.readGroup(this.session, group.id, signal);
           await this.gateway.updateGroupMembers(
             this.session,
-            group,
-            group.memberEntityIds.filter((id) => id !== this.state.entityId),
+            current,
+            current.memberEntityIds.filter((id) => id !== this.state.entityId),
             signal,
           );
+          const verified = await this.gateway.readGroup(this.session, group.id, signal);
+          if (verified.memberEntityIds.includes(this.state.entityId)) {
+            throw new VaultError('conflict');
+          }
           this.state.groupIds.delete(group.id);
         }
       });
@@ -172,14 +183,33 @@ export class CreateUserTransaction {
 
   private async preflight(signal?: AbortSignal): Promise<void> {
     if (this.state.preflightComplete) return;
-    const mount = this.snapshot.userpassMounts.find((candidate) => candidate.path === this.input.userpassMount);
+    const authMounts = await this.gateway.listAuthMounts(this.session, signal);
+    const mount = authMounts.find((candidate) => (
+      candidate.path === this.input.userpassMount && candidate.type === 'userpass'
+    ));
     if (!mount) throw new VaultError('invalid-request');
-    if (!this.state.accountCreated && this.snapshot.users.some((user) => (
-      user.mount === this.input.userpassMount && user.username === this.input.username
-    ))) throw new VaultError('conflict');
-    if (!this.state.policyCreated && this.input.directPolicy && this.snapshot.policies.some((policy) => (
-      policy.name === this.input.directPolicy!.name
-    ))) throw new VaultError('conflict');
+    this.state.mountAccessor = mount.accessor;
+    if (!this.state.accountCreated) {
+      const account = await this.gateway.readUserpassAccount(
+        this.session,
+        this.input.userpassMount,
+        this.input.username,
+        signal,
+      );
+      if (account) throw new VaultError('conflict');
+    }
+    if (!this.state.policyCreated && this.input.directPolicy) {
+      try {
+        await this.gateway.readPolicy(
+          this.session,
+          this.input.directPolicy.name,
+          signal,
+        );
+        throw new VaultError('conflict');
+      } catch (cause) {
+        if (!(cause instanceof VaultError) || cause.code !== 'not-found') throw cause;
+      }
+    }
     if (!this.state.aliasId) {
       const alias = await this.gateway.lookupEntityByAlias(
         this.session,
@@ -200,6 +230,9 @@ export class CreateUserTransaction {
       } catch (cause) {
         if (!(cause instanceof VaultError) || cause.code !== 'not-found') throw cause;
       }
+    }
+    for (const group of this.input.groups) {
+      await this.gateway.readGroup(this.session, group.id, signal);
     }
     this.state.preflightComplete = true;
   }

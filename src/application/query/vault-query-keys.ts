@@ -1,6 +1,11 @@
 export const vaultQueryKeys = {
   all: ['vault'] as const,
   mounts: () => [...vaultQueryKeys.all, 'kv-mounts'] as const,
+  mountCreationPermission: (path: string) => [
+    ...vaultQueryKeys.all,
+    'kv-mount-creation-permission',
+    path,
+  ] as const,
   directory: (mount: string, path: string) => [
     ...vaultQueryKeys.all,
     'kv-directory',

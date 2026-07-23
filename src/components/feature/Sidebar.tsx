@@ -10,6 +10,7 @@ interface SidebarProps {
   readonly activeMount: string;
   readonly activePath: string;
   readonly onMountSelect: (mount: string) => void;
+  readonly onCreateMount?: () => void;
   readonly showAccessControl?: boolean;
   readonly activeAccessSection?: string;
   readonly onAccessSectionSelect?: (section: string) => void;
@@ -30,6 +31,7 @@ export default function Sidebar({
   serverUrl,
   activeMount,
   onMountSelect,
+  onCreateMount,
   showAccessControl,
   activeAccessSection,
   onAccessSectionSelect,
@@ -42,6 +44,13 @@ export default function Sidebar({
             <i className="ri-layout-right-2-line text-sm" aria-hidden="true" />
           </button>
         </Tooltip>
+        {onCreateMount && (
+          <Tooltip content="Create KV v2 mount" position="right">
+            <button type="button" aria-label="Create KV v2 mount" onClick={onCreateMount} className="flex h-7 w-7 items-center justify-center rounded-md text-primary-600 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+              <i className="ri-add-line text-sm" aria-hidden="true" />
+            </button>
+          </Tooltip>
+        )}
         {mounts.map((mount) => (
           <Tooltip key={mount.path} content={mount.path} position="right">
             <button
@@ -79,11 +88,20 @@ export default function Sidebar({
     <aside aria-label="Vault navigation" className="flex w-11 shrink-0 flex-col border-r border-background-200 bg-background-100 sm:w-[240px]">
       <div className="flex h-9 items-center justify-center border-b border-background-200 px-2 sm:justify-between sm:px-3">
         <span className="hidden text-[11px] font-semibold uppercase tracking-wider text-foreground-500 sm:inline">KV v2 mounts</span>
-        <Tooltip content="Collapse sidebar" position="right">
-          <button type="button" aria-label="Collapse sidebar" onClick={onToggleCollapse} className="hidden h-5 w-5 items-center justify-center rounded text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:flex">
-            <i className="ri-layout-left-2-line text-xs" aria-hidden="true" />
-          </button>
-        </Tooltip>
+        <div className="flex items-center gap-1">
+          {onCreateMount && (
+            <Tooltip content="Create KV v2 mount" position="right">
+              <button type="button" aria-label="Create KV v2 mount" onClick={onCreateMount} className="flex h-6 w-6 items-center justify-center rounded text-primary-600 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+                <i className="ri-add-line text-sm" aria-hidden="true" />
+              </button>
+            </Tooltip>
+          )}
+          <Tooltip content="Collapse sidebar" position="right">
+            <button type="button" aria-label="Collapse sidebar" onClick={onToggleCollapse} className="hidden h-5 w-5 items-center justify-center rounded text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:flex">
+              <i className="ri-layout-left-2-line text-xs" aria-hidden="true" />
+            </button>
+          </Tooltip>
+        </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto py-1" aria-label="Secret mounts">

@@ -79,6 +79,26 @@ describe('VaultKvV2Adapter', () => {
     );
   });
 
+  it('creates a KV v2 secrets engine with the documented sys mount payload', async () => {
+    const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(jsonResponse(null, 204));
+    const gateway = new VaultKvV2Adapter(new VaultHttpClient(fetchRequest));
+
+    await gateway.createKvV2Mount(session, {
+      path: '/team/platform/',
+      description: 'Platform secrets',
+    });
+
+    expect(String(fetchRequest.mock.calls[0][0])).toBe(
+      'https://vault.example.test/v1/sys/mounts/team/platform',
+    );
+    expect(fetchRequest.mock.calls[0][1]?.method).toBe('POST');
+    expect(fetchRequest.mock.calls[0][1]?.body).toBe(JSON.stringify({
+      type: 'kv',
+      description: 'Platform secrets',
+      options: { version: '2' },
+    }));
+  });
+
   it('treats a missing list path as an empty folder', async () => {
     const gateway = new VaultKvV2Adapter(
       new VaultHttpClient(

@@ -110,6 +110,7 @@ describe('CreateUserWorkflowModal', () => {
     expect(await screen.findByText('The user was not fully created')).toBeInTheDocument();
     expect(screen.getByText('Completed')).toBeInTheDocument();
     expect(screen.getByText('Failed')).toBeInTheDocument();
+    expect(screen.getByText(/does not provide one atomic transaction/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Retry from safe point/ })).toBeInTheDocument();
     expect(screen.queryByText(/body containing secret/)).not.toBeInTheDocument();
   });

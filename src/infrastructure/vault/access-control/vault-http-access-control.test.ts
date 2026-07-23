@@ -132,6 +132,34 @@ describe('VaultAccessControlAdapter', () => {
 
     await expect(gateway.listGroups(session)).resolves.toEqual([]);
     await expect(gateway.listUserpassAccounts(session, 'userpass')).resolves.toEqual([]);
+    await expect(gateway.readUserpassAccount(session, 'userpass', 'missing')).resolves.toBeNull();
+  });
+
+  it('reads one current internal group for membership reconciliation', async () => {
+    const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(jsonResponse({
+      data: {
+        id: 'group-live',
+        name: 'Live platform team',
+        type: 'internal',
+        policies: ['platform-reader'],
+        member_entity_ids: ['entity-concurrent'],
+        member_group_ids: [],
+        metadata: { owner: 'platform' },
+      },
+    }));
+    const gateway = new VaultAccessControlAdapter(new VaultHttpClient(fetchRequest));
+
+    await expect(gateway.readGroup(session, 'group-live')).resolves.toEqual({
+      id: 'group-live',
+      name: 'Live platform team',
+      policies: ['platform-reader'],
+      memberEntityIds: ['entity-concurrent'],
+      memberGroupIds: [],
+      metadata: { owner: 'platform' },
+    });
+    expect(String(fetchRequest.mock.calls[0][0])).toBe(
+      'https://vault.example.test/v1/identity/group/id/group-live',
+    );
   });
 
   it('lists, creates, and deletes userpass accounts at a custom mount', async () => {

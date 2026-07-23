@@ -7,6 +7,11 @@ import type {
   VaultSession,
 } from '../../../domain/vault/contracts';
 import { VaultError } from '../../../domain/vault/errors';
+import {
+  kvMountPathError,
+  normalizeKvMountPath,
+  type CreateKvV2Mount,
+} from '../../../domain/vault/kv-mount';
 import { encodeVaultPath, VaultHttpClient } from '../http/vault-http-client';
 import {
   asBoolean,
@@ -72,6 +77,25 @@ export class VaultKvV2Adapter implements KvV2Gateway {
           version: 2 as const,
         },
       ];
+    });
+  }
+
+  async createKvV2Mount(
+    session: VaultSession,
+    mount: CreateKvV2Mount,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    if (kvMountPathError(mount.path)) throw new VaultError('invalid-request');
+    const path = normalizeKvMountPath(mount.path);
+    await this.client.request(session.serverUrl, `sys/mounts/${encodeVaultPath(path)}`, {
+      method: 'POST',
+      token: session.token,
+      body: {
+        type: 'kv',
+        description: mount.description.trim(),
+        options: { version: '2' },
+      },
+      signal,
     });
   }
 

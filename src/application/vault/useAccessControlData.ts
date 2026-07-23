@@ -3,7 +3,6 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 
-import { mapWithConcurrency } from '@/application/query/bounded-concurrency';
 import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import type { AccessPolicyRule } from '@/domain/access-control/effective-access';
 import {
@@ -22,6 +21,7 @@ import type {
   VaultUserpassAccount,
 } from '@/domain/vault/contracts';
 import { normalizeVaultError, type VaultError } from '@/domain/vault/errors';
+import { mapWithConcurrency } from '@/shared/async/map-with-concurrency';
 import { useAccessControlGateway } from './AccessControlGatewayContext';
 import type { VaultQueryState } from './useKvExplorerData';
 

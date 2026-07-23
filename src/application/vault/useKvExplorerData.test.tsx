@@ -51,6 +51,7 @@ const history: KvV2SecretHistory = {
 function gateway(): KvV2Gateway {
   return {
     listMounts: vi.fn(async () => [{ path: 'applications', accessor: 'kv_apps', description: 'Apps', version: 2 as const }]),
+    createKvV2Mount: vi.fn(),
     listPaths: vi.fn(async () => ['billing/', 'shared']),
     readSecret: vi.fn(async () => secret),
     readSecretHistory: vi.fn(async () => history),
