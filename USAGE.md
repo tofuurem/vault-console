@@ -17,7 +17,7 @@ Vault Console не запускает, не перезапускает и не �
 ```yaml
 services:
   vault-console:
-    image: zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.0
+    image: zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.1
     container_name: vault-console
     restart: unless-stopped
     environment:
@@ -66,7 +66,7 @@ VAULT_DOCKER_NETWORK=caddy_net
 VAULT_UPSTREAM=http://vault:8200
 VAULT_CONSOLE_BIND=127.0.0.1
 VAULT_CONSOLE_PORT=8080
-VAULT_CONSOLE_IMAGE=zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.0
+VAULT_CONSOLE_IMAGE=zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.1
 ```
 
 Для готового образа:

@@ -1,16 +1,34 @@
 import { expect, test } from '@playwright/test';
 
 const vaultToken = process.env.E2E_VAULT_TOKEN;
+const limitedVaultToken = process.env.E2E_LIMITED_VAULT_TOKEN;
 
 test.skip(!vaultToken, 'E2E_VAULT_TOKEN is supplied by the disposable real-Vault harness.');
 
-async function login(page: import('@playwright/test').Page) {
+async function login(page: import('@playwright/test').Page, token = vaultToken) {
   await page.goto('/login');
   await expect(page.getByLabel('Vault server')).toHaveValue(new URL(page.url()).origin);
-  await page.getByLabel('Vault token').fill(vaultToken!);
+  await page.getByLabel('Vault token').fill(token!);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();
 }
+
+test('reads secret data when metadata history is denied', async ({ page }) => {
+  test.skip(!limitedVaultToken, 'E2E_LIMITED_VAULT_TOKEN is supplied by the disposable real-Vault harness.');
+  await login(page, limitedVaultToken);
+
+  await page.getByText('shared', { exact: true }).first().click();
+  await expect(page.getByText('API_KEY')).toBeVisible();
+  await expect(page.getByText('Secret data is not allowed')).toHaveCount(0);
+
+  await page.getByRole('tab', { name: 'Versions' }).click();
+  await expect(page.getByText('Version history is not allowed')).toBeVisible();
+
+  const metadata = await page.request.get('/v1/applications/metadata/shared', {
+    headers: { 'X-Vault-Token': limitedVaultToken! },
+  });
+  expect(metadata.status()).toBe(403);
+});
 
 test('browses KV v2 and creates an identity-backed user in real Vault', async ({ page }) => {
   await login(page);

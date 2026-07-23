@@ -42,8 +42,13 @@ export default function ExplorerPage() {
   const [destructiveAction, setDestructiveAction] = useState<KvDestructiveAction | null>(null);
   const [mutationNotice, setMutationNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [directory, refreshDirectory] = useKvDirectory(session, activeMount, activePath);
-  const [details, refreshDetails] = useKvSecretDetails(session, activeMount, selectedPath);
   const [permissionsState, refreshPermissions] = useKvActionPermissions(activeMount, selectedPath);
+  const [details, refreshDetails] = useKvSecretDetails(
+    session,
+    activeMount,
+    selectedPath,
+    permissionsState,
+  );
   const accessNotice = locationState?.notice === 'access-control-denied';
 
   useEffect(() => {
@@ -84,6 +89,10 @@ export default function ExplorerPage() {
   };
   const selectAccessSection = (section: string) => navigate('/access-control', { state: { activeSection: section } });
   const selectedDetails = details.status === 'success' ? details.data : undefined;
+  const selectedPermissionScope = selectedPath ? `${activeMount}/data/${selectedPath}` : '';
+  const selectedPermissions = permissionsState.data?.scope === selectedPermissionScope
+    ? permissionsState.data
+    : undefined;
 
   const ensureCapability = async (path: string, capability: VaultCapability) => {
     const result = await vault.queryCapabilities([path]);
@@ -133,7 +142,7 @@ export default function ExplorerPage() {
     return kvGateway.readSecret(session, activeMount, selectedPath, version);
   }, [activeMount, kvGateway, selectedPath, session]);
   const restoreVersion = async (version: number, data: Readonly<Record<string, unknown>>) => {
-    if (!selectedPath || !selectedDetails) throw new VaultError('invalid-request');
+    if (!selectedPath || !selectedDetails?.history) throw new VaultError('invalid-request');
     try {
       await ensureCapability(kvActionPaths(activeMount, selectedPath).data, 'update');
       const restoredVersion = await kvGateway.writeSecret(
@@ -228,8 +237,8 @@ export default function ExplorerPage() {
             onCreateSecret={() => setCreateOpen(true)}
             onOpenSecret={selectedDetails?.secret ? () => setWorkspaceMode('view') : undefined}
             onEditSecret={selectedDetails?.secret ? () => setWorkspaceMode('edit') : undefined}
-            permissions={permissionsState.data}
-            onCompare={selectedDetails ? () => setCompareOpen(true) : undefined}
+            permissions={selectedPermissions}
+            onCompare={selectedDetails?.history && selectedPermissions?.canReadData ? () => setCompareOpen(true) : undefined}
             onDeleteLatest={(version) => setDestructiveAction({ kind: 'delete-latest', version })}
             onDeleteVersion={(version) => setDestructiveAction({ kind: 'delete-version', version })}
             onUndelete={(version) => void undeleteVersion(version)}
@@ -244,7 +253,7 @@ export default function ExplorerPage() {
         open={workspaceMode !== null}
         initialMode={workspaceMode ?? 'view'}
         secret={selectedDetails?.secret}
-        canEdit={Boolean(permissionsState.data?.canEdit)}
+        canEdit={Boolean(selectedPermissions?.canEdit)}
         onClose={() => setWorkspaceMode(null)}
         onSave={editSecret}
       />

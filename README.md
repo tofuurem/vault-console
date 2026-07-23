@@ -20,7 +20,7 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community, орие
 Готовый multi-architecture образ:
 
 ```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.0
+zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.1
 ```
 
 Подробные инструкции по Docker Compose, подключению к существующему Vault, Caddy, TLS, настройке policy, локальной разработке и обновлению находятся в [USAGE.md](USAGE.md).
@@ -29,4 +29,4 @@ zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.0
 
 Vault остаётся единственным источником авторизации: интерфейс не обходит ACL и не сохраняет учетные данные в browser storage. Не передавайте Vault token, пароли, unseal keys или recovery keys через `.env`, Git и reverse-proxy headers.
 
-Проект ориентирован на self-hosted Vault Community и сейчас находится на версии `0.2.0`.
+Проект ориентирован на self-hosted Vault Community и сейчас находится на версии `0.2.1`.

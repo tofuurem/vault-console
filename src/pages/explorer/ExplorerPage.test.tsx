@@ -21,7 +21,7 @@ const session: VaultSession = {
   displayName: 'reader',
 };
 
-function authGateway(): VaultAuthGateway {
+function authGateway(options: { metadataRead?: boolean } = {}): VaultAuthGateway {
   return {
     getHealth: vi.fn(async (): Promise<VaultHealth> => ({ initialized: true, sealed: false, standby: false, version: '1.21.0' })),
     validateToken: vi.fn(async (_serverUrl: string, _token: VaultToken) => session),
@@ -34,7 +34,7 @@ function authGateway(): VaultAuthGateway {
           : path.includes('/data/')
             ? ['create', 'read', 'update', 'delete']
             : path.includes('/metadata/')
-              ? ['read', 'list', 'delete']
+              ? options.metadataRead === false ? ['list'] : ['read', 'list', 'delete']
               : ['update'],
       ]),
     ) as VaultCapabilityMap),
@@ -114,6 +114,22 @@ describe('ExplorerPage', () => {
     await login(user);
 
     expect(await screen.findByText('This folder is outside your Vault policy')).toBeVisible();
+  });
+
+  it('shows secret data without calling denied metadata history', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway({ metadataRead: false })} kvV2Gateway={gateway} />);
+    await login(user);
+
+    await user.click((await screen.findAllByText('shared'))[0]);
+    expect(await screen.findByText('API_KEY')).toBeVisible();
+    expect(gateway.readSecret).toHaveBeenCalled();
+    expect(gateway.readSecretHistory).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('tab', { name: 'Versions' }));
+    expect(screen.getByText('Version history is not allowed')).toBeVisible();
   });
 
   it('creates with CAS 0 and edits from the exact loaded version', async () => {

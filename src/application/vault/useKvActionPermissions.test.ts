@@ -14,6 +14,9 @@ describe('KV action capabilities', () => {
     }, paths);
 
     expect(permissions).toEqual({
+      scope: paths.data,
+      canReadData: true,
+      canReadMetadata: true,
       canEdit: true,
       canDeleteLatest: true,
       canDeleteVersions: true,
@@ -25,6 +28,13 @@ describe('KV action capabilities', () => {
 
   it('treats deny as authoritative even when another capability appears', () => {
     const paths = kvActionPaths('applications', 'shared');
-    expect(resolveKvActionPermissions({ [paths.data]: ['update', 'deny'] }, paths).canEdit).toBe(false);
+    const permissions = resolveKvActionPermissions({
+      [paths.data]: ['read', 'update', 'deny'],
+      [paths.metadata]: ['list'],
+    }, paths);
+
+    expect(permissions.canReadData).toBe(false);
+    expect(permissions.canEdit).toBe(false);
+    expect(permissions.canReadMetadata).toBe(false);
   });
 });

@@ -53,8 +53,8 @@ runAgainstVault('Vault Community integration', () => {
       name: rolePolicy,
       policy: [
         `path "${kvMount}/data/allowed/*" { capabilities = ["create", "read", "update"] }`,
-        `path "${kvMount}/metadata/allowed" { capabilities = ["read", "list"] }`,
-        `path "${kvMount}/metadata/allowed/*" { capabilities = ["read", "list"] }`,
+        `path "${kvMount}/metadata/allowed" { capabilities = ["list"] }`,
+        `path "${kvMount}/metadata/allowed/*" { capabilities = ["list"] }`,
       ].join('\n'),
     });
     const groupResponse = await setupRequest('identity/group', 'POST', {
@@ -109,6 +109,10 @@ runAgainstVault('Vault Community integration', () => {
 
     await expect(kv.readSecret(userSession, kvMount, 'allowed/demo')).resolves.toMatchObject({
       data: { status: 'ok' },
+    });
+    await expect(kv.listPaths(userSession, kvMount, 'allowed')).resolves.toContain('demo');
+    await expect(kv.readSecretHistory(userSession, kvMount, 'allowed/demo')).rejects.toMatchObject({
+      code: 'authorization',
     });
     await expect(kv.readSecret(userSession, kvMount, 'forbidden/demo')).rejects.toBeInstanceOf(VaultError);
   });

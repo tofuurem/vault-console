@@ -5,6 +5,7 @@ import type { KvActionPermissions } from '@/application/vault/useKvActionPermiss
 import Badge from '@/components/base/Badge';
 import Tabs from '@/components/base/Tabs';
 import Tooltip from '@/components/base/Tooltip';
+import type { VaultError } from '@/domain/vault/errors';
 import { isSecretJsonObject, secretContainerSize, secretValueType } from '@/domain/vault/secret-json';
 
 interface InspectorProps {
@@ -96,6 +97,28 @@ function formatTime(value: string): string {
   });
 }
 
+function ScopedResourceError({
+  title,
+  error,
+  onRetry,
+}: {
+  readonly title: string;
+  readonly error?: VaultError;
+  readonly onRetry: () => void;
+}) {
+  return (
+    <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+      <p className="font-semibold">{title}</p>
+      <p className="mt-1 leading-5">
+        {error?.message ?? 'Vault did not return this part of the secret.'}
+      </p>
+      <button type="button" onClick={onRetry} className="mt-2 font-medium text-amber-900 underline underline-offset-2">
+        Retry
+      </button>
+    </div>
+  );
+}
+
 export default function Inspector({
   state,
   mount,
@@ -136,10 +159,17 @@ export default function Inspector({
     );
   }
 
-  const { secret, history } = state.data;
+  const { secret, history, dataError, historyError } = state.data;
+  const currentVersion = history?.versions.find((version) => version.version === history.currentVersion);
+  const currentVersionUnavailable = Boolean(currentVersion?.destroyed || currentVersion?.deletionTime);
   const tabs = [
     { key: 'data', label: 'Data', icon: 'ri-database-2-line' },
-    { key: 'versions', label: 'Versions', icon: 'ri-history-line', count: history.versions.length },
+    {
+      key: 'versions',
+      label: 'Versions',
+      icon: 'ri-history-line',
+      ...(history ? { count: history.versions.length } : {}),
+    },
     { key: 'metadata', label: 'Metadata', icon: 'ri-information-line' },
   ];
 
@@ -148,10 +178,20 @@ export default function Inspector({
       {activeTab === 'data' && (
         <div className="space-y-3 p-3">
           {!secret ? (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-              <p className="font-semibold">Current version has no readable data</p>
-              <p className="mt-1 leading-5">It is deleted or destroyed. Open Versions to inspect its state.</p>
-            </div>
+            dataError ? (
+              <ScopedResourceError
+                title={dataError.code === 'authorization' ? 'Secret data is not allowed' : 'Secret data could not be loaded'}
+                error={dataError}
+                onRetry={onRetry}
+              />
+            ) : currentVersionUnavailable ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                <p className="font-semibold">Current version has no readable data</p>
+                <p className="mt-1 leading-5">It is deleted or destroyed. Open Versions to inspect its state.</p>
+              </div>
+            ) : (
+              <ScopedResourceError title="Secret data could not be loaded" onRetry={onRetry} />
+            )
           ) : (
             <>
           <div className="flex items-center justify-between gap-2">
@@ -181,7 +221,8 @@ export default function Inspector({
         </div>
       )}
       {activeTab === 'versions' && (
-        <div className="space-y-1 p-3">
+        history ? (
+          <div className="space-y-1 p-3">
           {history.versions.map((version) => {
             const current = version.version === history.currentVersion;
             return (
@@ -206,10 +247,20 @@ export default function Inspector({
               </div>
             );
           })}
-        </div>
+          </div>
+        ) : (
+          <div className="p-3">
+            <ScopedResourceError
+              title={historyError?.code === 'authorization' ? 'Version history is not allowed' : 'Version history could not be loaded'}
+              error={historyError}
+              onRetry={onRetry}
+            />
+          </div>
+        )
       )}
       {activeTab === 'metadata' && (
-        <div className="space-y-3 p-3 text-xs">
+        history ? (
+          <div className="space-y-3 p-3 text-xs">
           <dl className="space-y-2">
             <div className="flex justify-between gap-3"><dt className="text-foreground-500">Logical path</dt><dd className="break-all text-right font-mono text-foreground-800">{mount}/{path}</dd></div>
             <div className="flex justify-between"><dt className="text-foreground-500">Current version</dt><dd className="font-mono text-foreground-800">{history.currentVersion}</dd></div>
@@ -226,7 +277,16 @@ export default function Inspector({
               <button type="button" onClick={() => onDeleteMetadata?.(history.currentVersion)} className="text-xs font-medium text-red-600 hover:text-red-700">Delete all versions and metadata…</button>
             </div>
           )}
-        </div>
+          </div>
+        ) : (
+          <div className="p-3">
+            <ScopedResourceError
+              title={historyError?.code === 'authorization' ? 'Secret metadata is not allowed' : 'Secret metadata could not be loaded'}
+              error={historyError}
+              onRetry={onRetry}
+            />
+          </div>
+        )
       )}
     </Tabs>
   );

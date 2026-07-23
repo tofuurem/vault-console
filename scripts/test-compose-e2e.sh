@@ -109,6 +109,26 @@ vault_exec write identity/group \
   type=internal \
   policies=vc-role-platform-readers >/dev/null
 
+docker exec \
+  --interactive \
+  --env VAULT_ADDR=http://127.0.0.1:8200 \
+  --env "VAULT_TOKEN=${root_token}" \
+  "${vault_container}" vault policy write e2e-data-only - >/dev/null <<'HCL'
+path "applications/data/*" {
+  capabilities = ["read"]
+}
+
+path "applications/metadata" {
+  capabilities = ["list"]
+}
+
+path "applications/metadata/*" {
+  capabilities = ["list"]
+}
+HCL
+
+limited_token="$(vault_exec token create -policy=e2e-data-only -ttl=10m -field=token)"
+
 docker compose up --detach --build
 
 console_origin="http://127.0.0.1:${console_port}"
@@ -130,4 +150,5 @@ fi
 
 PLAYWRIGHT_BASE_URL="${console_origin}" \
 E2E_VAULT_TOKEN="${root_token}" \
+E2E_LIMITED_VAULT_TOKEN="${limited_token}" \
 npm run test:e2e:playwright
