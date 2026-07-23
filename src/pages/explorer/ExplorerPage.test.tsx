@@ -94,10 +94,12 @@ describe('ExplorerPage', () => {
     await login(user);
 
     expect(await screen.findByRole('heading', { name: 'Application secrets' })).toBeVisible();
+    expect(window.location.pathname).toBe('/explorer/applications');
     expect((await screen.findAllByText('billing/'))[0]).toBeVisible();
     await user.click((await screen.findAllByText('shared'))[0]);
 
     await waitFor(() => expect(screen.getByText('API_KEY')).toBeVisible());
+    expect(window.location.search).toBe('?secret=shared');
     expect(gateway.readSecret).toHaveBeenCalledWith(
       session,
       'applications',

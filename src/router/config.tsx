@@ -1,4 +1,5 @@
 import type { RouteObject } from "react-router-dom";
+import AuthenticatedAppShell from '@/app/AuthenticatedAppShell';
 import NotFound from "../pages/NotFound";
 import LoginPage from "../pages/login/page";
 import ExplorerPage from "../pages/explorer/page";
@@ -15,12 +16,29 @@ const routes: RouteObject[] = [
     element: <LoginRoute><LoginPage /></LoginRoute>,
   },
   {
-    path: "/explorer",
-    element: <RequireSession><ExplorerPage /></RequireSession>,
-  },
-  {
-    path: "/access-control",
-    element: <RequireSession accessControl><AccessControlPage /></RequireSession>,
+    element: <RequireSession><AuthenticatedAppShell /></RequireSession>,
+    children: [
+      {
+        path: '/explorer',
+        element: <ExplorerPage />,
+      },
+      {
+        path: '/explorer/:mount/*',
+        element: <ExplorerPage />,
+      },
+      {
+        path: '/access-control',
+        element: <RequireSession accessControl><AccessControlPage /></RequireSession>,
+      },
+      {
+        path: '/access-control/:section',
+        element: <RequireSession accessControl><AccessControlPage /></RequireSession>,
+      },
+      {
+        path: '/access-control/users/:username',
+        element: <RequireSession accessControl><AccessControlPage /></RequireSession>,
+      },
+    ],
   },
   {
     path: "*",

@@ -19,7 +19,7 @@ test('restores the authenticated route after a full page reload', async ({ page 
 
   await page.reload();
 
-  await expect(page).toHaveURL(/\/explorer$/);
+  await expect(page).toHaveURL(/\/explorer\/applications$/);
   await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Vault Console' })).toHaveCount(0);
 });

@@ -1,5 +1,6 @@
-import { useEffect, useReducer, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
+import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import type { VaultCapability, VaultCapabilityMap } from '@/domain/vault/contracts';
 import { normalizeVaultError } from '@/domain/vault/errors';
 import { useVaultSession } from './VaultSessionContext';
@@ -77,26 +78,27 @@ export function useKvActionPermissions(
   path: string | null,
 ): readonly [VaultQueryState<KvActionPermissions>, () => void] {
   const vault = useVaultSession();
-  const [refreshSignal, refresh] = useReducer((value: number) => value + 1, 0);
-  const [state, setState] = useState<VaultQueryState<KvActionPermissions>>({ status: 'idle' });
-
-  useEffect(() => {
-    if (!mount || !path) {
-      setState({ status: 'idle', data: NO_PERMISSIONS });
-      return;
-    }
+  const query = useQuery({
+    queryKey: vaultQueryKeys.permissions(mount, path ?? ''),
+    enabled: Boolean(mount && path),
+    queryFn: async ({ signal }) => {
+      if (!path) return NO_PERMISSIONS;
     const paths = kvActionPaths(mount, path);
-    const controller = new AbortController();
-    setState({ status: 'loading', data: NO_PERMISSIONS });
-    vault.queryCapabilities(Object.values(paths), controller.signal).then(
-      (capabilities) => setState({ status: 'success', data: resolveKvActionPermissions(capabilities, paths) }),
-      (cause) => {
-        const error = normalizeVaultError(cause);
-        if (error.code !== 'aborted') setState({ status: 'error', error, data: NO_PERMISSIONS });
-      },
-    );
-    return () => controller.abort();
-  }, [mount, path, refreshSignal, vault]);
+      const capabilities = await vault.queryCapabilities(Object.values(paths), signal);
+      return resolveKvActionPermissions(capabilities, paths);
+    },
+  });
 
-  return [state, refresh];
+  if (!mount || !path) return [{ status: 'idle', data: NO_PERMISSIONS }, () => {}];
+  if (query.isError) {
+    return [{
+      status: 'error',
+      error: normalizeVaultError(query.error),
+      data: NO_PERMISSIONS,
+    }, () => { void query.refetch(); }];
+  }
+  if (query.isPending || !query.data) {
+    return [{ status: 'loading', data: NO_PERMISSIONS }, () => { void query.refetch(); }];
+  }
+  return [{ status: 'success', data: query.data }, () => { void query.refetch(); }];
 }

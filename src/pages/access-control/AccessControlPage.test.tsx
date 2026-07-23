@@ -113,15 +113,43 @@ async function loginAndOpenUsers(
 }
 
 describe('AccessControlPage', () => {
+  it('keeps the Users request budget independent from policies, identities, and KV folders', async () => {
+    const user = userEvent.setup();
+    const access = accessGateway();
+    const kv = kvGateway();
+    access.listPolicies = vi.fn(async () => Array.from({ length: 50 }, (_, index) => `policy-${index}`));
+
+    await loginAndOpenUsers(user, access, kv);
+    expect(await screen.findByText('alice')).toBeVisible();
+
+    expect(access.listAuthMounts).toHaveBeenCalledOnce();
+    expect(access.listUserpassAccounts).toHaveBeenCalledOnce();
+    expect(access.listPolicies).not.toHaveBeenCalled();
+    expect(access.readPolicy).not.toHaveBeenCalled();
+    expect(access.listGroups).not.toHaveBeenCalled();
+    expect(access.lookupEntityByAlias).not.toHaveBeenCalled();
+    expect(kv.listPaths).toHaveBeenCalledTimes(1);
+    expect(kv.listPaths).toHaveBeenCalledWith(
+      session,
+      'applications',
+      '',
+      expect.any(AbortSignal),
+    );
+  });
+
   it('opens the selected KV mount when leaving access control', async () => {
     const user = userEvent.setup();
     const access = accessGateway();
     const kv = kvGateway();
     await loginAndOpenUsers(user, access, kv);
+    const shell = screen.getByTestId('authenticated-app-shell');
+    expect(window.location.pathname).toBe('/access-control/users');
 
     await user.click(screen.getByRole('button', { name: 'Open infrastructure mount' }));
 
     expect(await screen.findByRole('heading', { name: 'Infrastructure' })).toBeVisible();
+    expect(screen.getByTestId('authenticated-app-shell')).toBe(shell);
+    expect(window.location.pathname).toBe('/explorer/infrastructure');
     await waitFor(() => expect(kv.listPaths).toHaveBeenCalledWith(
       session,
       'infrastructure',
@@ -136,20 +164,30 @@ describe('AccessControlPage', () => {
     await loginAndOpenUsers(user, access);
 
     expect(screen.getByText('alice')).toBeVisible();
-    expect(screen.getByText('Alice')).toBeVisible();
+    expect(screen.getByText('Open profile to load')).toBeVisible();
+    expect(access.lookupEntityByAlias).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: 'Groups' }));
     expect(await screen.findByRole('heading', { name: 'Internal groups' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'platform-team' })).toBeVisible();
+    expect(window.location.pathname).toBe('/access-control/groups');
 
     await user.click(screen.getByRole('button', { name: 'Roles' }));
     expect(await screen.findByRole('heading', { name: 'Roles' })).toBeVisible();
     expect(screen.getByText('Platform Readers')).toBeVisible();
+    expect(window.location.pathname).toBe('/access-control/roles');
 
     await user.click(screen.getByRole('button', { name: 'Policy Explorer' }));
     expect(await screen.findByRole('heading', { name: 'Policy explorer' })).toBeVisible();
     expect(screen.getByText('legacy-operator')).toBeVisible();
     expect(screen.getAllByText('External').length).toBeGreaterThan(0);
+    expect(window.location.pathname).toBe('/access-control/policies');
+
+    await user.click(screen.getByRole('button', { name: 'Users' }));
+    await user.click(await screen.findByText('alice', { exact: true }));
+    expect((await screen.findAllByRole('heading', { name: 'Alice' }))[0]).toBeVisible();
+    expect(access.lookupEntityByAlias).toHaveBeenCalledOnce();
+    expect(window.location.pathname).toBe('/access-control/users/alice');
   });
 
   it('creates a userpass account, identity alias, and selected group membership from the UI', async () => {

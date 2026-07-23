@@ -35,6 +35,7 @@ interface CreateUserWizardProps {
   readonly gateway: VaultAccessControlGateway;
   readonly session: VaultSession;
   readonly onSessionExpired?: () => void;
+  readonly lazyKvTree?: boolean;
 }
 
 type DecisionStep = 'account' | 'access';
@@ -57,6 +58,7 @@ export default function CreateUserWizard({
   gateway,
   session,
   onSessionExpired,
+  lazyKvTree = false,
 }: CreateUserWizardProps) {
   const [step, setStep] = useState<DecisionStep>('account');
   const [account, setAccount] = useState<AccountDraft>(() => ({
@@ -233,7 +235,13 @@ export default function CreateUserWizard({
             showErrors={showAccountErrors}
           />
         ) : (
-          <AccessScreen username={account.username} catalog={catalog} value={access} onChange={setAccess} />
+          <AccessScreen
+            username={account.username}
+            catalog={catalog}
+            value={access}
+            onChange={setAccess}
+            lazyTreeSession={lazyKvTree ? session : undefined}
+          />
         )}
       </div>
 

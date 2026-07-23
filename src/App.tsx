@@ -1,5 +1,6 @@
 import { BrowserRouter } from 'react-router-dom';
 import { RuntimeConfigProvider } from './application/config/RuntimeConfigProvider';
+import { VaultQueryProvider } from './application/query/VaultQueryProvider';
 import type { KvV2Gateway, VaultAccessControlGateway, VaultAuthGateway } from './domain/vault/contracts';
 import { AccessControlGatewayProvider } from './application/vault/AccessControlGatewayProvider';
 import { KvV2GatewayProvider } from './application/vault/KvV2GatewayProvider';
@@ -19,10 +20,12 @@ function App({ authGateway, kvV2Gateway, accessControlGateway, runtimeConfig }: 
       <AccessControlGatewayProvider gateway={accessControlGateway}>
         <KvV2GatewayProvider gateway={kvV2Gateway}>
           <VaultSessionProvider gateway={authGateway}>
-            <BrowserRouter basename={import.meta.env.BASE_URL}>
-              <a href="#main-content" className="skip-link">Skip to main content</a>
-              <AppRoutes />
-            </BrowserRouter>
+            <VaultQueryProvider>
+              <BrowserRouter basename={import.meta.env.BASE_URL}>
+                <a href="#main-content" className="skip-link">Skip to main content</a>
+                <AppRoutes />
+              </BrowserRouter>
+            </VaultQueryProvider>
           </VaultSessionProvider>
         </KvV2GatewayProvider>
       </AccessControlGatewayProvider>

@@ -8,9 +8,11 @@ import {
 import type { LogicalKvAccessRule } from '@/domain/access-control/kv-v2-policy-compiler';
 import type { KvPermissionLevel } from '@/domain/access-control/permission-presets';
 import type { PolicySource } from '@/domain/access-control/types';
+import type { VaultSession } from '@/domain/vault/contracts';
 import AccessSourcePicker from './AccessSourcePicker';
 import AccessSummary from './AccessSummary';
 import EffectivePermissionTree from './EffectivePermissionTree';
+import LazyEffectivePermissionTree from './LazyEffectivePermissionTree';
 import type { AccessDraft, CreateUserAccessCatalog, DirectKvAccessRule } from './access';
 
 interface AccessScreenProps {
@@ -18,9 +20,16 @@ interface AccessScreenProps {
   readonly catalog: CreateUserAccessCatalog;
   readonly value: AccessDraft;
   readonly onChange: (next: AccessDraft) => void;
+  readonly lazyTreeSession?: VaultSession;
 }
 
-export default function AccessScreen({ username, catalog, value, onChange }: AccessScreenProps) {
+export default function AccessScreen({
+  username,
+  catalog,
+  value,
+  onChange,
+  lazyTreeSession,
+}: AccessScreenProps) {
   const directSource: PolicySource = useMemo(
     () => ({ kind: 'user-rule', id: `vc-user-${username || 'new-user'}`, label: 'Per-user rule' }),
     [username],
@@ -86,7 +95,17 @@ export default function AccessScreen({ username, catalog, value, onChange }: Acc
           onToggleGroup={toggleGroup}
           onToggleRole={(roleId) => onChange({ ...value, directRoleIds: toggle(value.directRoleIds, roleId) })}
         />
-        <EffectivePermissionTree nodes={effectiveTree} directRules={value.directRules} onDirectRuleChange={updateDirectRule} />
+        {lazyTreeSession ? (
+          <LazyEffectivePermissionTree
+            nodes={catalog.tree}
+            rules={selection.rules}
+            directRules={value.directRules}
+            session={lazyTreeSession}
+            onDirectRuleChange={updateDirectRule}
+          />
+        ) : (
+          <EffectivePermissionTree nodes={effectiveTree} directRules={value.directRules} onDirectRuleChange={updateDirectRule} />
+        )}
         <div className="lg:col-span-2 xl:col-span-1">
           <AccessSummary
             groups={catalog.groups}

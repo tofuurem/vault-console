@@ -40,6 +40,11 @@ export default function UserProfile({ user, catalog, onBack }: UserProfileProps)
     <section className="flex min-h-0 flex-1 flex-col">
       <header className="flex shrink-0 items-center gap-3 border-b border-background-200 px-5 py-3"><Button size="sm" onClick={onBack}><i className="ri-arrow-left-line" aria-hidden="true" /> Users</Button><div><h1 className="text-sm font-semibold text-foreground-900">{user.displayName}</h1><p className="font-mono text-[10px] text-foreground-400">{user.mount}/{user.username}</p></div></header>
       <div className="min-h-0 flex-1 overflow-y-auto">
+        {user.detailWarning && (
+          <div role="status" className="mx-5 mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            {user.detailWarning} Account and direct token-policy data remain available.
+          </div>
+        )}
         <Tabs tabs={tabs} activeTab={tab} onChange={setTab}>
           {tab === 'overview' && <div className="space-y-5 p-5"><div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 text-lg font-semibold text-primary-700">{user.displayName.charAt(0).toUpperCase()}</div><div><h2 className="text-sm font-semibold text-foreground-900">{user.displayName}</h2><p className="font-mono text-xs text-foreground-500">{user.username}</p></div></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Summary label="Auth mount" values={[`${user.mount}/`]} mono /><Summary label="Groups" values={user.groups.map((group) => group.name)} /><Summary label="Direct roles" values={user.directRolePolicyNames} mono /><Summary label="Other policies" values={[...user.directPolicyNames, ...user.externalPolicyNames]} mono /></div>{selection.unresolvedPolicies.length > 0 && <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800"><p className="font-semibold">Effective access includes unresolved HCL</p><p className="mt-1">{selection.unresolvedPolicies.map((item) => item.policyName).join(', ')}</p></div>}</div>}
           {tab === 'effective' && <div className="p-5"><EffectivePermissionTree nodes={effectiveTree} directRules={[]} onDirectRuleChange={() => undefined} readOnly /></div>}

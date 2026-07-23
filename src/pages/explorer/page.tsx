@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
-import { useVaultSession } from '@/application/vault/VaultSessionContext';
+import { useAuthenticatedShell } from '@/app/authenticated-shell';
 import { useKvV2Gateway } from '@/application/vault/KvV2GatewayContext';
+import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import { kvActionPaths, useKvActionPermissions } from '@/application/vault/useKvActionPermissions';
-import { useKvDirectory, useKvMounts, useKvSecretDetails } from '@/application/vault/useKvExplorerData';
-import Sidebar from '@/components/feature/Sidebar';
-import TopBar from '@/components/feature/TopBar';
+import { useKvDirectory, useKvSecretDetails } from '@/application/vault/useKvExplorerData';
 import type { VaultCapability } from '@/domain/vault/contracts';
 import { normalizeVaultError, VaultError } from '@/domain/vault/errors';
+import { directoryPathFromWildcard, explorerRoute } from '@/router/explorer-route';
 import CreateSecretDrawer from './components/CreateSecretDrawer';
 import DestructionConfirm, { type KvDestructiveAction } from './components/DestructionConfirm';
 import ExplorerMain from './components/ExplorerMain';
@@ -17,25 +17,18 @@ import VersionComparison from './components/VersionComparison';
 
 const NO_MOUNTS = [] as const;
 
-interface ExplorerLocationState {
-  readonly activeMount?: string;
-  readonly notice?: string;
-}
-
 export default function ExplorerPage() {
   const navigate = useNavigate();
-  const location = useLocation();
+  const params = useParams<{ mount?: string; '*': string }>();
+  const [searchParams] = useSearchParams();
+  const { mountsState, refreshMounts } = useAuthenticatedShell();
   const vault = useVaultSession();
   const kvGateway = useKvV2Gateway();
   const session = vault.session!;
-  const [mountsState, refreshMounts] = useKvMounts(session);
   const mounts = mountsState.data ?? NO_MOUNTS;
-  const locationState = location.state as ExplorerLocationState | null;
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeMount, setActiveMount] = useState(locationState?.activeMount ?? '');
-  const [activePath, setActivePath] = useState('');
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const activeMount = params.mount ? decodeURIComponent(params.mount) : '';
+  const activePath = directoryPathFromWildcard(params['*']);
+  const selectedPath = searchParams.get('secret');
   const [createOpen, setCreateOpen] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<SecretWorkspaceMode | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
@@ -49,45 +42,29 @@ export default function ExplorerPage() {
     selectedPath,
     permissionsState,
   );
-  const accessNotice = locationState?.notice === 'access-control-denied';
 
   useEffect(() => {
-    if (mountsState.status !== 'success') return;
-    if (!mounts.length) {
-      setActiveMount('');
-      return;
-    }
+    if (mountsState.status !== 'success' || !mounts.length) return;
     if (!mounts.some((mount) => mount.path === activeMount)) {
-      setActiveMount(mounts[0].path);
-      setActivePath('');
-      setSelectedPath(null);
+      navigate(explorerRoute(mounts[0].path), { replace: true });
     }
-  }, [activeMount, mounts, mountsState.status]);
+  }, [activeMount, mounts, mountsState.status, navigate]);
 
   useEffect(() => {
     const errors = [
-      mountsState.status === 'error' ? mountsState.error : undefined,
       directory.status === 'error' ? directory.error : undefined,
       details.status === 'error' ? details.error : undefined,
       permissionsState.status === 'error' ? permissionsState.error : undefined,
     ];
     if (errors.some((error) => error?.code === 'session-expired')) vault.expireSession();
-  }, [details, directory, mountsState, permissionsState, vault]);
+  }, [details, directory, permissionsState, vault]);
 
-  const selectMount = (mount: string) => {
-    setActiveMount(mount);
-    setActivePath('');
-    setSelectedPath(null);
+  const selectSecret = (path: string) => {
+    navigate(explorerRoute(activeMount, activePath, path));
   };
   const navigateFolder = (path: string) => {
-    setActivePath(path);
-    setSelectedPath(null);
+    navigate(explorerRoute(activeMount, path));
   };
-  const signOut = () => {
-    vault.signOut();
-    navigate('/login', { replace: true });
-  };
-  const selectAccessSection = (section: string) => navigate('/access-control', { state: { activeSection: section } });
   const selectedDetails = details.status === 'success' ? details.data : undefined;
   const selectedPermissionScope = selectedPath ? `${activeMount}/data/${selectedPath}` : '';
   const selectedPermissions = permissionsState.data?.scope === selectedPermissionScope
@@ -116,7 +93,7 @@ export default function ExplorerPage() {
     try {
       await ensureCapability(kvActionPaths(activeMount, path).data, 'create');
       const version = await kvGateway.writeSecret(session, activeMount, path, data, 0);
-      setSelectedPath(path);
+      navigate(explorerRoute(activeMount, activePath, path));
       refreshDirectory();
       setMutationNotice({ kind: 'success', message: `Created ${activeMount}/${path} at version ${version}.` });
     } catch (cause) { handleMutationError(cause); }
@@ -179,74 +156,73 @@ export default function ExplorerPage() {
         kind: 'success',
         message: action.kind === 'delete-metadata' ? `Deleted ${activeMount}/${selectedPath}.` : `Applied ${action.kind} to version ${action.version}.`,
       });
-      if (action.kind === 'delete-metadata') setSelectedPath(null);
+      if (action.kind === 'delete-metadata') navigate(explorerRoute(activeMount, activePath));
       else refreshSelected();
       refreshDirectory();
     } catch (cause) { handleMutationError(cause); }
   };
 
-  return (
-    <div className="flex h-full flex-col bg-background-50">
-      <TopBar session={session} health={vault.health} onSignOut={signOut} onCommandPalette={() => setCommandPaletteOpen(true)} />
-      {accessNotice && (
-        <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-700" role="status">
-          <i className="ri-shield-user-line shrink-0 text-sm" aria-hidden="true" />
-          <span>Your Vault policy does not allow access-control administration.</span>
+  const content = mountsState.status === 'loading' && !mountsState.data ? (
+    <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center" aria-label="Loading KV v2 mounts">
+      <div className="text-center">
+        <i className="ri-loader-4-line animate-spin text-xl text-primary-500" aria-hidden="true" />
+        <p className="mt-2 text-xs text-foreground-500">Discovering visible KV v2 mounts…</p>
+      </div>
+    </main>
+  ) : mountsState.status === 'error' && !mountsState.data ? (
+    <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center p-6">
+      <div role="alert" className="max-w-md rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <p className="font-semibold">KV mounts could not be discovered</p>
+        <p className="mt-1 text-xs leading-5">{mountsState.error.message}</p>
+        <button type="button" onClick={refreshMounts} className="mt-3 text-xs font-medium underline underline-offset-2">Retry</button>
+      </div>
+    </main>
+  ) : mounts.length === 0 ? (
+    <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center p-6">
+      <div className="max-w-md text-center">
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-background-200">
+          <i className="ri-folder-shield-2-line text-xl text-foreground-400" aria-hidden="true" />
         </div>
-      )}
+        <h1 className="text-sm font-semibold text-foreground-800">No visible KV v2 mounts</h1>
+        <p className="mt-1 text-xs leading-5 text-foreground-500">Vault only returns mounts available to this token. Ask an administrator for metadata access if a mount is missing.</p>
+      </div>
+    </main>
+  ) : (
+    <ExplorerMain
+      mount={activeMount}
+      currentPath={activePath}
+      mounts={mounts}
+      directory={directory}
+      selectedPath={selectedPath}
+      details={details}
+      onSelectSecret={selectSecret}
+      onNavigateToFolder={navigateFolder}
+      onNavigateToBreadcrumb={navigateFolder}
+      onRefresh={refreshDirectory}
+      onRetrySecret={refreshDetails}
+      onCreateSecret={() => setCreateOpen(true)}
+      onOpenSecret={selectedDetails?.secret ? () => setWorkspaceMode('view') : undefined}
+      onEditSecret={selectedDetails?.secret ? () => setWorkspaceMode('edit') : undefined}
+      permissions={selectedPermissions}
+      onCompare={selectedDetails?.history && selectedPermissions?.canReadData ? () => setCompareOpen(true) : undefined}
+      onDeleteLatest={(version) => setDestructiveAction({ kind: 'delete-latest', version })}
+      onDeleteVersion={(version) => setDestructiveAction({ kind: 'delete-version', version })}
+      onUndelete={(version) => void undeleteVersion(version)}
+      onDestroyVersion={(version) => setDestructiveAction({ kind: 'destroy-version', version })}
+      onDeleteMetadata={(version) => setDestructiveAction({ kind: 'delete-metadata', version })}
+    />
+  );
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-col">
       {mutationNotice && (
-        <div role="status" className={`flex items-center gap-2 border-b px-4 py-1.5 text-xs ${mutationNotice.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+        <div role={mutationNotice.kind === 'error' ? 'alert' : 'status'} className={`flex items-center gap-2 border-b px-4 py-1.5 text-xs ${mutationNotice.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
           <i className={mutationNotice.kind === 'success' ? 'ri-check-line' : 'ri-error-warning-line'} aria-hidden="true" />
           <span>{mutationNotice.message}</span>
           <button type="button" aria-label="Dismiss notification" onClick={() => setMutationNotice(null)} className="ml-auto"><i className="ri-close-line" aria-hidden="true" /></button>
         </div>
       )}
-      <div className="relative flex min-h-0 flex-1">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
-          mounts={mounts}
-          vaultHealth={vault.health}
-          serverUrl={session.serverUrl}
-          activeMount={activeMount}
-          activePath={activePath}
-          onMountSelect={selectMount}
-          showAccessControl={vault.accessControlPermission.state !== 'denied'}
-          onAccessSectionSelect={selectAccessSection}
-        />
-
-        {mountsState.status === 'loading' && !mountsState.data ? (
-          <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center" aria-label="Loading KV v2 mounts"><div className="text-center"><i className="ri-loader-4-line animate-spin text-xl text-primary-500" aria-hidden="true" /><p className="mt-2 text-xs text-foreground-500">Discovering visible KV v2 mounts…</p></div></main>
-        ) : mountsState.status === 'error' && !mountsState.data ? (
-          <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center p-6"><div role="alert" className="max-w-md rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><p className="font-semibold">KV mounts could not be discovered</p><p className="mt-1 text-xs leading-5">{mountsState.error.message}</p><button type="button" onClick={refreshMounts} className="mt-3 text-xs font-medium underline underline-offset-2">Retry</button></div></main>
-        ) : mounts.length === 0 ? (
-          <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center p-6"><div className="max-w-md text-center"><div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-background-200"><i className="ri-folder-shield-2-line text-xl text-foreground-400" aria-hidden="true" /></div><h1 className="text-sm font-semibold text-foreground-800">No visible KV v2 mounts</h1><p className="mt-1 text-xs leading-5 text-foreground-500">Vault only returns mounts available to this token. Ask an administrator for metadata access if a mount is missing.</p></div></main>
-        ) : (
-          <ExplorerMain
-            mount={activeMount}
-            currentPath={activePath}
-            mounts={mounts}
-            directory={directory}
-            selectedPath={selectedPath}
-            details={details}
-            onSelectSecret={setSelectedPath}
-            onNavigateToFolder={navigateFolder}
-            onNavigateToBreadcrumb={navigateFolder}
-            onRefresh={refreshDirectory}
-            onRetrySecret={refreshDetails}
-            onCreateSecret={() => setCreateOpen(true)}
-            onOpenSecret={selectedDetails?.secret ? () => setWorkspaceMode('view') : undefined}
-            onEditSecret={selectedDetails?.secret ? () => setWorkspaceMode('edit') : undefined}
-            permissions={selectedPermissions}
-            onCompare={selectedDetails?.history && selectedPermissions?.canReadData ? () => setCompareOpen(true) : undefined}
-            onDeleteLatest={(version) => setDestructiveAction({ kind: 'delete-latest', version })}
-            onDeleteVersion={(version) => setDestructiveAction({ kind: 'delete-version', version })}
-            onUndelete={(version) => void undeleteVersion(version)}
-            onDestroyVersion={(version) => setDestructiveAction({ kind: 'destroy-version', version })}
-            onDeleteMetadata={(version) => setDestructiveAction({ kind: 'delete-metadata', version })}
-          />
-        )}
-      </div>
+      <div className="relative flex min-h-0 flex-1">{content}</div>
 
       <CreateSecretDrawer open={createOpen} onClose={() => setCreateOpen(false)} mount={activeMount} currentPath={activePath} onSave={createSecret} />
       <SecretWorkspace
@@ -275,15 +251,6 @@ export default function ExplorerPage() {
         action={destructiveAction}
         onConfirm={confirmDestructiveAction}
       />
-
-      {commandPaletteOpen && (
-        <div className="fixed inset-0 z-[80] flex items-start justify-center pt-[15vh]">
-          <button type="button" aria-label="Close command palette" className="absolute inset-0 bg-black/30" onClick={() => setCommandPaletteOpen(false)} />
-          <div role="dialog" aria-modal="true" aria-label="Command palette" className="relative w-[min(500px,calc(100vw-32px))] overflow-hidden rounded-lg border border-background-300 bg-background-50 shadow-sm">
-            <div className="flex h-9 items-center gap-2 border-b border-background-200 px-3"><i className="ri-terminal-box-line text-sm text-foreground-400" aria-hidden="true" /><span className="text-xs text-foreground-500">Web terminal is planned for a later release.</span></div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

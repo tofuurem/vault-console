@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react';
-import Button from '@/components/base/Button';
 import Tooltip from '@/components/base/Tooltip';
 import type { VaultHealth, VaultSession } from '@/domain/vault/contracts';
 
@@ -7,7 +6,7 @@ interface TopBarProps {
   session: VaultSession;
   health?: VaultHealth;
   onSignOut: () => void;
-  onCommandPalette: () => void;
+  onCommandPalette?: () => void;
 }
 
 function formatTtl(expiresAt: number | undefined): string {
@@ -53,7 +52,7 @@ export default function TopBar({ session, health, onSignOut, onCommandPalette }:
       </div>
 
       <div className="flex items-center gap-1.5">
-        <Tooltip content="Search secrets (⌘K)" position="bottom">
+        {onCommandPalette && <Tooltip content="Search secrets (⌘K)" position="bottom">
           <button
             type="button"
             aria-label="Search and commands"
@@ -64,9 +63,9 @@ export default function TopBar({ session, health, onSignOut, onCommandPalette }:
             <span className="hidden lg:inline">Search...</span>
             <span className="text-[10px] px-1 rounded bg-background-200 text-foreground-500 font-mono">⌘K</span>
           </button>
-        </Tooltip>
+        </Tooltip>}
 
-        <Tooltip content="Command palette" position="bottom">
+        {onCommandPalette && <Tooltip content="Command palette" position="bottom">
           <button
             type="button"
             aria-label="Open command palette"
@@ -75,7 +74,7 @@ export default function TopBar({ session, health, onSignOut, onCommandPalette }:
           >
             <i className="ri-terminal-box-line text-sm" aria-hidden="true" />
           </button>
-        </Tooltip>
+        </Tooltip>}
 
         <div className="relative" ref={menuRef}>
           <button

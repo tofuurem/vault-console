@@ -1,8 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
+import { createVaultQueryClient } from '@/application/query/query-client';
 import type {
   KvV2Gateway,
+  KvV2Mount,
   KvV2Secret,
   KvV2SecretHistory,
   VaultSession,
@@ -84,13 +87,22 @@ function QueryProbe({
   );
 }
 
+function renderProbe(
+  vaultGateway: KvV2Gateway,
+  permissions?: VaultQueryState<KvActionPermissions>,
+) {
+  return render(
+    <QueryClientProvider client={createVaultQueryClient()}>
+      <KvV2GatewayContext.Provider value={vaultGateway}>
+        <QueryProbe permissions={permissions} />
+      </KvV2GatewayContext.Provider>
+    </QueryClientProvider>,
+  );
+}
+
 describe('KV explorer queries', () => {
   it('loads visible mounts, a virtual folder, and selected secret details from the gateway', async () => {
-    render(
-      <KvV2GatewayContext.Provider value={gateway()}>
-        <QueryProbe />
-      </KvV2GatewayContext.Provider>,
-    );
+    renderProbe(gateway());
 
     await waitFor(() => expect(screen.getByTestId('mounts')).toHaveTextContent('applications'));
     expect(screen.getByTestId('directory')).toHaveTextContent('billing/,shared');
@@ -104,11 +116,7 @@ describe('KV explorer queries', () => {
       versions: [{ ...history.versions[0], deletionTime: '2026-07-21T13:00:00Z' }],
     }));
 
-    render(
-      <KvV2GatewayContext.Provider value={deletedGateway}>
-        <QueryProbe />
-      </KvV2GatewayContext.Provider>,
-    );
+    renderProbe(deletedGateway);
 
     await waitFor(() => expect(screen.getByTestId('secret')).toHaveTextContent('undefined:v3'));
     expect(deletedGateway.readSecret).toHaveBeenCalled();
@@ -120,11 +128,7 @@ describe('KV explorer queries', () => {
       throw new VaultError('authorization', { status: 403 });
     });
 
-    render(
-      <KvV2GatewayContext.Provider value={dataOnlyGateway}>
-        <QueryProbe />
-      </KvV2GatewayContext.Provider>,
-    );
+    renderProbe(dataOnlyGateway);
 
     await waitFor(() => expect(screen.getByTestId('secret')).toHaveTextContent('billing/database:vundefined'));
     expect(screen.getByTestId('history-error')).toHaveTextContent('authorization');
@@ -137,11 +141,7 @@ describe('KV explorer queries', () => {
       throw new VaultError('authorization', { status: 403 });
     });
 
-    render(
-      <KvV2GatewayContext.Provider value={historyOnlyGateway}>
-        <QueryProbe />
-      </KvV2GatewayContext.Provider>,
-    );
+    renderProbe(historyOnlyGateway);
 
     await waitFor(() => expect(screen.getByTestId('secret')).toHaveTextContent('undefined:v3'));
     expect(screen.getByTestId('data-error')).toHaveTextContent('authorization');
@@ -157,11 +157,7 @@ describe('KV explorer queries', () => {
       throw new VaultError('authorization', { status: 403 });
     });
 
-    render(
-      <KvV2GatewayContext.Provider value={deniedGateway}>
-        <QueryProbe />
-      </KvV2GatewayContext.Provider>,
-    );
+    renderProbe(deniedGateway);
 
     await waitFor(() => expect(screen.getByTestId('secret')).toHaveTextContent('error'));
   });
@@ -172,11 +168,7 @@ describe('KV explorer queries', () => {
       throw new VaultError('session-expired', { status: 401 });
     });
 
-    render(
-      <KvV2GatewayContext.Provider value={expiringGateway}>
-        <QueryProbe />
-      </KvV2GatewayContext.Provider>,
-    );
+    renderProbe(expiringGateway);
 
     await waitFor(() => expect(screen.getByTestId('secret')).toHaveTextContent('error'));
   });
@@ -195,15 +187,65 @@ describe('KV explorer queries', () => {
       canDeleteMetadata: false,
     };
 
-    render(
-      <KvV2GatewayContext.Provider value={dataOnlyGateway}>
-        <QueryProbe permissions={{ status: 'success', data: permissions }} />
-      </KvV2GatewayContext.Provider>,
-    );
+    renderProbe(dataOnlyGateway, { status: 'success', data: permissions });
 
     await waitFor(() => expect(screen.getByTestId('secret')).toHaveTextContent('billing/database:vundefined'));
     expect(screen.getByTestId('history-error')).toHaveTextContent('authorization');
     expect(dataOnlyGateway.readSecret).toHaveBeenCalledOnce();
     expect(dataOnlyGateway.readSecretHistory).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates identical requests across mounted consumers', async () => {
+    const sharedGateway = gateway();
+    render(
+      <QueryClientProvider client={createVaultQueryClient()}>
+        <KvV2GatewayContext.Provider value={sharedGateway}>
+          <QueryProbe />
+          <QueryProbe />
+        </KvV2GatewayContext.Provider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getAllByTestId('mounts')[0]).toHaveTextContent('applications'));
+    expect(sharedGateway.listMounts).toHaveBeenCalledOnce();
+    expect(sharedGateway.listPaths).toHaveBeenCalledOnce();
+    expect(sharedGateway.readSecret).toHaveBeenCalledOnce();
+    expect(sharedGateway.readSecretHistory).toHaveBeenCalledOnce();
+  });
+
+  it('keeps cached data visible while a manual refresh is in flight', async () => {
+    const sharedGateway = gateway();
+    let finishRefresh: ((value: readonly KvV2Mount[]) => void) | undefined;
+    sharedGateway.listMounts = vi.fn()
+      .mockResolvedValueOnce([{ path: 'applications', accessor: 'kv_apps', description: 'Apps', version: 2 as const }])
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        finishRefresh = resolve;
+      }));
+
+    function RefreshProbe() {
+      const [mounts, refresh] = useKvMounts(session);
+      return (
+        <>
+          <output data-testid="refresh-mounts">
+            {mounts.data?.map((mount) => mount.path).join(',') ?? mounts.status}
+          </output>
+          <button type="button" onClick={refresh}>Refresh mounts</button>
+        </>
+      );
+    }
+
+    render(
+      <QueryClientProvider client={createVaultQueryClient()}>
+        <KvV2GatewayContext.Provider value={sharedGateway}>
+          <RefreshProbe />
+        </KvV2GatewayContext.Provider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId('refresh-mounts')).toHaveTextContent('applications'));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh mounts' }));
+
+    expect(screen.getByTestId('refresh-mounts')).toHaveTextContent('applications');
+    finishRefresh?.([{ path: 'platform', accessor: 'kv_platform', description: '', version: 2 }]);
+    await waitFor(() => expect(screen.getByTestId('refresh-mounts')).toHaveTextContent('platform'));
   });
 });

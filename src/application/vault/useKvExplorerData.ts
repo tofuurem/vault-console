@@ -1,5 +1,6 @@
-import { useEffect, useReducer, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
+import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import type {
   KvV2Mount,
   KvV2Secret,
@@ -38,59 +39,51 @@ function authorizationDeniedResource<T>(): ResourceResult<T> {
   return { ok: false, error: new VaultError('authorization', { status: 403 }) };
 }
 
-function useRefreshSignal(): readonly [number, () => void] {
-  const [signal, refresh] = useReducer((value: number) => value + 1, 0);
-  return [signal, refresh] as const;
+function queryState<T>(
+  query: {
+    readonly data: T | undefined;
+    readonly error: Error | null;
+    readonly isError: boolean;
+    readonly isPending: boolean;
+  },
+  idle = false,
+): VaultQueryState<T> {
+  if (idle) return { status: 'idle' };
+  if (query.isError) {
+    return {
+      status: 'error',
+      error: normalizeVaultError(query.error),
+      ...(query.data === undefined ? {} : { data: query.data }),
+    };
+  }
+  if (query.isPending || query.data === undefined) return { status: 'loading' };
+  return { status: 'success', data: query.data };
 }
 
 export function useKvMounts(session: VaultSession): readonly [VaultQueryState<readonly KvV2Mount[]>, () => void] {
   const gateway = useKvV2Gateway();
-  const [refreshSignal, refresh] = useRefreshSignal();
-  const [state, setState] = useState<VaultQueryState<readonly KvV2Mount[]>>({ status: 'loading' });
+  const query = useQuery({
+    queryKey: vaultQueryKeys.mounts(),
+    queryFn: ({ signal }) => gateway.listMounts(session, signal),
+  });
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setState((current) => ({ status: 'loading', data: current.data }));
-    gateway.listMounts(session, controller.signal).then(
-      (mounts) => setState({ status: 'success', data: mounts }),
-      (cause) => {
-        const error = normalizeVaultError(cause);
-        if (error.code !== 'aborted') setState((current) => ({ status: 'error', error, data: current.data }));
-      },
-    );
-    return () => controller.abort();
-  }, [gateway, refreshSignal, session]);
-
-  return [state, refresh];
+  return [queryState(query), () => { void query.refetch(); }];
 }
 
 export function useKvDirectory(
   session: VaultSession,
   mount: string,
   path: string,
+  enabled = true,
 ): readonly [VaultQueryState<readonly string[]>, () => void] {
   const gateway = useKvV2Gateway();
-  const [refreshSignal, refresh] = useRefreshSignal();
-  const [state, setState] = useState<VaultQueryState<readonly string[]>>({ status: 'idle' });
+  const query = useQuery({
+    queryKey: vaultQueryKeys.directory(mount, path),
+    queryFn: ({ signal }) => gateway.listPaths(session, mount, path, signal),
+    enabled: Boolean(mount) && enabled,
+  });
 
-  useEffect(() => {
-    if (!mount) {
-      setState({ status: 'idle' });
-      return;
-    }
-    const controller = new AbortController();
-    setState((current) => ({ status: 'loading', data: current.data }));
-    gateway.listPaths(session, mount, path, controller.signal).then(
-      (keys) => setState({ status: 'success', data: keys }),
-      (cause) => {
-        const error = normalizeVaultError(cause);
-        if (error.code !== 'aborted') setState((current) => ({ status: 'error', error, data: current.data }));
-      },
-    );
-    return () => controller.abort();
-  }, [gateway, mount, path, refreshSignal, session]);
-
-  return [state, refresh];
+  return [queryState(query, !mount || !enabled), () => { void query.refetch(); }];
 }
 
 export function useKvSecretDetails(
@@ -100,51 +93,41 @@ export function useKvSecretDetails(
   permissions?: VaultQueryState<KvActionPermissions>,
 ): readonly [VaultQueryState<KvSecretDetails>, () => void] {
   const gateway = useKvV2Gateway();
-  const [refreshSignal, refresh] = useRefreshSignal();
-  const [state, setState] = useState<VaultQueryState<KvSecretDetails>>({ status: 'idle' });
   const permissionStatus = permissions?.status;
   const permissionScope = permissions?.data?.scope ?? '';
   const canReadData = permissions?.status === 'success' ? permissions.data.canReadData : undefined;
   const canReadMetadata = permissions?.status === 'success' ? permissions.data.canReadMetadata : undefined;
+  const waitingForPermissions = Boolean(
+    permissionStatus
+    && (
+      permissionStatus === 'idle'
+      || permissionStatus === 'loading'
+      || (permissionStatus === 'success' && permissionScope !== `${mount}/data/${path}`)
+    ),
+  );
+  const permissionKey = permissions
+    ? [permissionStatus, permissionScope, canReadData, canReadMetadata]
+    : ['unchecked'];
+  const enabled = Boolean(mount && path && !waitingForPermissions);
+  const query = useQuery({
+    queryKey: vaultQueryKeys.secret(mount, path ?? '', permissionKey),
+    enabled,
+    queryFn: async ({ signal }) => {
+      if (!path) throw new VaultError('invalid-request');
+      const dataResult = permissionStatus === 'success' && canReadData === false
+        ? Promise.resolve(authorizationDeniedResource<KvV2Secret>())
+        : captureResource(() => gateway.readSecret(session, mount, path, undefined, signal));
+      const historyResult = permissionStatus === 'success' && canReadMetadata === false
+        ? Promise.resolve(authorizationDeniedResource<KvV2SecretHistory>())
+        : captureResource(() => gateway.readSecretHistory(session, mount, path, signal));
 
-  useEffect(() => {
-    if (!mount || !path) {
-      setState({ status: 'idle' });
-      return;
-    }
-    if (
-      permissionStatus
-      && (
-        permissionStatus === 'idle'
-        || permissionStatus === 'loading'
-        || (permissionStatus === 'success' && permissionScope !== `${mount}/data/${path}`)
-      )
-    ) {
-      setState({ status: 'loading' });
-      return;
-    }
-
-    const controller = new AbortController();
-    setState({ status: 'loading' });
-    const dataResult = permissionStatus === 'success' && canReadData === false
-      ? Promise.resolve(authorizationDeniedResource<KvV2Secret>())
-      : captureResource(() => gateway.readSecret(session, mount, path, undefined, controller.signal));
-    const historyResult = permissionStatus === 'success' && canReadMetadata === false
-      ? Promise.resolve(authorizationDeniedResource<KvV2SecretHistory>())
-      : captureResource(() => gateway.readSecretHistory(session, mount, path, controller.signal));
-
-    Promise.all([dataResult, historyResult]).then(([data, versionHistory]) => {
-      if (controller.signal.aborted) return;
-
+      const [data, versionHistory] = await Promise.all([dataResult, historyResult]);
       const resourceErrors = [
         data.ok === false ? data.error : undefined,
         versionHistory.ok === false ? versionHistory.error : undefined,
       ].filter((error): error is VaultError => Boolean(error));
       const sessionError = resourceErrors.find((error) => error.code === 'session-expired');
-      if (sessionError) {
-        setState({ status: 'error', error: sessionError });
-        return;
-      }
+      if (sessionError) throw sessionError;
 
       const history = versionHistory.ok ? versionHistory.data : undefined;
       const current = history?.versions.find((version) => version.version === history.currentVersion);
@@ -163,26 +146,17 @@ export function useKvSecretDetails(
         if (history) details.history = history;
         if (data.ok === false) details.dataError = data.error;
         if (versionHistory.ok === false) details.historyError = versionHistory.error;
-        setState({ status: 'success', data: details });
-        return;
+        return details;
       }
 
       const error = resourceErrors[0];
-      if (error && error.code !== 'aborted') setState({ status: 'error', error });
-    });
+      throw error ?? new VaultError('unknown');
+    },
+  });
 
-    return () => controller.abort();
-  }, [
-    canReadData,
-    canReadMetadata,
-    gateway,
-    mount,
-    path,
-    permissionScope,
-    permissionStatus,
-    refreshSignal,
-    session,
-  ]);
-
-  return [state, refresh];
+  const idle = !mount || !path;
+  const state = waitingForPermissions && !idle
+    ? { status: 'loading' as const }
+    : queryState(query, idle);
+  return [state, () => { void query.refetch(); }];
 }
