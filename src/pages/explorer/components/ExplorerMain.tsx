@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { KvSecretDetails, VaultQueryState } from '@/application/vault/useKvExplorerData';
 import type { KvActionPermissions } from '@/application/vault/useKvActionPermissions';
@@ -6,6 +6,7 @@ import Button from '@/components/base/Button';
 import Tooltip from '@/components/base/Tooltip';
 import type { KvV2Mount } from '@/domain/vault/contracts';
 import Inspector from './Inspector';
+import InspectorDock from './InspectorDock';
 import SecretTable, { type KvDirectoryEntry } from './SecretTable';
 
 interface ExplorerMainProps {
@@ -21,7 +22,6 @@ interface ExplorerMainProps {
   readonly onRefresh: () => void;
   readonly onRetrySecret: () => void;
   readonly onCreateSecret?: () => void;
-  readonly onOpenSecret?: () => void;
   readonly onEditSecret?: () => void;
   readonly permissions?: KvActionPermissions;
   readonly onCompare?: () => void;
@@ -56,7 +56,6 @@ export default function ExplorerMain({
   onRefresh,
   onRetrySecret,
   onCreateSecret,
-  onOpenSecret,
   onEditSecret,
   permissions,
   onCompare,
@@ -67,6 +66,7 @@ export default function ExplorerMain({
   onDeleteMetadata,
 }: ExplorerMainProps) {
   const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [inspectorTab, setInspectorTab] = useState('data');
   const [searchQuery, setSearchQuery] = useState('');
   const [clipboardMessage, setClipboardMessage] = useState('');
   const entries = useMemo(() => entriesFromKeys(currentPath, directory.data ?? []), [currentPath, directory.data]);
@@ -79,6 +79,12 @@ export default function ExplorerMain({
   }));
   const currentMount = mounts.find((candidate) => candidate.path === mount);
 
+  useEffect(() => {
+    if (!selectedPath) return;
+    setInspectorOpen(true);
+    setInspectorTab('data');
+  }, [selectedPath]);
+
   const copy = async (value: string, success: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -90,7 +96,34 @@ export default function ExplorerMain({
   };
 
   return (
-    <main id="main-content" tabIndex={-1} className="flex min-w-0 flex-1">
+    <InspectorDock
+      open={inspectorOpen}
+      path={selectedPath ? `${mount}/${selectedPath}` : null}
+      onOpen={() => setInspectorOpen(true)}
+      onClose={() => setInspectorOpen(false)}
+      renderInspector={({ openFullScreen, exitFullScreen }) => (
+        <Inspector
+          state={details}
+          mount={mount}
+          path={selectedPath}
+          onRetry={onRetrySecret}
+          onOpenFullScreen={openFullScreen}
+          onEdit={onEditSecret ? () => {
+            exitFullScreen();
+            onEditSecret();
+          } : undefined}
+          permissions={permissions}
+          onCompare={onCompare}
+          onDeleteLatest={onDeleteLatest}
+          onDeleteVersion={onDeleteVersion}
+          onUndelete={onUndelete}
+          onDestroyVersion={onDestroyVersion}
+          onDeleteMetadata={onDeleteMetadata}
+          activeTab={inspectorTab}
+          onTabChange={setInspectorTab}
+        />
+      )}
+    >
       <section aria-labelledby="directory-heading" className="flex min-w-0 flex-1 flex-col">
         <header className="shrink-0 border-b border-background-200 px-4 py-3">
           <nav aria-label="Secret path" className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
@@ -151,37 +184,6 @@ export default function ExplorerMain({
           )}
         </div>
       </section>
-
-      {inspectorOpen && (
-        <aside aria-label="Secret inspector" className={`${selectedPath ? 'flex' : 'hidden'} absolute inset-0 z-20 w-full shrink-0 flex-col border-l border-background-200 bg-background-50 lg:static lg:flex lg:w-[360px]`}>
-          <div className="flex h-9 items-center justify-between border-b border-background-200 px-3">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-500">{selectedPath ? 'Inspector' : 'Details'}</span>
-            <button type="button" aria-label="Close inspector" onClick={() => setInspectorOpen(false)} className="flex h-5 w-5 items-center justify-center rounded text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className="ri-close-line text-xs" aria-hidden="true" /></button>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            <Inspector
-              state={details}
-              mount={mount}
-              path={selectedPath}
-              onRetry={onRetrySecret}
-              onOpenFullScreen={onOpenSecret}
-              onEdit={onEditSecret}
-              permissions={permissions}
-              onCompare={onCompare}
-              onDeleteLatest={onDeleteLatest}
-              onDeleteVersion={onDeleteVersion}
-              onUndelete={onUndelete}
-              onDestroyVersion={onDestroyVersion}
-              onDeleteMetadata={onDeleteMetadata}
-            />
-          </div>
-        </aside>
-      )}
-      {!inspectorOpen && (
-        <Tooltip content="Open inspector" position="left">
-          <button type="button" aria-label="Open inspector" onClick={() => setInspectorOpen(true)} className="absolute right-0 top-1/2 z-10 flex h-12 w-6 -translate-y-1/2 items-center justify-center rounded-l-md border border-r-0 border-background-300 bg-background-50 text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className="ri-arrow-left-s-line text-sm" aria-hidden="true" /></button>
-        </Tooltip>
-      )}
-    </main>
+    </InspectorDock>
   );
 }

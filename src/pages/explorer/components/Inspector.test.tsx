@@ -92,4 +92,38 @@ describe('Inspector partial KV access', () => {
     expect(screen.getByText('v3')).toBeVisible();
     expect(screen.getByText('v2')).toBeVisible();
   });
+
+  it('labels comparison and destructive version actions explicitly', async () => {
+    const user = userEvent.setup();
+    const onCompare = vi.fn();
+    const onDeleteLatest = vi.fn();
+    const onDestroyVersion = vi.fn();
+    renderInspector({ secret, history }, {
+      permissions: {
+        ...permissions,
+        canReadMetadata: true,
+        canDeleteLatest: true,
+        canDeleteVersions: true,
+        canDestroy: true,
+      },
+      onCompare,
+      onDeleteLatest,
+      onDestroyVersion,
+    });
+
+    await user.click(screen.getByRole('tab', { name: /Versions.*2/ }));
+    await user.click(screen.getByRole('button', { name: 'Compare version 3' }));
+    expect(onCompare).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole('button', { name: 'Version actions for version 3' }));
+    expect(screen.getByText('Soft-delete version')).toBeVisible();
+    expect(screen.getByText('Permanently destroy version')).toBeVisible();
+    expect(screen.getByText('Irreversible. The data cannot be recovered.')).toBeVisible();
+    await user.click(screen.getByRole('menuitem', { name: 'Delete current version 3' }));
+    expect(onDeleteLatest).toHaveBeenCalledWith(3);
+
+    await user.click(screen.getByRole('button', { name: 'Version actions for version 2' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Destroy version 2' }));
+    expect(onDestroyVersion).toHaveBeenCalledWith(2);
+  });
 });

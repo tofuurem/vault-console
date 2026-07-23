@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -38,6 +38,17 @@ function renderWorkspace(overrides: Partial<ComponentProps<typeof SecretWorkspac
   return props;
 }
 
+async function replaceEditorContent(
+  user: ReturnType<typeof userEvent.setup>,
+  value: string,
+) {
+  const editor = await screen.findByLabelText('Secret JSON editor');
+  await user.click(editor);
+  await user.keyboard('{Control>}a{/Control}');
+  await user.paste(value);
+  return editor;
+}
+
 describe('SecretWorkspace', () => {
   it('reads nested data as a masked tree or redacted JSON', async () => {
     const user = userEvent.setup();
@@ -62,7 +73,6 @@ describe('SecretWorkspace', () => {
     const onSave = vi.fn(async () => undefined);
     const onClose = vi.fn();
     renderWorkspace({ initialMode: 'edit', onSave, onClose });
-    const editor = screen.getByLabelText('Secret JSON editor');
     const nextData = {
       service: {
         credentials: { access: 'rotated-value' },
@@ -72,7 +82,7 @@ describe('SecretWorkspace', () => {
       region: 'local',
     };
 
-    fireEvent.change(editor, { target: { value: JSON.stringify(nextData) } });
+    await replaceEditorContent(user, JSON.stringify(nextData));
     await user.click(screen.getByRole('button', { name: 'Save version 12' }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(nextData));
@@ -84,10 +94,11 @@ describe('SecretWorkspace', () => {
     const onClose = vi.fn();
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderWorkspace({ initialMode: 'edit', onClose });
-    const editor = screen.getByLabelText('Secret JSON editor');
 
-    fireEvent.change(editor, { target: { value: '{"service":' } });
+    const editor = await replaceEditorContent(user, '{\n  "service":,\n}');
     expect(editor).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('alert')).toHaveTextContent('JSON syntax error at line 2, column 13.');
+    expect(screen.getByRole('button', { name: 'Go to line 2, column 13' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Save version 12' })).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: 'Close secret workspace' }));

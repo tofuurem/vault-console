@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -86,6 +86,16 @@ function kvGateway(options: { denied?: boolean } = {}): KvV2Gateway {
 async function login(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText('Vault token'), 'hvs.reader');
   await user.click(screen.getByRole('button', { name: 'Sign in' }));
+}
+
+async function replaceEditorContent(
+  user: ReturnType<typeof userEvent.setup>,
+  value: string,
+) {
+  const editor = await screen.findByLabelText('Secret JSON editor');
+  await user.click(editor);
+  await user.keyboard('{Control>}a{/Control}');
+  await user.paste(value);
 }
 
 describe('ExplorerPage', () => {
@@ -216,8 +226,7 @@ describe('ExplorerPage', () => {
     await user.click((await screen.findAllByText('shared'))[0]);
     await screen.findByText('API_KEY');
     await user.click(await screen.findByRole('button', { name: 'Edit secret' }));
-    const editor = screen.getByLabelText('Secret JSON editor');
-    fireEvent.change(editor, { target: { value: JSON.stringify({ API_KEY: 'rotated' }) } });
+    await replaceEditorContent(user, JSON.stringify({ API_KEY: 'rotated' }));
     await user.click(screen.getByRole('button', { name: 'Save version 3' }));
 
     await waitFor(() => expect(gateway.writeSecret).toHaveBeenCalledWith(
@@ -254,8 +263,7 @@ describe('ExplorerPage', () => {
         enabled: false,
       },
     };
-    const editor = screen.getByLabelText('Secret JSON editor');
-    fireEvent.change(editor, { target: { value: JSON.stringify(nextData) } });
+    await replaceEditorContent(user, JSON.stringify(nextData));
     await user.click(screen.getByRole('button', { name: 'Save version 3' }));
 
     await waitFor(() => expect(gateway.writeSecret).toHaveBeenCalledWith(
@@ -276,7 +284,8 @@ describe('ExplorerPage', () => {
     await user.click((await screen.findAllByText('shared'))[0]);
     await screen.findByText('API_KEY');
     await user.click(screen.getByRole('tab', { name: /^Versions/ }));
-    await user.click(await screen.findByRole('button', { name: 'Delete current version 2' }));
+    await user.click(screen.getByRole('button', { name: 'Version actions for version 2' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete current version 2' }));
 
     await user.type(screen.getByLabelText('Type applications/shared to confirm'), 'applications/shared');
     await user.click(screen.getByRole('button', { name: 'Delete current version' }));

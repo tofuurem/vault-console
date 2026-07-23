@@ -31,7 +31,20 @@ describe('secret JSON helpers', () => {
       expect(result.kind).toBe('syntax');
       expect(result.message).toMatch(/^JSON syntax error/);
       expect(result.message).not.toContain('do-not-echo');
+      expect(result.location).toEqual({ line: 1, column: 24, offset: 23 });
     }
+  });
+
+  it('reports the exact line and column even when the JavaScript engine omits them', () => {
+    const source = '{\n  "ok": true,\n  "broken":,\n  "tail": 1\n}';
+    const result = parseSecretJson(source);
+
+    expect(result).toMatchObject({
+      ok: false,
+      kind: 'syntax',
+      message: 'JSON syntax error at line 3, column 12.',
+      location: { line: 3, column: 12, offset: 27 },
+    });
   });
 
   it.each(['[]', 'null', '"value"', '42'])('rejects a non-object root: %s', (source) => {
@@ -39,6 +52,7 @@ describe('secret JSON helpers', () => {
       ok: false,
       kind: 'root',
       message: 'Secret JSON must have an object at the root.',
+      location: { line: 1, column: 1, offset: 0 },
     });
   });
 

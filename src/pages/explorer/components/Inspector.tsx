@@ -22,6 +22,8 @@ interface InspectorProps {
   readonly onUndelete?: (version: number) => void;
   readonly onDestroyVersion?: (version: number) => void;
   readonly onDeleteMetadata?: (version: number) => void;
+  readonly activeTab?: string;
+  readonly onTabChange?: (tab: string) => void;
 }
 
 function printableValue(value: unknown): string {
@@ -119,6 +121,109 @@ function ScopedResourceError({
   );
 }
 
+function VersionActionsMenu({
+  version,
+  current,
+  deleted,
+  permissions,
+  onDeleteLatest,
+  onDeleteVersion,
+  onUndelete,
+  onDestroyVersion,
+}: {
+  readonly version: number;
+  readonly current: boolean;
+  readonly deleted: boolean;
+  readonly permissions?: KvActionPermissions;
+  readonly onDeleteLatest?: (version: number) => void;
+  readonly onDeleteVersion?: (version: number) => void;
+  readonly onUndelete?: (version: number) => void;
+  readonly onDestroyVersion?: (version: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const canSoftDelete = !deleted && (
+    (current && permissions?.canDeleteLatest)
+    || (!current && permissions?.canDeleteVersions)
+  );
+  const canUndelete = deleted && permissions?.canUndelete;
+  const canDestroy = !deleted && permissions?.canDestroy;
+  const hasActions = canSoftDelete || canUndelete || canDestroy;
+
+  useEffect(() => {
+    if (!open) return;
+    const closeFromOutside = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeFromKeyboard = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', closeFromOutside);
+    document.addEventListener('keydown', closeFromKeyboard);
+    containerRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    return () => {
+      document.removeEventListener('pointerdown', closeFromOutside);
+      document.removeEventListener('keydown', closeFromKeyboard);
+    };
+  }, [open]);
+
+  if (!hasActions) return null;
+
+  const run = (action: (() => void) | undefined) => {
+    setOpen(false);
+    action?.();
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <Tooltip content={`Open actions for version ${version}`}>
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-label={`Version actions for version ${version}`}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen((currentOpen) => !currentOpen)}
+          className="flex h-7 items-center gap-1 rounded-md border border-background-300 bg-background-50 px-2 text-[11px] font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        >
+          Actions <i className="ri-arrow-down-s-line text-xs" aria-hidden="true" />
+        </button>
+      </Tooltip>
+      {open && (
+        <div role="menu" aria-label={`Actions for version ${version}`} className="absolute right-0 top-8 z-30 w-64 overflow-hidden rounded-md border border-background-300 bg-background-50 py-1 shadow-xl">
+          {canUndelete && (
+            <button type="button" role="menuitem" aria-label={`Undelete version ${version}`} onClick={() => run(() => onUndelete?.(version))} className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400">
+              <i className="ri-arrow-go-back-line mt-0.5 text-sm text-emerald-600" aria-hidden="true" />
+              <span><strong className="block text-xs font-medium text-foreground-800">Undelete version</strong><span className="block text-[10px] text-foreground-500">Make this soft-deleted version readable again.</span></span>
+            </button>
+          )}
+          {canSoftDelete && (
+            <button
+              type="button"
+              role="menuitem"
+              aria-label={current ? `Delete current version ${version}` : `Delete version ${version}`}
+              onClick={() => run(() => current ? onDeleteLatest?.(version) : onDeleteVersion?.(version))}
+              className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400"
+            >
+              <i className="ri-delete-bin-line mt-0.5 text-sm text-red-500" aria-hidden="true" />
+              <span><strong className="block text-xs font-medium text-foreground-800">Soft-delete version</strong><span className="block text-[10px] text-foreground-500">Data can be undeleted later.</span></span>
+            </button>
+          )}
+          {canDestroy && (
+            <button type="button" role="menuitem" aria-label={`Destroy version ${version}`} onClick={() => run(() => onDestroyVersion?.(version))} className="flex w-full items-start gap-2 border-t border-background-200 px-3 py-2 text-left hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400">
+              <i className="ri-close-circle-line mt-0.5 text-sm text-red-600" aria-hidden="true" />
+              <span><strong className="block text-xs font-medium text-red-700">Permanently destroy version</strong><span className="block text-[10px] text-red-600">Irreversible. The data cannot be recovered.</span></span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Inspector({
   state,
   mount,
@@ -133,8 +238,15 @@ export default function Inspector({
   onUndelete,
   onDestroyVersion,
   onDeleteMetadata,
+  activeTab: controlledTab,
+  onTabChange,
 }: InspectorProps) {
-  const [activeTab, setActiveTab] = useState('data');
+  const [internalTab, setInternalTab] = useState('data');
+  const activeTab = controlledTab ?? internalTab;
+  const setActiveTab = (tab: string) => {
+    setInternalTab(tab);
+    onTabChange?.(tab);
+  };
 
   if (!path || state.status === 'idle') {
     return (
@@ -236,12 +348,24 @@ export default function Inspector({
                   <p className="mt-0.5 truncate text-[10px] text-foreground-400">{formatTime(version.createdTime)}</p>
                 </div>
                 {!version.destroyed && (
-                  <div className="flex shrink-0 items-center gap-0.5">
-                    {version.deletionTime && permissions?.canUndelete && <button type="button" aria-label={`Undelete version ${version.version}`} onClick={() => onUndelete?.(version.version)} className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-emerald-50 hover:text-emerald-700"><i className="ri-arrow-go-back-line text-xs" aria-hidden="true" /></button>}
-                    {!version.deletionTime && onCompare && <button type="button" aria-label={`Compare version ${version.version}`} onClick={onCompare} className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-primary-50 hover:text-primary-700"><i className="ri-scales-line text-xs" aria-hidden="true" /></button>}
-                    {current && !version.deletionTime && permissions?.canDeleteLatest && <button type="button" aria-label={`Delete current version ${version.version}`} onClick={() => onDeleteLatest?.(version.version)} className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-red-50 hover:text-red-600"><i className="ri-delete-bin-line text-xs" aria-hidden="true" /></button>}
-                    {!current && !version.deletionTime && permissions?.canDeleteVersions && <button type="button" aria-label={`Delete version ${version.version}`} onClick={() => onDeleteVersion?.(version.version)} className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-red-50 hover:text-red-600"><i className="ri-delete-bin-line text-xs" aria-hidden="true" /></button>}
-                    {!version.deletionTime && permissions?.canDestroy && <button type="button" aria-label={`Destroy version ${version.version}`} onClick={() => onDestroyVersion?.(version.version)} className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-red-50 hover:text-red-700"><i className="ri-close-circle-line text-xs" aria-hidden="true" /></button>}
+                  <div className="flex shrink-0 items-center gap-1">
+                    {!version.deletionTime && onCompare && (
+                      <Tooltip content={`Compare version ${version.version} with another version`}>
+                        <button type="button" aria-label={`Compare version ${version.version}`} onClick={onCompare} className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-primary-600 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+                          <i className="ri-scales-line text-xs" aria-hidden="true" /> Compare
+                        </button>
+                      </Tooltip>
+                    )}
+                    <VersionActionsMenu
+                      version={version.version}
+                      current={current}
+                      deleted={Boolean(version.deletionTime)}
+                      permissions={permissions}
+                      onDeleteLatest={onDeleteLatest}
+                      onDeleteVersion={onDeleteVersion}
+                      onUndelete={onUndelete}
+                      onDestroyVersion={onDestroyVersion}
+                    />
                   </div>
                 )}
               </div>

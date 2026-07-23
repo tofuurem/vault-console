@@ -201,7 +201,6 @@ export default function ExplorerPage() {
       onRefresh={refreshDirectory}
       onRetrySecret={refreshDetails}
       onCreateSecret={() => setCreateOpen(true)}
-      onOpenSecret={selectedDetails?.secret ? () => setWorkspaceMode('view') : undefined}
       onEditSecret={selectedDetails?.secret ? () => setWorkspaceMode('edit') : undefined}
       permissions={selectedPermissions}
       onCompare={selectedDetails?.history && selectedPermissions?.canReadData ? () => setCompareOpen(true) : undefined}

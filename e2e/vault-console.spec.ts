@@ -124,13 +124,15 @@ test('keeps navigation and the secret inspector usable on a narrow viewport', as
 
   await expect(page.getByRole('complementary', { name: 'Vault navigation' })).toHaveCSS('width', '44px');
   await page.getByText('nested', { exact: true }).first().click();
-  await expect(page.getByRole('complementary', { name: 'Secret inspector' })).toBeVisible();
-  await expect(page.getByText('service', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Open secret full screen' }).click();
-  await expect(page.getByRole('dialog', { name: 'applications/nested' })).toBeVisible();
+  const inspector = page.getByRole('dialog', { name: 'applications/nested' });
+  await expect(inspector).toBeVisible();
+  await expect(inspector.getByText('service', { exact: true })).toBeVisible();
+  await inspector.getByRole('tab', { name: 'Versions' }).click();
+  await expect(inspector.getByText('v1', { exact: true })).toBeVisible();
+  await inspector.getByRole('tab', { name: 'Metadata' }).click();
+  await expect(inspector.getByText('Logical path')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-  await page.getByRole('button', { name: 'Close secret workspace' }).click();
-  await page.getByRole('button', { name: 'Close inspector' }).click();
+  await inspector.getByRole('button', { name: 'Close inspector' }).click();
   await page.getByRole('button', { name: 'Users' }).click();
   await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
   await page.getByRole('button', { name: 'Open applications mount' }).click();

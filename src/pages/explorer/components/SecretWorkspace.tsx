@@ -202,6 +202,7 @@ export default function SecretWorkspace({
               onChange={setRawJson}
               onFormat={formatEditor}
               validationError={parsed.ok === false ? parsed.message : undefined}
+              validationLocation={parsed.ok === false ? parsed.location : undefined}
               disabled={saving}
             />
             <footer className="flex shrink-0 flex-wrap items-center gap-3 rounded-lg border border-background-300 bg-background-50 px-3 py-2">
