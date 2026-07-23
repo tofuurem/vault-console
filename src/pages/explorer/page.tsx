@@ -11,8 +11,8 @@ import type { VaultCapability } from '@/domain/vault/contracts';
 import { normalizeVaultError, VaultError } from '@/domain/vault/errors';
 import CreateSecretDrawer from './components/CreateSecretDrawer';
 import DestructionConfirm, { type KvDestructiveAction } from './components/DestructionConfirm';
-import EditSecretDrawer from './components/EditSecretDrawer';
 import ExplorerMain from './components/ExplorerMain';
+import SecretWorkspace, { type SecretWorkspaceMode } from './components/SecretWorkspace';
 import VersionComparison from './components/VersionComparison';
 
 const NO_MOUNTS = [] as const;
@@ -37,7 +37,7 @@ export default function ExplorerPage() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<SecretWorkspaceMode | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const [destructiveAction, setDestructiveAction] = useState<KvDestructiveAction | null>(null);
   const [mutationNotice, setMutationNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
@@ -226,7 +226,8 @@ export default function ExplorerPage() {
             onRefresh={refreshDirectory}
             onRetrySecret={refreshDetails}
             onCreateSecret={() => setCreateOpen(true)}
-            onEditSecret={selectedDetails?.secret ? () => setEditOpen(true) : undefined}
+            onOpenSecret={selectedDetails?.secret ? () => setWorkspaceMode('view') : undefined}
+            onEditSecret={selectedDetails?.secret ? () => setWorkspaceMode('edit') : undefined}
             permissions={permissionsState.data}
             onCompare={selectedDetails ? () => setCompareOpen(true) : undefined}
             onDeleteLatest={(version) => setDestructiveAction({ kind: 'delete-latest', version })}
@@ -239,7 +240,14 @@ export default function ExplorerPage() {
       </div>
 
       <CreateSecretDrawer open={createOpen} onClose={() => setCreateOpen(false)} mount={activeMount} currentPath={activePath} onSave={createSecret} />
-      <EditSecretDrawer open={editOpen} onClose={() => setEditOpen(false)} secret={selectedDetails?.secret} onSave={editSecret} />
+      <SecretWorkspace
+        open={workspaceMode !== null}
+        initialMode={workspaceMode ?? 'view'}
+        secret={selectedDetails?.secret}
+        canEdit={Boolean(permissionsState.data?.canEdit)}
+        onClose={() => setWorkspaceMode(null)}
+        onSave={editSecret}
+      />
       <VersionComparison
         open={compareOpen}
         onClose={() => setCompareOpen(false)}

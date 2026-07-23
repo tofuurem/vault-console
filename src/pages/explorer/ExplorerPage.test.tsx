@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -46,12 +46,20 @@ function kvGateway(options: { denied?: boolean } = {}): KvV2Gateway {
     listMounts: vi.fn(async () => [{ path: 'applications', accessor: 'kv_apps', description: 'Application secrets', version: 2 as const }]),
     listPaths: vi.fn(async () => {
       if (options.denied) throw new VaultError('authorization');
-      return ['billing/', 'shared'];
+      return ['billing/', 'nested', 'shared'];
     }),
     readSecret: vi.fn(async (_session, mount, path, version) => ({
       mount,
       path,
-      data: { API_KEY: version === 1 ? 'old-memory-only-value' : 'memory-only-value' },
+      data: path === 'nested'
+        ? {
+            service: {
+              credentials: { access: 'nested-memory-value' },
+              ports: [443, 8443],
+              enabled: true,
+            },
+          }
+        : { API_KEY: version === 1 ? 'old-memory-only-value' : 'memory-only-value' },
       metadata: { createdTime: '2026-07-21T12:00:00Z', version: version ?? 2, customMetadata: {}, destroyed: false },
     })),
     readSecretHistory: vi.fn(async () => ({
@@ -135,9 +143,8 @@ describe('ExplorerPage', () => {
     await user.click((await screen.findAllByText('shared'))[0]);
     await screen.findByText('API_KEY');
     await user.click(await screen.findByRole('button', { name: 'Edit secret' }));
-    await user.clear(screen.getByLabelText('Value for API_KEY'));
-    await user.type(screen.getByLabelText('Value for API_KEY'), 'rotated');
-    await user.click(screen.getByRole('button', { name: 'Review changes' }));
+    const editor = screen.getByLabelText('Secret JSON editor');
+    fireEvent.change(editor, { target: { value: JSON.stringify({ API_KEY: 'rotated' }) } });
     await user.click(screen.getByRole('button', { name: 'Save version 3' }));
 
     await waitFor(() => expect(gateway.writeSecret).toHaveBeenCalledWith(
@@ -145,6 +152,44 @@ describe('ExplorerPage', () => {
       'applications',
       'shared',
       { API_KEY: 'rotated' },
+      2,
+    ));
+  });
+
+  it('opens nested data full screen and preserves its structure when editing', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
+    await login(user);
+    await user.click((await screen.findAllByText('nested'))[0]);
+    await screen.findByText('service');
+
+    expect(screen.getByText('object')).toBeVisible();
+    expect(screen.getAllByText('3 items').length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: 'Open secret full screen' }));
+
+    const workspace = await screen.findByRole('dialog', { name: 'applications/nested' });
+    expect(workspace).toBeVisible();
+    expect(screen.queryByText('nested-memory-value')).not.toBeInTheDocument();
+    await user.click(within(workspace).getByRole('button', { name: 'Edit secret' }));
+
+    const nextData = {
+      service: {
+        credentials: { access: 'rotated-nested-value' },
+        ports: [443, 9443],
+        enabled: false,
+      },
+    };
+    const editor = screen.getByLabelText('Secret JSON editor');
+    fireEvent.change(editor, { target: { value: JSON.stringify(nextData) } });
+    await user.click(screen.getByRole('button', { name: 'Save version 3' }));
+
+    await waitFor(() => expect(gateway.writeSecret).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'nested',
+      nextData,
       2,
     ));
   });

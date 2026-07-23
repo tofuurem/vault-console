@@ -5,12 +5,14 @@ import type { KvActionPermissions } from '@/application/vault/useKvActionPermiss
 import Badge from '@/components/base/Badge';
 import Tabs from '@/components/base/Tabs';
 import Tooltip from '@/components/base/Tooltip';
+import { isSecretJsonObject, secretContainerSize, secretValueType } from '@/domain/vault/secret-json';
 
 interface InspectorProps {
   readonly state: VaultQueryState<KvSecretDetails>;
   readonly mount: string;
   readonly path: string | null;
   readonly onRetry: () => void;
+  readonly onOpenFullScreen?: () => void;
   readonly onEdit?: () => void;
   readonly permissions?: KvActionPermissions;
   readonly onCompare?: () => void;
@@ -72,6 +74,22 @@ function MaskedValue({ value }: { value: unknown }) {
   );
 }
 
+function InspectorValue({ value }: { value: unknown }) {
+  if (Array.isArray(value) || isSecretJsonObject(value)) {
+    const type = secretValueType(value);
+    const size = secretContainerSize(value);
+    return (
+      <div className="flex min-w-0 items-center gap-1.5 text-xs text-foreground-500">
+        <i className={type === 'array' ? 'ri-brackets-line' : 'ri-braces-line'} aria-hidden="true" />
+        <span className="font-mono">{type}</span>
+        <span className="text-foreground-300">·</span>
+        <span>{size} {size === 1 ? 'item' : 'items'}</span>
+      </div>
+    );
+  }
+  return <MaskedValue value={value} />;
+}
+
 function formatTime(value: string): string {
   return new Date(value).toLocaleString(undefined, {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -83,6 +101,7 @@ export default function Inspector({
   mount,
   path,
   onRetry,
+  onOpenFullScreen,
   onEdit,
   permissions,
   onCompare,
@@ -140,7 +159,10 @@ export default function Inspector({
               <span className="text-[11px] font-medium text-foreground-500">Current version</span>
               <span className="ml-1.5 font-mono text-xs text-foreground-800">v{secret.metadata.version}</span>
             </div>
-            {onEdit && permissions?.canEdit && <button type="button" onClick={onEdit} className="rounded-md bg-primary-500 px-2.5 py-1.5 text-xs font-medium text-background-50 hover:bg-primary-600">Edit secret</button>}
+            <div className="flex items-center gap-1">
+              {onOpenFullScreen && <button type="button" aria-label="Open secret full screen" onClick={onOpenFullScreen} className="flex h-7 items-center gap-1 rounded-md border border-background-300 bg-background-50 px-2 text-[11px] font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className="ri-fullscreen-line text-xs" aria-hidden="true" /> Full screen</button>}
+              {onEdit && permissions?.canEdit && <button type="button" onClick={onEdit} className="h-7 rounded-md bg-primary-500 px-2 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Edit secret</button>}
+            </div>
           </div>
           <p className="text-[10px] text-foreground-400">Created {formatTime(secret.metadata.createdTime)}</p>
           <div className="overflow-hidden rounded-md border border-background-200">
@@ -149,7 +171,7 @@ export default function Inspector({
               {Object.entries(secret.data).map(([key, value]) => (
                 <div key={key} className="grid grid-cols-[minmax(90px,120px)_1fr] px-2.5 py-2">
                   <span className="break-all pr-2 font-mono text-xs font-medium text-foreground-700">{key}</span>
-                  <MaskedValue value={value} />
+                  <InspectorValue value={value} />
                 </div>
               ))}
             </div>
