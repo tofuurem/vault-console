@@ -151,6 +151,14 @@ vault policy write vault-console-admin deploy/vault-console-admin-policy.hcl.exa
 
 ## Проверки
 
+После первого клонирования подключите отслеживаемые Git hooks:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`pre-commit` запускает TypeScript и ESLint, а `pre-push` — полный Vitest suite и production build.
+
 ```bash
 npm run quality       # TypeScript, ESLint, Vitest
 npm run build         # production bundle
