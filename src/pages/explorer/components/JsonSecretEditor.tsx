@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useEffect,
   useId,
   useRef,
   useState,
@@ -17,6 +18,7 @@ interface JsonSecretEditorProps {
   readonly onFormat: () => void;
   readonly validationError?: string;
   readonly validationLocation?: SecretJsonLocation;
+  readonly focusErrorSignal?: number;
   readonly disabled?: boolean;
 }
 
@@ -31,12 +33,18 @@ export default function JsonSecretEditor({
   onFormat,
   validationError,
   validationLocation,
+  focusErrorSignal = 0,
   disabled = false,
 }: JsonSecretEditorProps) {
   const editorRef = useRef<CodeMirrorJsonEditorHandle>(null);
   const errorId = useId();
   const hintId = useId();
   const [cursor, setCursor] = useState<CursorPosition>({ line: 1, column: 1 });
+
+  useEffect(() => {
+    if (!focusErrorSignal || !validationLocation) return;
+    editorRef.current?.focusOffset(validationLocation.offset);
+  }, [focusErrorSignal, validationLocation]);
 
   return (
     <section aria-labelledby={`${hintId}-title`} className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-background-300 bg-background-50">

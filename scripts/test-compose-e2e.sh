@@ -69,6 +69,36 @@ vault_exec secrets enable -path=applications -description="Application secrets" 
 vault_exec auth enable -path=userpass userpass >/dev/null
 vault_exec kv put applications/shared API_KEY=real-vault-e2e-value >/dev/null
 vault_exec kv put applications/platform/api URL=https://api.example.test >/dev/null
+vault_exec kv put applications/lifecycle STATE=first >/dev/null
+vault_exec kv put applications/lifecycle STATE=second >/dev/null
+vault_exec kv put applications/lifecycle STATE=third >/dev/null
+
+docker exec \
+  --interactive \
+  --env VAULT_ADDR=http://127.0.0.1:8200 \
+  --env "VAULT_TOKEN=${root_token}" \
+  "${vault_container}" vault policy write e2e-userpass - >/dev/null <<'HCL'
+path "sys/mounts" {
+  capabilities = ["read"]
+}
+
+path "applications/data/*" {
+  capabilities = ["read"]
+}
+
+path "applications/metadata" {
+  capabilities = ["read", "list"]
+}
+
+path "applications/metadata/*" {
+  capabilities = ["read", "list"]
+}
+HCL
+
+vault_exec write auth/userpass/users/e2e-login \
+  password=e2e-password \
+  token_policies=e2e-userpass \
+  token_ttl=10m >/dev/null
 
 docker exec \
   --interactive \
@@ -145,6 +175,33 @@ done
 if [ "${console_ready}" != true ]; then
   echo "Vault Console or its real-Vault proxy did not become ready." >&2
   docker compose logs --no-color >&2 || true
+  exit 1
+fi
+
+require_header() {
+  path="$1"
+  header="$2"
+  expected="$3"
+  headers="$(curl --fail --silent --show-error --dump-header - --output /dev/null "${console_origin}${path}")"
+  if ! printf '%s' "${headers}" | grep -iF "${header}" | grep -F "${expected}" >/dev/null; then
+    echo "Missing expected ${header} header on ${path}: ${expected}" >&2
+    exit 1
+  fi
+}
+
+require_header "/" "Content-Security-Policy:" "script-src 'self'"
+require_header "/" "Permissions-Policy:" "camera=()"
+require_header "/runtime-config.js" "Cache-Control:" "no-store"
+require_header "/v1/sys/health" "X-Content-Type-Options:" "nosniff"
+
+runtime_config="$(curl --fail --silent --show-error "${console_origin}/runtime-config.js")"
+if ! printf '%s' "${runtime_config}" | grep -F 'userpassMount: "userpass"' >/dev/null; then
+  echo "Runtime config was not generated with the expected userpass mount." >&2
+  exit 1
+fi
+
+if docker compose exec -T vault-console find /usr/share/nginx/html -type f -name '*.map' -print -quit | grep -q .; then
+  echo "Production image unexpectedly contains public source maps." >&2
   exit 1
 fi
 

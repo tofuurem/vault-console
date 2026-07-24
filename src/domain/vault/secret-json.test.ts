@@ -42,7 +42,7 @@ describe('secret JSON helpers', () => {
     expect(result).toMatchObject({
       ok: false,
       kind: 'syntax',
-      message: 'JSON syntax error at line 3, column 12.',
+      message: 'JSON syntax error at line 3, column 12: unexpected comma or missing value.',
       location: { line: 3, column: 12, offset: 27 },
     });
   });

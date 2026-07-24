@@ -13,6 +13,13 @@ export type VaultErrorCode =
   | 'unavailable'
   | 'unknown';
 
+export interface VaultErrorDiagnostic {
+  readonly operation: string;
+  readonly durationMs?: number;
+  readonly retryCount?: number;
+  readonly requestId?: string;
+}
+
 const SAFE_MESSAGES: Record<VaultErrorCode, string> = {
   aborted: 'The Vault request was cancelled.',
   authentication: 'Vault rejected the supplied credentials.',
@@ -33,25 +40,36 @@ export class VaultError extends Error {
   readonly code: VaultErrorCode;
   readonly retryable: boolean;
   readonly status?: number;
+  readonly diagnostic?: VaultErrorDiagnostic;
 
-  constructor(code: VaultErrorCode, options: { cause?: unknown; status?: number } = {}) {
+  constructor(code: VaultErrorCode, options: {
+    cause?: unknown;
+    status?: number;
+    diagnostic?: VaultErrorDiagnostic;
+  } = {}) {
     super(SAFE_MESSAGES[code], { cause: options.cause });
     this.name = 'VaultError';
     this.code = code;
-    this.status = options.status;
+    const previous = options.cause instanceof VaultError ? options.cause : undefined;
+    this.status = options.status ?? previous?.status;
+    this.diagnostic = options.diagnostic ?? previous?.diagnostic;
     this.retryable = code === 'rate-limited' || code === 'unavailable';
   }
 }
 
-export function vaultErrorFromStatus(status: number): VaultError {
-  if (status === 400 || status === 422) return new VaultError('invalid-request', { status });
-  if (status === 401) return new VaultError('session-expired', { status });
-  if (status === 403) return new VaultError('authorization', { status });
-  if (status === 404) return new VaultError('not-found', { status });
-  if (status === 409 || status === 412) return new VaultError('conflict', { status });
-  if (status === 429) return new VaultError('rate-limited', { status });
-  if (status >= 500) return new VaultError('unavailable', { status });
-  return new VaultError('unknown', { status });
+export function vaultErrorFromStatus(
+  status: number,
+  diagnostic?: VaultErrorDiagnostic,
+): VaultError {
+  const options = { status, diagnostic };
+  if (status === 400 || status === 422) return new VaultError('invalid-request', options);
+  if (status === 401) return new VaultError('session-expired', options);
+  if (status === 403) return new VaultError('authorization', options);
+  if (status === 404) return new VaultError('not-found', options);
+  if (status === 409 || status === 412) return new VaultError('conflict', options);
+  if (status === 429) return new VaultError('rate-limited', options);
+  if (status >= 500) return new VaultError('unavailable', options);
+  return new VaultError('unknown', options);
 }
 
 export function normalizeVaultError(error: unknown): VaultError {

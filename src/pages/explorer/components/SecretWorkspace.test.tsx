@@ -97,9 +97,10 @@ describe('SecretWorkspace', () => {
 
     const editor = await replaceEditorContent(user, '{\n  "service":,\n}');
     expect(editor).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByRole('alert')).toHaveTextContent('JSON syntax error at line 2, column 13.');
+    expect(screen.getByRole('alert')).toHaveTextContent('JSON syntax error at line 2, column 13: unexpected comma or missing value.');
     expect(screen.getByRole('button', { name: 'Go to line 2, column 13' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Save version 12' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Save version 12' }));
+    await waitFor(() => expect(screen.getByText('Ln 2, Col 13')).toBeVisible());
 
     await user.click(screen.getByRole('button', { name: 'Close secret workspace' }));
     expect(confirm).toHaveBeenCalledWith('Discard unsaved secret changes?');

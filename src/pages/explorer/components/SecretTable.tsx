@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 export interface KvDirectoryEntry {
   readonly kind: 'folder' | 'secret';
   readonly name: string;
@@ -21,8 +19,6 @@ export default function SecretTable({
   onNavigateToFolder,
   onCreateSecret,
 }: SecretTableProps) {
-  const [focusedPath, setFocusedPath] = useState<string | null>(null);
-
   if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center px-4 py-20 text-center">
@@ -56,24 +52,21 @@ export default function SecretTable({
           return (
             <tr
               key={`${entry.kind}:${entry.path}`}
-              tabIndex={0}
-              aria-selected={selected}
-              onFocus={() => setFocusedPath(entry.path)}
-              onBlur={() => setFocusedPath(null)}
-              onClick={() => entry.kind === 'folder' ? onNavigateToFolder(entry.path) : onSelectSecret(entry.path)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return;
-                event.preventDefault();
-                if (entry.kind === 'folder') onNavigateToFolder(entry.path);
-                else onSelectSecret(entry.path);
-              }}
-              className={`cursor-pointer border-b border-background-100 transition-colors focus:outline-none ${selected ? 'bg-primary-50/70' : focusedPath === entry.path ? 'bg-background-100 ring-2 ring-inset ring-primary-300' : 'hover:bg-background-100'}`}
+              className={`group border-b border-background-100 transition-colors ${selected ? 'bg-primary-50/70' : 'hover:bg-background-100 focus-within:bg-background-100'}`}
             >
               <td className="px-3 py-2.5">
                 <i className={`${entry.kind === 'folder' ? 'ri-folder-3-line text-amber-500' : 'ri-key-2-line text-foreground-400'} text-sm`} aria-hidden="true" />
               </td>
               <td className="px-0 py-2.5">
-                <span className="font-mono text-sm font-medium text-foreground-800">{entry.name}{entry.kind === 'folder' ? '/' : ''}</span>
+                <button
+                  type="button"
+                  aria-label={`${entry.kind === 'folder' ? 'Open folder' : 'Inspect secret'} ${entry.path}`}
+                  aria-current={selected ? 'true' : undefined}
+                  onClick={() => entry.kind === 'folder' ? onNavigateToFolder(entry.path) : onSelectSecret(entry.path)}
+                  className="min-h-8 w-full rounded-sm text-left font-mono text-sm font-medium text-foreground-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                >
+                  {entry.name}{entry.kind === 'folder' ? '/' : ''}
+                </button>
               </td>
               <td className="px-3 py-2.5 text-xs text-foreground-500">{entry.kind === 'folder' ? 'Folder' : 'Secret'}</td>
               <td className="hidden px-3 py-2.5 font-mono text-[11px] text-foreground-400 md:table-cell">{entry.path}</td>

@@ -49,6 +49,7 @@ export default function SecretWorkspace({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [copyStatus, setCopyStatus] = useState('');
+  const [focusErrorSignal, setFocusErrorSignal] = useState(0);
 
   useEffect(() => {
     if (!open || !secret) return;
@@ -61,6 +62,7 @@ export default function SecretWorkspace({
     setSaving(false);
     setSaveError('');
     setCopyStatus('');
+    setFocusErrorSignal(0);
   }, [canEdit, initialMode, open, secret]);
 
   useEffect(() => {
@@ -112,7 +114,11 @@ export default function SecretWorkspace({
     }
   };
   const save = async () => {
-    if (!parsed.ok || !dirty) return;
+    if (!dirty) return;
+    if (!parsed.ok) {
+      setFocusErrorSignal((current) => current + 1);
+      return;
+    }
     setSaving(true);
     setSaveError('');
     try {
@@ -167,7 +173,7 @@ export default function SecretWorkspace({
               ) : (
                 <>
                   <Button size="sm" onClick={cancelEdit} disabled={saving}>Cancel edit</Button>
-                  <Button size="sm" variant="primary" onClick={() => void save()} loading={saving} disabled={!parsed.ok || !dirty}>Save version {secret.metadata.version + 1}</Button>
+                  <Button size="sm" variant="primary" onClick={() => void save()} loading={saving} disabled={!dirty}>Save version {secret.metadata.version + 1}</Button>
                 </>
               )}
             </div>
@@ -203,6 +209,7 @@ export default function SecretWorkspace({
               onFormat={formatEditor}
               validationError={parsed.ok === false ? parsed.message : undefined}
               validationLocation={parsed.ok === false ? parsed.location : undefined}
+              focusErrorSignal={focusErrorSignal}
               disabled={saving}
             />
             <footer className="flex shrink-0 flex-wrap items-center gap-3 rounded-lg border border-background-300 bg-background-50 px-3 py-2">

@@ -16,7 +16,6 @@ import Tooltip from '@/components/base/Tooltip';
 import { useDialogFocus } from '@/components/base/useDialogFocus';
 
 interface InspectorRenderActions {
-  readonly openFullScreen: () => void;
   readonly exitFullScreen: () => void;
 }
 
@@ -186,7 +185,6 @@ export default function InspectorDock({
   );
 
   const inspector = renderInspector({
-    openFullScreen: () => setFullScreen(true),
     exitFullScreen: () => setFullScreen(false),
   });
 

@@ -2,25 +2,23 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
-if (!window.localStorage) {
-  const values = new Map<string, string>();
-  const storage: Storage = {
-    get length() {
-      return values.size;
-    },
-    clear: () => values.clear(),
-    getItem: (key) => values.get(key) ?? null,
-    key: (index) => [...values.keys()][index] ?? null,
-    removeItem: (key) => {
-      values.delete(key);
-    },
-    setItem: (key, value) => {
-      values.set(key, String(value));
-    },
-  };
-  Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
-  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
-}
+const localStorageValues = new Map<string, string>();
+const testLocalStorage: Storage = {
+  get length() {
+    return localStorageValues.size;
+  },
+  clear: () => localStorageValues.clear(),
+  getItem: (key) => localStorageValues.get(key) ?? null,
+  key: (index) => [...localStorageValues.keys()][index] ?? null,
+  removeItem: (key) => {
+    localStorageValues.delete(key);
+  },
+  setItem: (key, value) => {
+    localStorageValues.set(key, String(value));
+  },
+};
+Object.defineProperty(window, 'localStorage', { configurable: true, value: testLocalStorage });
+Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: testLocalStorage });
 
 if (!Range.prototype.getClientRects) {
   Range.prototype.getClientRects = () => ({

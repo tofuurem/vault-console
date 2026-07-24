@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import Tooltip from '@/components/base/Tooltip';
 import type { VaultHealth, VaultSession } from '@/domain/vault/contracts';
 
 interface TopBarProps {
   session: VaultSession;
   health?: VaultHealth;
   onSignOut: () => void;
-  onCommandPalette?: () => void;
 }
 
 function formatTtl(expiresAt: number | undefined): string {
@@ -17,7 +15,7 @@ function formatTtl(expiresAt: number | undefined): string {
   return `${Math.floor(seconds / 60)}m remaining`;
 }
 
-export default function TopBar({ session, health, onSignOut, onCommandPalette }: TopBarProps) {
+export default function TopBar({ session, health, onSignOut }: TopBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -52,30 +50,6 @@ export default function TopBar({ session, health, onSignOut, onCommandPalette }:
       </div>
 
       <div className="flex items-center gap-1.5">
-        {onCommandPalette && <Tooltip content="Search secrets (⌘K)" position="bottom">
-          <button
-            type="button"
-            aria-label="Search and commands"
-            onClick={onCommandPalette}
-            className="flex items-center gap-2 h-7 px-2.5 text-xs rounded-md border border-background-300 bg-background-50 text-foreground-400 hover:text-foreground-600 hover:border-background-400 cursor-pointer transition-colors"
-          >
-            <i className="ri-search-line text-sm" aria-hidden="true" />
-            <span className="hidden lg:inline">Search...</span>
-            <span className="text-[10px] px-1 rounded bg-background-200 text-foreground-500 font-mono">⌘K</span>
-          </button>
-        </Tooltip>}
-
-        {onCommandPalette && <Tooltip content="Command palette" position="bottom">
-          <button
-            type="button"
-            aria-label="Open command palette"
-            onClick={onCommandPalette}
-            className="w-7 h-7 flex items-center justify-center rounded-md text-foreground-400 hover:text-foreground-700 hover:bg-background-100 cursor-pointer transition-colors"
-          >
-            <i className="ri-terminal-box-line text-sm" aria-hidden="true" />
-          </button>
-        </Tooltip>}
-
         <div className="relative" ref={menuRef}>
           <button
             type="button"

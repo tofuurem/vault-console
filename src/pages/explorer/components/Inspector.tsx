@@ -13,7 +13,6 @@ interface InspectorProps {
   readonly mount: string;
   readonly path: string | null;
   readonly onRetry: () => void;
-  readonly onOpenFullScreen?: () => void;
   readonly onEdit?: () => void;
   readonly permissions?: KvActionPermissions;
   readonly onCompare?: () => void;
@@ -174,6 +173,7 @@ function VersionActionsMenu({
 
   const run = (action: (() => void) | undefined) => {
     setOpen(false);
+    triggerRef.current?.focus();
     action?.();
   };
 
@@ -229,7 +229,6 @@ export default function Inspector({
   mount,
   path,
   onRetry,
-  onOpenFullScreen,
   onEdit,
   permissions,
   onCompare,
@@ -312,7 +311,6 @@ export default function Inspector({
               <span className="ml-1.5 font-mono text-xs text-foreground-800">v{secret.metadata.version}</span>
             </div>
             <div className="flex items-center gap-1">
-              {onOpenFullScreen && <button type="button" aria-label="Open secret full screen" onClick={onOpenFullScreen} className="flex h-7 items-center gap-1 rounded-md border border-background-300 bg-background-50 px-2 text-[11px] font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className="ri-fullscreen-line text-xs" aria-hidden="true" /> Full screen</button>}
               {onEdit && permissions?.canEdit && <button type="button" onClick={onEdit} className="h-7 rounded-md bg-primary-500 px-2 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Edit secret</button>}
             </div>
           </div>

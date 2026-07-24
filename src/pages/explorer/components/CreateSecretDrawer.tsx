@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import Button from '@/components/base/Button';
 import Drawer from '@/components/base/Drawer';
-import { Input, Textarea } from '@/components/base/Input';
+import { Input } from '@/components/base/Input';
 import { normalizeVaultError } from '@/domain/vault/errors';
+import { formatSecretJson, parseSecretJson } from '@/domain/vault/secret-json';
+import JsonSecretEditor from './JsonSecretEditor';
 
 interface KeyValuePair {
   readonly id: number;
@@ -34,8 +36,10 @@ export default function CreateSecretDrawer({ open, onClose, mount, currentPath, 
   const [errors, setErrors] = useState<readonly string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [focusErrorSignal, setFocusErrorSignal] = useState(0);
   const logicalPath = `${currentPath}${name.trim()}`;
   const fullPath = `${mount}/${logicalPath}`;
+  const parsedRawJson = useMemo(() => parseSecretJson(rawJson), [rawJson]);
 
   const reset = () => {
     setStep('edit');
@@ -46,6 +50,7 @@ export default function CreateSecretDrawer({ open, onClose, mount, currentPath, 
     setErrors([]);
     setSaveError('');
     setSaving(false);
+    setFocusErrorSignal(0);
   };
   const close = () => {
     reset();
@@ -55,21 +60,16 @@ export default function CreateSecretDrawer({ open, onClose, mount, currentPath, 
     setPairs((current) => current.map((pair) => pair.id === id ? { ...pair, [field]: value } : pair));
   };
   const data = (): Readonly<Record<string, unknown>> => {
-    if (rawMode) return JSON.parse(rawJson) as Record<string, unknown>;
+    if (rawMode) return parsedRawJson.ok ? parsedRawJson.data : {};
     return Object.fromEntries(pairs.filter((pair) => pair.key.trim()).map((pair) => [pair.key.trim(), pair.value]));
   };
   const validate = () => {
     const nextErrors: string[] = [];
     if (!name.trim()) nextErrors.push('Secret name is required.');
     else if (!/^[a-zA-Z0-9._-]+$/.test(name.trim())) nextErrors.push('Use letters, numbers, dots, underscores, or hyphens in the name.');
-    if (rawMode) {
-      try {
-        const parsed = JSON.parse(rawJson);
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) nextErrors.push('Raw JSON must be an object.');
-      } catch {
-        nextErrors.push('Raw JSON is not valid.');
-      }
-    } else {
+    if (rawMode && !parsedRawJson.ok) {
+      nextErrors.push('Fix the highlighted JSON error before review.');
+    } else if (!rawMode) {
       const filled = pairs.filter((pair) => pair.key.trim() || pair.value);
       if (!filled.length) nextErrors.push('Add at least one key/value pair.');
       if (filled.some((pair) => !pair.key.trim())) nextErrors.push('Every value needs a key.');
@@ -119,7 +119,19 @@ export default function CreateSecretDrawer({ open, onClose, mount, currentPath, 
                 {!rawMode && <button type="button" onClick={() => setPairs((current) => [...current, { id: ++nextPairId, key: '', value: '' }])} className="text-xs text-primary-600 hover:text-primary-700">+ Add field</button>}
               </div>
               {rawMode ? (
-                <Textarea aria-label="Secret JSON" value={rawJson} onChange={(event) => setRawJson(event.target.value)} rows={12} monospace className="text-xs" />
+                <div className="flex min-h-[340px] flex-col">
+                  <JsonSecretEditor
+                    value={rawJson}
+                    onChange={setRawJson}
+                    onFormat={() => {
+                      if (parsedRawJson.ok) setRawJson(formatSecretJson(parsedRawJson.data));
+                    }}
+                    validationError={parsedRawJson.ok === false ? parsedRawJson.message : undefined}
+                    validationLocation={parsedRawJson.ok === false ? parsedRawJson.location : undefined}
+                    focusErrorSignal={focusErrorSignal}
+                    disabled={saving}
+                  />
+                </div>
               ) : (
                 <div className="space-y-1.5">
                   {pairs.map((pair) => (
@@ -133,7 +145,10 @@ export default function CreateSecretDrawer({ open, onClose, mount, currentPath, 
               )}
             </div>
             <div className="rounded-md border border-background-200 bg-background-100 px-3 py-2 text-[11px] leading-5 text-foreground-500">Creation uses CAS 0, so Vault will reject the request if a secret already exists at this path.</div>
-            <div className="flex justify-end gap-2"><Button size="sm" onClick={close}>Cancel</Button><Button size="sm" variant="primary" onClick={() => { if (validate()) setStep('review'); }}>Review &amp; create</Button></div>
+            <div className="flex justify-end gap-2"><Button size="sm" onClick={close}>Cancel</Button><Button size="sm" variant="primary" onClick={() => {
+              if (validate()) setStep('review');
+              else if (rawMode && !parsedRawJson.ok) setFocusErrorSignal((current) => current + 1);
+            }}>Review &amp; create</Button></div>
           </>
         ) : (
           <>

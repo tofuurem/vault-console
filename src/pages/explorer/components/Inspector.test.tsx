@@ -49,7 +49,6 @@ function renderInspector(details: KvSecretDetails, overrides: Partial<ComponentP
     mount: 'applications',
     path: 'billing/database',
     onRetry: vi.fn(),
-    onOpenFullScreen: vi.fn(),
     onEdit: vi.fn(),
     permissions,
     ...overrides,
@@ -67,7 +66,7 @@ describe('Inspector partial KV access', () => {
     });
 
     expect(screen.getByText('API_KEY')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Open secret full screen' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Open secret full screen' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit secret' })).toBeVisible();
     expect(screen.queryByText('Secret data is not allowed')).not.toBeInTheDocument();
 
@@ -121,6 +120,7 @@ describe('Inspector partial KV access', () => {
     expect(screen.getByText('Irreversible. The data cannot be recovered.')).toBeVisible();
     await user.click(screen.getByRole('menuitem', { name: 'Delete current version 3' }));
     expect(onDeleteLatest).toHaveBeenCalledWith(3);
+    expect(screen.getByRole('button', { name: 'Version actions for version 3' })).toHaveFocus();
 
     await user.click(screen.getByRole('button', { name: 'Version actions for version 2' }));
     await user.click(screen.getByRole('menuitem', { name: 'Destroy version 2' }));

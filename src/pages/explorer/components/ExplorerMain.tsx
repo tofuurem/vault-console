@@ -101,13 +101,12 @@ export default function ExplorerMain({
       path={selectedPath ? `${mount}/${selectedPath}` : null}
       onOpen={() => setInspectorOpen(true)}
       onClose={() => setInspectorOpen(false)}
-      renderInspector={({ openFullScreen, exitFullScreen }) => (
+      renderInspector={({ exitFullScreen }) => (
         <Inspector
           state={details}
           mount={mount}
           path={selectedPath}
           onRetry={onRetrySecret}
-          onOpenFullScreen={openFullScreen}
           onEdit={onEditSecret ? () => {
             exitFullScreen();
             onEditSecret();

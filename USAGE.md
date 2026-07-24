@@ -70,6 +70,11 @@ curl --fail http://127.0.0.1:8080/v1/sys/health
 Vault. Token удаляется при logout или окончании известного lease; пароль
 `userpass` не сохраняется.
 
+Контейнер выставляет CSP, Permissions-Policy, `nosniff`, `no-referrer` и запрет
+встраивания во frame. Production build не содержит публичных source maps.
+Включать `VAULT_UI_BUILD_SOURCEMAPS=true` следует только для отдельной
+приватной release-сборки, артефакты которой не раздаются этим контейнером.
+
 ### Запуск через Compose из репозитория
 
 ```bash
@@ -204,5 +209,10 @@ curl --fail http://127.0.0.1:8080/v1/sys/health
 - что имя в HTTPS URL присутствует в сертификате;
 - что private CA смонтирован и доверен;
 - что token или `userpass`-пользователь имеет права на нужные API paths.
+
+При неожиданной ошибке экрана кнопка **Copy safe diagnostics** копирует только
+версию UI, обобщённый route/operation, HTTP status, длительность, число retry,
+Vault request ID и класс viewport. Конкретные Vault paths, username, token,
+пароли, secret keys/values и тела запросов/ответов туда не включаются.
 
 Vault Console не заменяет Vault audit devices, TLS, backup и операционный контроль. Создание пользователя состоит из нескольких Vault API calls: интерфейс выполняет безопасный retry и best-effort rollback, но Vault не предоставляет транзакцию для всей операции.

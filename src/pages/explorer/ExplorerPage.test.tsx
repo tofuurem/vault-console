@@ -249,7 +249,7 @@ describe('ExplorerPage', () => {
 
     expect(screen.getByText('object')).toBeVisible();
     expect(screen.getAllByText('3 items').length).toBeGreaterThan(0);
-    await user.click(screen.getByRole('button', { name: 'Open secret full screen' }));
+    await user.click(screen.getByRole('button', { name: 'Open inspector full screen' }));
 
     const workspace = await screen.findByRole('dialog', { name: 'applications/nested' });
     expect(workspace).toBeVisible();

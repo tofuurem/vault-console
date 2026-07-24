@@ -46,7 +46,11 @@ describe('VaultHttpClient', () => {
   });
 
   it('maps an error status without exposing a secret-bearing response body', async () => {
-    const secretBody = JSON.stringify({ errors: ['upstream echoed password=do-not-leak'] });
+    const requestId = '9b4d3315-14e3-4d0c-8ac3-47ab4faeef3c';
+    const secretBody = JSON.stringify({
+      request_id: requestId,
+      errors: ['upstream echoed password=do-not-leak'],
+    });
     const client = new VaultHttpClient(
       vi.fn<VaultFetch>().mockResolvedValue(
         new Response(secretBody, { status: 403, headers: { 'Content-Type': 'application/json' } }),
@@ -58,6 +62,14 @@ describe('VaultHttpClient', () => {
     expect(error).toBeInstanceOf(VaultError);
     expect((error as VaultError).code).toBe('authorization');
     expect((error as Error).message).not.toContain('do-not-leak');
+    expect((error as VaultError).diagnostic).toMatchObject({
+      operation: 'GET /v1/:vault-path',
+      retryCount: 0,
+      requestId,
+    });
+    expect((error as VaultError).diagnostic?.durationMs).toBeGreaterThanOrEqual(0);
+    expect(JSON.stringify((error as VaultError).diagnostic)).not.toContain('secret/data/app');
+    expect(JSON.stringify((error as VaultError).diagnostic)).not.toContain('do-not-leak');
   });
 
   it('rejects malformed successful responses as invalid-response', async () => {

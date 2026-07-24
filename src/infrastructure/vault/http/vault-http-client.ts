@@ -1,4 +1,9 @@
-import { VaultError, normalizeVaultError, vaultErrorFromStatus } from '../../../domain/vault/errors';
+import {
+  VaultError,
+  normalizeVaultError,
+  vaultErrorFromStatus,
+  type VaultErrorDiagnostic,
+} from '../../../domain/vault/errors';
 import type { VaultToken } from '../../../domain/vault/sensitive-value';
 
 export interface VaultRequestOptions {
@@ -27,6 +32,43 @@ function apiBaseUrl(serverUrl: string): URL {
   }
 }
 
+function elapsedMilliseconds(startedAt: number): number {
+  return Math.max(0, Math.round(performance.now() - startedAt));
+}
+
+function operationTemplate(method: VaultRequestOptions['method']): string {
+  return `${method ?? 'GET'} /v1/:vault-path`;
+}
+
+function responseRequestId(response: Response): string | undefined {
+  return response.headers.get('X-Vault-Request-Id')
+    ?? response.headers.get('X-Request-Id')
+    ?? undefined;
+}
+
+async function bodyRequestId(response: Response): Promise<string | undefined> {
+  try {
+    const payload = await response.clone().json() as { request_id?: unknown };
+    return typeof payload.request_id === 'string' ? payload.request_id : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function diagnosticFor(
+  options: VaultRequestOptions,
+  startedAt: number,
+  response?: Response,
+  requestId?: string,
+): VaultErrorDiagnostic {
+  return {
+    operation: operationTemplate(options.method),
+    durationMs: elapsedMilliseconds(startedAt),
+    retryCount: 0,
+    requestId: requestId ?? (response ? responseRequestId(response) : undefined),
+  };
+}
+
 export function encodeVaultPath(value: string): string {
   return value
     .replace(/^\/+|\/+$/g, '')
@@ -44,6 +86,7 @@ export class VaultHttpClient {
   }
 
   async request(serverUrl: string, path: string, options: VaultRequestOptions = {}): Promise<unknown> {
+    const startedAt = performance.now();
     try {
       const url = new URL(path.replace(/^\/+/, ''), apiBaseUrl(serverUrl));
       Object.entries(options.query ?? {}).forEach(([key, value]) => {
@@ -68,17 +111,31 @@ export class VaultHttpClient {
       });
 
       if (!response.ok && !options.allowStatuses?.includes(response.status)) {
-        throw vaultErrorFromStatus(response.status);
+        const requestId = responseRequestId(response) ?? await bodyRequestId(response);
+        throw vaultErrorFromStatus(
+          response.status,
+          diagnosticFor(options, startedAt, response, requestId),
+        );
       }
       if (response.status === 204) return null;
 
       try {
         return await response.json();
       } catch (error) {
-        throw new VaultError('invalid-response', { cause: error, status: response.status });
+        throw new VaultError('invalid-response', {
+          cause: error,
+          status: response.status,
+          diagnostic: diagnosticFor(options, startedAt, response),
+        });
       }
     } catch (error) {
-      throw normalizeVaultError(error);
+      const normalized = normalizeVaultError(error);
+      if (normalized.diagnostic) throw normalized;
+      throw new VaultError(normalized.code, {
+        cause: normalized,
+        status: normalized.status,
+        diagnostic: diagnosticFor(options, startedAt),
+      });
     }
   }
 }

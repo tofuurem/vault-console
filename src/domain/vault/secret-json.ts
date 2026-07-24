@@ -85,6 +85,14 @@ function syntaxLocation(source: string, cause: unknown): SecretJsonLocation {
   return offsetLocation(source, parserErrorOffset(source) ?? 0);
 }
 
+function syntaxReason(source: string, location: SecretJsonLocation): string {
+  if (location.offset >= source.length) return 'unexpected end of document';
+  const token = source[location.offset];
+  if (token === ',') return 'unexpected comma or missing value';
+  if (token === '}' || token === ']') return 'unexpected closing delimiter or trailing comma';
+  return 'unexpected or missing JSON token';
+}
+
 export function parseSecretJson(source: string): SecretJsonParseResult {
   let parsed: unknown;
   try {
@@ -94,7 +102,7 @@ export function parseSecretJson(source: string): SecretJsonParseResult {
     return {
       ok: false,
       kind: 'syntax',
-      message: `JSON syntax error at line ${location.line}, column ${location.column}.`,
+      message: `JSON syntax error at line ${location.line}, column ${location.column}: ${syntaxReason(source, location)}.`,
       location,
     };
   }
