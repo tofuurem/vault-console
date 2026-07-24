@@ -33,7 +33,7 @@ zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.1
 неизменяемой привязкой используйте digest:
 
 ```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.1@sha256:2df295791cca5ab03ed891a95cf26d0649ae9c1e265f0646aed55036ad5febc5
+zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.1@sha256:fcb183dfda60601885683a1b5e74db629a1e68da400d978a254c9e2a0f7654e6
 ```
 
 Подробные инструкции по Docker Compose, подключению к существующему Vault, Caddy, TLS, настройке policy, локальной разработке и обновлению находятся в [USAGE.md](USAGE.md).
