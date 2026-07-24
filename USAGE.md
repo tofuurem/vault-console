@@ -2,9 +2,9 @@
 
 ## Требования
 
-- существующий HashiCorp Vault;
+- существующий HashiCorp Vault (релиз проверен с Vault Community `1.21.3`);
 - общая external Docker network для Vault и Vault Console, в примерах — `caddy_net`;
-- хотя бы один KV v2 mount;
+- существующий KV v2 mount либо права Vault на его создание через UI;
 - `userpass` auth method, если требуется управление пользователями;
 - Docker Compose v2.
 
@@ -22,7 +22,6 @@ services:
     restart: unless-stopped
     environment:
       VAULT_UPSTREAM: http://vault:8200
-      NGINX_ENVSUBST_FILTER: VAULT_UPSTREAM
       VAULT_UI_USERPASS_MOUNT: userpass
     ports:
       - "127.0.0.1:8080:8080"
@@ -41,6 +40,20 @@ networks:
 ```
 
 `VAULT_UPSTREAM` — внутренний URL Vault, доступный из контейнера UI. Не добавляйте к нему `/v1` или завершающий `/`. В примере имя сервиса Vault — `vault`.
+Если сервис или network alias называется иначе, используйте его Docker DNS-имя.
+
+Если registry требует авторизацию, предварительно выполните:
+
+```bash
+docker login zero-noise-registry.registry.twcstorage.ru
+```
+
+Не передавайте registry password в Compose-файле. Для неизменяемого
+развёртывания вместо tag можно указать опубликованный digest:
+
+```text
+zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.1@sha256:2df295791cca5ab03ed891a95cf26d0649ae9c1e265f0646aed55036ad5febc5
+```
 
 Адрес Vault и стандартный auth mount скрыты на форме входа: их уже задаёт
 deployment. Для редких конфигураций можно разрешить секцию Advanced:
@@ -62,8 +75,14 @@ docker compose pull vault-console
 docker compose up -d vault-console
 docker compose ps vault-console
 curl --fail http://127.0.0.1:8080/healthz
-curl --fail http://127.0.0.1:8080/v1/sys/health
+curl -i http://127.0.0.1:8080/v1/sys/health
 ```
+
+`/healthz` проверяет запуск самого UI-контейнера. `/v1/sys/health` проверяет
+proxy и состояние Vault: кроме `200` active-сервер может вернуть, например,
+`429` для standby, `501` для неинициализированного или `503` для sealed Vault.
+Полный список кодов приведён в
+[Vault health API](https://developer.hashicorp.com/vault/api-docs/system/health).
 
 Маршрут `/v1/*` проксируется в Vault. Nginx не подставляет `X-Vault-Token`:
 браузер отправляет token из `sessionStorage` текущей вкладки, а права проверяет
@@ -72,8 +91,14 @@ Vault. Token удаляется при logout или окончании изве
 
 Контейнер выставляет CSP, Permissions-Policy, `nosniff`, `no-referrer` и запрет
 встраивания во frame. Production build не содержит публичных source maps.
-Включать `VAULT_UI_BUILD_SOURCEMAPS=true` следует только для отдельной
-приватной release-сборки, артефакты которой не раздаются этим контейнером.
+Build-time флаг `VAULT_UI_BUILD_SOURCEMAPS=true` следует использовать только
+для отдельной приватной release-сборки:
+
+```bash
+VAULT_UI_BUILD_SOURCEMAPS=true npm run build
+```
+
+Полученные source maps нельзя раздавать из публичного контейнера.
 
 ### Запуск через Compose из репозитория
 
@@ -124,7 +149,13 @@ vault-console.example.com {
 Для `VAULT_UPSTREAM=https://...` сертификат Vault должен быть действителен для имени из URL. Если используется private CA:
 
 1. Положите публичный PEM-сертификат CA с расширением `.crt` в `deploy/ca-certificates/`.
-2. Подключите каталог в контейнер как `/etc/vault-console/ca-certificates:ro`.
+2. Подключите каталог в контейнер:
+
+   ```yaml
+   volumes:
+     - ./deploy/ca-certificates:/etc/vault-console/ca-certificates:ro
+   ```
+
 3. Пересоздайте контейнер Vault Console.
 
 Подробности находятся в `deploy/ca-certificates/README.md`. Приватные ключи и Vault credentials в этот каталог помещать нельзя. Отключение проверки TLS не поддерживается.
@@ -139,6 +170,9 @@ vault read sys/config/cors
 ```
 
 Не используйте `*` в production. В рекомендуемой proxy-схеме через `/v1/*` отдельная настройка CORS не нужна.
+Для direct-origin режима также включите
+`VAULT_UI_ALLOW_CUSTOM_ADDRESS=true`; обычному same-origin deployment это не
+требуется.
 
 ## Подготовка Vault
 
@@ -156,6 +190,19 @@ vault policy write vault-console-admin deploy/vault-console-admin-policy.hcl.exa
 ```
 
 Перед применением проверьте и сузьте шаблон под своё окружение. Для нестандартного `userpass` mount замените пути `auth/userpass/...`. Не расширяйте их без необходимости до `auth/*`.
+
+Шаблон разрешает создание secrets engine через `sys/mounts/*` и поэтому
+является высокопривилегированным. Если mounts можно создавать только в
+выделенном префиксе, замените stanza на более узкий, например
+`sys/mounts/team/*`. Vault требует `sudo` вместе с `create`/`update` для
+[enable secrets engine](https://developer.hashicorp.com/vault/api-docs/system/mounts).
+
+Policy управления Vault Console не выдаёт доступ к данным существующих KV v2
+mounts. Оператору отдельно нужны ACL на требуемые `<mount>/data/*`,
+`<mount>/metadata` и `<mount>/metadata/*`, а если используются операции с
+версиями — на `<mount>/delete/*`, `<mount>/undelete/*` и
+`<mount>/destroy/*`. Vault остаётся источником истины: UI покажет только
+разрешённые mounts и действия.
 
 Роли, которыми управляет интерфейс, имеют prefix `vc-role-`, а прямая policy пользователя — `vc-user-<username>`. Сторонние HCL policies отображаются как External и не переписываются визуальным редактором, если их нельзя безопасно интерпретировать.
 
@@ -199,7 +246,7 @@ docker compose ps vault-console
 docker compose logs --tail=200 vault-console
 docker network inspect caddy_net
 curl --fail http://127.0.0.1:8080/healthz
-curl --fail http://127.0.0.1:8080/v1/sys/health
+curl -i http://127.0.0.1:8080/v1/sys/health
 ```
 
 Если UI открывается, но Vault недоступен, проверьте:

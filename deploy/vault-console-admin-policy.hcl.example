@@ -5,15 +5,21 @@ path "sys/internal/ui/mounts" {
   capabilities = ["read"]
 }
 
+# Optional but recommended: without this path the UI remains usable and lets
+# each Vault API call decide, but it cannot disable forbidden actions in advance.
 path "sys/capabilities-self" {
   capabilities = ["update"]
 }
 
-# Optional but recommended: without this path the UI remains usable and lets
-# each Vault API call decide, but it cannot disable forbidden actions in advance.
+# Enabling a secrets engine is root-protected and requires sudo in addition to
+# create/update. Narrow this glob when operators may create mounts only below a
+# controlled prefix, for example sys/mounts/team/*.
+path "sys/mounts/*" {
+  capabilities = ["create", "update", "sudo"]
+}
 
 path "sys/auth" {
-  capabilities = ["read", "sudo"]
+  capabilities = ["read"]
 }
 
 path "sys/policy" {
