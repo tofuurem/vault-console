@@ -29,7 +29,12 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community, орие
 zero-noise-registry.registry.twcstorage.ru/vault-console:0.3.0
 ```
 
-Он опубликован для `linux/amd64` и `linux/arm64`.
+Он опубликован для `linux/amd64` и `linux/arm64`. Для развёртывания с
+неизменяемой привязкой используйте digest:
+
+```text
+zero-noise-registry.registry.twcstorage.ru/vault-console:0.3.0@sha256:e538518e7f9844b9e21c08d0361f7b298f4c6c5c02a88ec5cd140d031486030b
+```
 
 Подробные инструкции по Docker Compose, подключению к существующему Vault, Caddy, TLS, настройке policy, локальной разработке и обновлению находятся в [USAGE.md](USAGE.md).
 

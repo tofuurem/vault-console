@@ -48,7 +48,12 @@ networks:
 docker login zero-noise-registry.registry.twcstorage.ru
 ```
 
-Не передавайте registry password в Compose-файле.
+Не передавайте registry password в Compose-файле. Для неизменяемого
+развёртывания вместо tag можно указать опубликованный digest:
+
+```text
+zero-noise-registry.registry.twcstorage.ru/vault-console:0.3.0@sha256:e538518e7f9844b9e21c08d0361f7b298f4c6c5c02a88ec5cd140d031486030b
+```
 
 Адрес Vault и стандартный auth mount скрыты на форме входа: их уже задаёт
 deployment. Для редких конфигураций можно разрешить секцию Advanced:
