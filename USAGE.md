@@ -17,7 +17,7 @@ Vault Console не запускает, не перезапускает и не �
 ```yaml
 services:
   vault-console:
-    image: zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.1
+    image: zero-noise-registry.registry.twcstorage.ru/vault-console:0.3.0
     container_name: vault-console
     restart: unless-stopped
     environment:
@@ -48,12 +48,7 @@ networks:
 docker login zero-noise-registry.registry.twcstorage.ru
 ```
 
-Не передавайте registry password в Compose-файле. Для неизменяемого
-развёртывания вместо tag можно указать опубликованный digest:
-
-```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.1@sha256:fcb183dfda60601885683a1b5e74db629a1e68da400d978a254c9e2a0f7654e6
-```
+Не передавайте registry password в Compose-файле.
 
 Адрес Vault и стандартный auth mount скрыты на форме входа: их уже задаёт
 deployment. Для редких конфигураций можно разрешить секцию Advanced:
@@ -116,7 +111,7 @@ VAULT_UI_USERPASS_MOUNT=userpass
 VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT=false
 VAULT_CONSOLE_BIND=127.0.0.1
 VAULT_CONSOLE_PORT=8080
-VAULT_CONSOLE_IMAGE=zero-noise-registry.registry.twcstorage.ru/vault-console:0.2.1
+VAULT_CONSOLE_IMAGE=zero-noise-registry.registry.twcstorage.ru/vault-console:0.3.0
 ```
 
 Для готового образа:
