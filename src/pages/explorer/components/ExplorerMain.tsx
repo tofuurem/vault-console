@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 
+import type { NavigationPath } from '@/application/navigation-history/navigation-history';
+import { useKvSearch, type KvSearchMountState } from '@/application/vault/search/KvSearchContext';
+import { rankKvPathMatches } from '@/application/vault/search/search-ranking';
 import type { KvSecretDetails, VaultQueryState } from '@/application/vault/useKvExplorerData';
 import type { KvActionPermissions } from '@/application/vault/useKvActionPermissions';
 import Button from '@/components/base/Button';
 import Tooltip from '@/components/base/Tooltip';
 import type { KvV2Mount } from '@/domain/vault/contracts';
+import type { KvPathEntry } from '@/domain/vault/search';
+import ExplorerSearch, { type ExplorerSearchScope } from './ExplorerSearch';
 import Inspector from './Inspector';
 import InspectorDock from './InspectorDock';
+import SearchResults from './SearchResults';
 import SecretTable, { type KvDirectoryEntry } from './SecretTable';
 
 interface ExplorerMainProps {
@@ -30,6 +36,8 @@ interface ExplorerMainProps {
   readonly onUndelete?: (version: number) => void;
   readonly onDestroyVersion?: (version: number) => void;
   readonly onDeleteMetadata?: (version: number) => void;
+  readonly isFavorite?: (path: NavigationPath) => boolean;
+  readonly onToggleFavorite?: (path: NavigationPath) => void;
 }
 
 function entriesFromKeys(currentPath: string, keys: readonly string[]): readonly KvDirectoryEntry[] {
@@ -64,15 +72,38 @@ export default function ExplorerMain({
   onUndelete,
   onDestroyVersion,
   onDeleteMetadata,
+  isFavorite,
+  onToggleFavorite,
 }: ExplorerMainProps) {
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [inspectorTab, setInspectorTab] = useState('data');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchScope, setSearchScope] = useState<ExplorerSearchScope>('folder');
   const [clipboardMessage, setClipboardMessage] = useState('');
+  const search = useKvSearch();
   const entries = useMemo(() => entriesFromKeys(currentPath, directory.data ?? []), [currentPath, directory.data]);
-  const filteredEntries = searchQuery
-    ? entries.filter((entry) => entry.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : entries;
+  const folderPathEntries = useMemo<readonly KvPathEntry[]>(() => entries.map((entry) => ({
+    ...entry,
+    mount,
+  })), [entries, mount]);
+  const indexState = search.stateFor(mount);
+  const searchMatches = useMemo(() => (
+    searchScope === 'folder'
+      ? rankKvPathMatches(folderPathEntries, searchQuery)
+      : search.matches(mount, searchQuery)
+  ), [folderPathEntries, mount, search, searchQuery, searchScope]);
+  const folderIndexState = useMemo<KvSearchMountState>(() => ({
+    mount,
+    status: 'complete',
+    entries: folderPathEntries,
+    pendingPrefixes: [],
+    visitedPrefixes: [currentPath],
+    inaccessiblePrefixes: [],
+    failedPrefixes: [],
+    totalListRequests: 0,
+    totalScannedPrefixes: 1,
+  }), [currentPath, folderPathEntries, mount]);
+  const showSearchResults = searchScope === 'mount' || searchQuery.trim().length > 0;
   const breadcrumbs = currentPath.split('/').filter(Boolean).map((part, index, parts) => ({
     label: part,
     path: `${parts.slice(0, index + 1).join('/')}/`,
@@ -84,6 +115,16 @@ export default function ExplorerMain({
     setInspectorOpen(true);
     setInspectorTab('data');
   }, [selectedPath]);
+
+  useEffect(() => {
+    search.activateMount(mount);
+  }, [mount, search]);
+
+  useEffect(() => {
+    if (searchScope !== 'mount' || searchQuery.trim().length < 2) return;
+    const timer = setTimeout(() => search.start(mount), 250);
+    return () => clearTimeout(timer);
+  }, [mount, search, searchQuery, searchScope]);
 
   const copy = async (value: string, success: string) => {
     try {
@@ -120,6 +161,16 @@ export default function ExplorerMain({
           onDeleteMetadata={onDeleteMetadata}
           activeTab={inspectorTab}
           onTabChange={setInspectorTab}
+          favorite={Boolean(selectedPath && isFavorite?.({
+            mount,
+            path: selectedPath,
+            kind: 'secret',
+          }))}
+          onToggleFavorite={selectedPath && onToggleFavorite ? () => onToggleFavorite({
+            mount,
+            path: selectedPath,
+            kind: 'secret',
+          }) : undefined}
         />
       )}
     >
@@ -140,15 +191,14 @@ export default function ExplorerMain({
               <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">KV version 2</p>
               <div className="flex items-center gap-2">
                 <h1 id="directory-heading" className="text-sm font-semibold text-foreground-900">{currentMount?.description || `${mount}/`}</h1>
-                {directory.status === 'success' && <span className="text-xs text-foreground-400">{filteredEntries.length} items</span>}
+                {directory.status === 'success' && (
+                  <span className="text-xs text-foreground-400">
+                    {showSearchResults ? `${searchMatches.length} matches` : `${entries.length} items`}
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-1.5">
-              <label className="relative hidden sm:block">
-                <span className="sr-only">Search current folder</span>
-                <i className="ri-search-line absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground-400" aria-hidden="true" />
-                <input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Filter this folder" className="h-7 w-40 rounded-md border border-background-300 bg-background-50 pl-6 pr-2.5 text-xs text-foreground-900 placeholder:text-foreground-400 focus:outline-none focus:border-primary-400" />
-              </label>
               <Tooltip content="Refresh directory">
                 <button type="button" aria-label="Refresh directory" onClick={onRefresh} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className={`${directory.status === 'loading' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} text-sm`} aria-hidden="true" /></button>
               </Tooltip>
@@ -160,6 +210,14 @@ export default function ExplorerMain({
               </Tooltip>
               {onCreateSecret && <Button size="sm" variant="primary" onClick={onCreateSecret}><i className="ri-add-line" aria-hidden="true" /> Create secret</Button>}
             </div>
+          </div>
+          <div className="mt-3">
+            <ExplorerSearch
+              query={searchQuery}
+              scope={searchScope}
+              onQueryChange={setSearchQuery}
+              onScopeChange={setSearchScope}
+            />
           </div>
         </header>
 
@@ -175,10 +233,35 @@ export default function ExplorerMain({
             </div>
           )}
           {directory.data && (
-            searchQuery && filteredEntries.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center"><i className="ri-search-line mb-2 text-xl text-foreground-400" aria-hidden="true" /><p className="text-sm text-foreground-600">No matches in this folder</p></div>
+            showSearchResults ? (
+              <SearchResults
+                query={searchQuery}
+                scope={searchScope}
+                matches={searchMatches}
+                indexState={searchScope === 'mount' ? indexState : folderIndexState}
+                onOpen={(entry) => {
+                  if (entry.kind === 'folder') onNavigateToFolder(entry.path);
+                  else onSelectSecret(entry.path);
+                }}
+                onCancel={() => search.cancel(mount)}
+                onContinue={() => search.continueScan(mount)}
+                onRetry={() => {
+                  if (indexState.pendingPrefixes.length > 0) search.continueScan(mount);
+                  else search.restart(mount);
+                }}
+              />
             ) : (
-              <SecretTable entries={filteredEntries} selectedPath={selectedPath} onSelectSecret={onSelectSecret} onNavigateToFolder={onNavigateToFolder} onCreateSecret={onCreateSecret} />
+              <SecretTable
+                entries={entries}
+                selectedPath={selectedPath}
+                onSelectSecret={onSelectSecret}
+                onNavigateToFolder={onNavigateToFolder}
+                onCreateSecret={onCreateSecret}
+                isFavorite={isFavorite ? (entry) => isFavorite({ ...entry, mount }) : undefined}
+                onToggleFavorite={onToggleFavorite
+                  ? (entry) => onToggleFavorite({ ...entry, mount })
+                  : undefined}
+              />
             )
           )}
         </div>

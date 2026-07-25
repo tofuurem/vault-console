@@ -126,4 +126,40 @@ describe('Inspector partial KV access', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Destroy version 2' }));
     expect(onDestroyVersion).toHaveBeenCalledWith(2);
   });
+
+  it('pins the selected secret from the data header', async () => {
+    const user = userEvent.setup();
+    const onToggleFavorite = vi.fn();
+    const { rerender } = render(
+      <Inspector
+        state={{ status: 'success', data: { secret, history } }}
+        mount="applications"
+        path="billing/database"
+        onRetry={vi.fn()}
+        permissions={permissions}
+        favorite={false}
+        onToggleFavorite={onToggleFavorite}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', {
+      name: 'Pin secret applications/billing/database',
+    }));
+    expect(onToggleFavorite).toHaveBeenCalledOnce();
+
+    rerender(
+      <Inspector
+        state={{ status: 'success', data: { secret, history } }}
+        mount="applications"
+        path="billing/database"
+        onRetry={vi.fn()}
+        permissions={permissions}
+        favorite
+        onToggleFavorite={onToggleFavorite}
+      />,
+    );
+    expect(screen.getByRole('button', {
+      name: 'Unpin secret applications/billing/database',
+    })).toHaveAttribute('aria-pressed', 'true');
+  });
 });

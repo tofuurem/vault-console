@@ -10,6 +10,8 @@ interface SecretTableProps {
   readonly onSelectSecret: (path: string) => void;
   readonly onNavigateToFolder: (path: string) => void;
   readonly onCreateSecret?: () => void;
+  readonly isFavorite?: (entry: KvDirectoryEntry) => boolean;
+  readonly onToggleFavorite?: (entry: KvDirectoryEntry) => void;
 }
 
 export default function SecretTable({
@@ -18,6 +20,8 @@ export default function SecretTable({
   onSelectSecret,
   onNavigateToFolder,
   onCreateSecret,
+  isFavorite,
+  onToggleFavorite,
 }: SecretTableProps) {
   if (entries.length === 0) {
     return (
@@ -44,11 +48,13 @@ export default function SecretTable({
           <th className="px-0 py-2 text-left text-[11px] font-medium text-foreground-500">Name</th>
           <th className="w-28 px-3 py-2 text-left text-[11px] font-medium text-foreground-500">Type</th>
           <th className="hidden px-3 py-2 text-left text-[11px] font-medium text-foreground-500 md:table-cell">Logical path</th>
+          {onToggleFavorite && <th aria-label="Favorite" className="w-10 px-2 py-2" />}
         </tr>
       </thead>
       <tbody>
         {entries.map((entry) => {
           const selected = entry.kind === 'secret' && selectedPath === entry.path;
+          const favorite = isFavorite?.(entry) ?? false;
           return (
             <tr
               key={`${entry.kind}:${entry.path}`}
@@ -70,6 +76,23 @@ export default function SecretTable({
               </td>
               <td className="px-3 py-2.5 text-xs text-foreground-500">{entry.kind === 'folder' ? 'Folder' : 'Secret'}</td>
               <td className="hidden px-3 py-2.5 font-mono text-[11px] text-foreground-400 md:table-cell">{entry.path}</td>
+              {onToggleFavorite && (
+                <td className="px-2 py-2">
+                  <button
+                    type="button"
+                    aria-label={`${favorite ? 'Unpin' : 'Pin'} ${entry.kind} ${entry.path}`}
+                    aria-pressed={favorite}
+                    onClick={() => onToggleFavorite(entry)}
+                    className={`flex h-7 w-7 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
+                      favorite
+                        ? 'text-warning-600 hover:bg-warning-100'
+                        : 'text-foreground-300 hover:bg-background-200 hover:text-warning-600'
+                    }`}
+                  >
+                    <i className={favorite ? 'ri-star-fill' : 'ri-star-line'} aria-hidden="true" />
+                  </button>
+                </td>
+              )}
             </tr>
           );
         })}

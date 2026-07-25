@@ -35,6 +35,7 @@ export function useShortcutCommands(commands: readonly ShortcutCommand[]): void 
     command.icon ?? '',
     command.shortcut ?? '',
     command.disabledReason ?? '',
+    command.searchTieBreaker ?? 0,
     ...(command.keywords ?? []),
   ].join('\u001f')).join('\u001e'), [commands]);
 

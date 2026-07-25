@@ -31,4 +31,36 @@ describe('SecretTable', () => {
     await user.keyboard(' ');
     expect(onSelectSecret).toHaveBeenCalledWith('database');
   });
+
+  it('pins folders and secrets without opening them', async () => {
+    const user = userEvent.setup();
+    const onToggleFavorite = vi.fn();
+    render(
+      <SecretTable
+        entries={[
+          { kind: 'folder', name: 'platform', path: 'platform/' },
+          { kind: 'secret', name: 'database', path: 'database' },
+        ]}
+        selectedPath={null}
+        onNavigateToFolder={vi.fn()}
+        onSelectSecret={vi.fn()}
+        isFavorite={(entry) => entry.path === 'database'}
+        onToggleFavorite={onToggleFavorite}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Pin folder platform/' }));
+    expect(onToggleFavorite).toHaveBeenLastCalledWith({
+      kind: 'folder',
+      name: 'platform',
+      path: 'platform/',
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Unpin secret database' }));
+    expect(onToggleFavorite).toHaveBeenLastCalledWith({
+      kind: 'secret',
+      name: 'database',
+      path: 'database',
+    });
+  });
 });

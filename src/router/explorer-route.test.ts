@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { directoryPathFromWildcard, explorerRoute } from './explorer-route';
+import {
+  directoryPathForSecret,
+  directoryPathFromWildcard,
+  explorerRoute,
+} from './explorer-route';
 
 describe('Explorer route identity', () => {
   it('encodes mounts, folders, and selected secret paths', () => {
@@ -13,5 +17,10 @@ describe('Explorer route identity', () => {
     expect(directoryPathFromWildcard(undefined)).toBe('');
     expect(directoryPathFromWildcard('billing/database')).toBe('billing/database/');
     expect(directoryPathFromWildcard('/billing//database/')).toBe('billing/database/');
+  });
+
+  it('opens a search result in its containing directory', () => {
+    expect(directoryPathForSecret('platform/payments/api')).toBe('platform/payments/');
+    expect(directoryPathForSecret('root-secret')).toBe('');
   });
 });

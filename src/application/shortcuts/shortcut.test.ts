@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { isEditableShortcutTarget, isPaletteShortcut } from './shortcut';
+import {
+  isEditableShortcutTarget,
+  isPaletteShortcut,
+  rankShortcutCommands,
+  type ShortcutCommand,
+} from './shortcut';
 
 describe('shortcut matching', () => {
   it('recognizes Command-K and Control-K without accepting modified variants', () => {
@@ -20,5 +25,32 @@ describe('shortcut matching', () => {
     expect(isEditableShortcutTarget(input)).toBe(true);
     expect(isEditableShortcutTarget(child)).toBe(true);
     expect(isEditableShortcutTarget(document.createElement('button'))).toBe(false);
+  });
+
+  it('uses recent and favorite boosts only to break equal search matches', () => {
+    const command = (
+      id: string,
+      label: string,
+      searchTieBreaker: number,
+    ): ShortcutCommand => ({
+      id,
+      label,
+      group: 'Paths',
+      searchTieBreaker,
+      run: () => undefined,
+    });
+    const commands = [
+      command('weaker-favorite', 'Open team database', 2),
+      command('recent', 'database recent', 1),
+      command('favorite', 'database favorite', 2),
+      command('exact', 'database', 0),
+    ];
+
+    expect(rankShortcutCommands(commands, 'database').map(({ id }) => id)).toEqual([
+      'exact',
+      'favorite',
+      'recent',
+      'weaker-favorite',
+    ]);
   });
 });

@@ -1,4 +1,9 @@
 import Tooltip from '@/components/base/Tooltip';
+import type {
+  FavoriteNavigationPath,
+  NavigationPath,
+  RecentNavigationPath,
+} from '@/application/navigation-history/navigation-history';
 import type { KvV2Mount, VaultHealth } from '@/domain/vault/contracts';
 
 interface SidebarProps {
@@ -14,6 +19,9 @@ interface SidebarProps {
   readonly showAccessControl?: boolean;
   readonly activeAccessSection?: string;
   readonly onAccessSectionSelect?: (section: string) => void;
+  readonly favorites?: readonly FavoriteNavigationPath[];
+  readonly recents?: readonly RecentNavigationPath[];
+  readonly onPathSelect?: (path: NavigationPath) => void;
 }
 
 const accessSections = [
@@ -22,6 +30,46 @@ const accessSections = [
   { key: 'roles', label: 'Roles', icon: 'ri-shield-check-line' },
   { key: 'policies', label: 'Policy Explorer', icon: 'ri-file-code-line' },
 ] as const;
+
+function PathSection({
+  title,
+  icon,
+  paths,
+  onPathSelect,
+}: {
+  readonly title: string;
+  readonly icon: string;
+  readonly paths: readonly NavigationPath[];
+  readonly onPathSelect: (path: NavigationPath) => void;
+}) {
+  if (paths.length === 0) return null;
+  return (
+    <div className="mt-3 border-t border-background-200 pt-2">
+      <div className="hidden h-6 items-center px-3 sm:flex">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground-400">
+          {title}
+        </span>
+      </div>
+      {paths.slice(0, 8).map((path) => {
+        const logicalPath = `${path.mount}/${path.path}`;
+        return (
+          <button
+            key={`${path.kind}:${logicalPath}`}
+            type="button"
+            aria-label={`Open ${title.toLowerCase()} path ${logicalPath}`}
+            onClick={() => onPathSelect(path)}
+            className="flex min-h-9 w-full items-center justify-center gap-2 px-2 text-left text-xs text-foreground-600 transition-colors hover:bg-background-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 sm:min-h-8 sm:justify-start sm:px-3"
+          >
+            <i className={`${icon} shrink-0 text-xs`} aria-hidden="true" />
+            <span className="hidden min-w-0 flex-1 truncate font-mono text-[10px] sm:inline">
+              {logicalPath}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function Sidebar({
   collapsed,
@@ -35,6 +83,9 @@ export default function Sidebar({
   showAccessControl,
   activeAccessSection,
   onAccessSectionSelect,
+  favorites = [],
+  recents = [],
+  onPathSelect,
 }: SidebarProps) {
   if (collapsed) {
     return (
@@ -121,6 +172,23 @@ export default function Sidebar({
             <span className="hidden rounded bg-background-200 px-1 py-0.5 font-mono text-[9px] text-foreground-400 sm:inline">v2</span>
           </button>
         ))}
+
+        {onPathSelect && (
+          <>
+            <PathSection
+              title="Favorites"
+              icon="ri-star-fill text-warning-500"
+              paths={favorites}
+              onPathSelect={onPathSelect}
+            />
+            <PathSection
+              title="Recent"
+              icon="ri-history-line"
+              paths={recents}
+              onPathSelect={onPathSelect}
+            />
+          </>
+        )}
 
         {showAccessControl && (
           <div className="mt-3 border-t border-background-200 pt-3">

@@ -23,6 +23,8 @@ interface InspectorProps {
   readonly onDeleteMetadata?: (version: number) => void;
   readonly activeTab?: string;
   readonly onTabChange?: (tab: string) => void;
+  readonly favorite?: boolean;
+  readonly onToggleFavorite?: () => void;
 }
 
 function printableValue(value: unknown): string {
@@ -239,6 +241,8 @@ export default function Inspector({
   onDeleteMetadata,
   activeTab: controlledTab,
   onTabChange,
+  favorite = false,
+  onToggleFavorite,
 }: InspectorProps) {
   const [internalTab, setInternalTab] = useState('data');
   const activeTab = controlledTab ?? internalTab;
@@ -311,6 +315,23 @@ export default function Inspector({
               <span className="ml-1.5 font-mono text-xs text-foreground-800">v{secret.metadata.version}</span>
             </div>
             <div className="flex items-center gap-1">
+              {onToggleFavorite && (
+                <Tooltip content={favorite ? 'Remove from favorites' : 'Add to favorites'}>
+                  <button
+                    type="button"
+                    aria-label={`${favorite ? 'Unpin' : 'Pin'} secret ${mount}/${path}`}
+                    aria-pressed={favorite}
+                    onClick={onToggleFavorite}
+                    className={`flex h-7 w-7 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
+                      favorite
+                        ? 'text-warning-600 hover:bg-warning-100'
+                        : 'text-foreground-400 hover:bg-background-100 hover:text-warning-600'
+                    }`}
+                  >
+                    <i className={favorite ? 'ri-star-fill' : 'ri-star-line'} aria-hidden="true" />
+                  </button>
+                </Tooltip>
+              )}
               {onEdit && permissions?.canEdit && <button type="button" onClick={onEdit} className="h-7 rounded-md bg-primary-500 px-2 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Edit secret</button>}
             </div>
           </div>

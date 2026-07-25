@@ -1,16 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { matchPath, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
+import { useNavigationHistory } from '@/application/navigation-history/NavigationHistoryContext';
+import { NavigationHistoryProvider } from '@/application/navigation-history/NavigationHistoryProvider';
+import type { NavigationPath } from '@/application/navigation-history/navigation-history';
 import { useShortcutCommands, useShortcuts } from '@/application/shortcuts/ShortcutContext';
 import { ShortcutProvider } from '@/application/shortcuts/ShortcutProvider';
+import {
+  buildKvIndexCommand,
+  buildVaultPathCommands,
+} from '@/application/shortcuts/vault-path-commands';
 import { useTheme } from '@/application/theme/ThemeContext';
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import { useKvMounts } from '@/application/vault/useKvExplorerData';
+import { useKvV2Gateway } from '@/application/vault/KvV2GatewayContext';
+import { KvSearchProvider } from '@/application/vault/search/KvSearchProvider';
+import { useKvSearch } from '@/application/vault/search/KvSearchContext';
 import CommandPalette from '@/components/feature/CommandPalette';
 import CreateKvMountDialog from '@/components/feature/CreateKvMountDialog';
 import Sidebar from '@/components/feature/Sidebar';
 import TopBar from '@/components/feature/TopBar';
 import type { AuthenticatedShellContextValue } from './authenticated-shell';
+import { directoryPathForSecret, explorerRoute } from '@/router/explorer-route';
 
 const NO_MOUNTS = [] as const;
 const ACCESS_SECTIONS = new Set(['users', 'groups', 'roles', 'policies']);
@@ -27,9 +38,19 @@ function accessSection(pathname: string): string | undefined {
 }
 
 export default function AuthenticatedAppShell() {
+  const vault = useVaultSession();
+  const gateway = useKvV2Gateway();
   return (
     <ShortcutProvider>
-      <AuthenticatedWorkspace />
+      <NavigationHistoryProvider session={vault.session!}>
+        <KvSearchProvider
+          session={vault.session!}
+          gateway={gateway}
+          onSessionExpired={vault.expireSession}
+        >
+          <AuthenticatedWorkspace />
+        </KvSearchProvider>
+      </NavigationHistoryProvider>
     </ShortcutProvider>
   );
 }
@@ -40,6 +61,8 @@ function AuthenticatedWorkspace() {
   const vault = useVaultSession();
   const theme = useTheme();
   const shortcuts = useShortcuts();
+  const kvSearch = useKvSearch();
+  const navigationHistory = useNavigationHistory();
   const session = vault.session!;
   const [mountsState, refreshMounts] = useKvMounts(session);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -62,6 +85,36 @@ function AuthenticatedWorkspace() {
     vault.signOut();
     navigate('/login', { replace: true });
   };
+  const openNavigationPath = useCallback((target: NavigationPath) => {
+    navigate(target.kind === 'folder'
+      ? explorerRoute(target.mount, target.path)
+      : explorerRoute(
+          target.mount,
+          directoryPathForSecret(target.path),
+          target.path,
+        ));
+  }, [navigate]);
+  const activeSearchState = kvSearch.stateFor(activeMount);
+  const pathCommands = useMemo(() => buildVaultPathCommands({
+    favorites: navigationHistory.favorites,
+    recents: navigationHistory.recents,
+    indexed: shortcuts.paletteOpen ? activeSearchState.entries : [],
+    onOpen: openNavigationPath,
+  }), [
+    activeSearchState.entries,
+    navigationHistory.favorites,
+    navigationHistory.recents,
+    openNavigationPath,
+    shortcuts.paletteOpen,
+  ]);
+  const indexCommand = useMemo(() => buildKvIndexCommand({
+    mount: activeMount,
+    state: activeSearchState,
+    onStart: () => kvSearch.start(activeMount),
+    onContinue: () => kvSearch.continueScan(activeMount),
+    onRestart: () => kvSearch.restart(activeMount),
+    onCancel: () => kvSearch.cancel(activeMount),
+  }), [activeMount, activeSearchState, kvSearch]);
 
   const context: AuthenticatedShellContextValue = {
     mountsState,
@@ -92,6 +145,8 @@ function AuthenticatedWorkspace() {
       icon: 'ri-folder-keyhole-line',
       run: () => navigate(`/explorer/${encodeURIComponent(mount.path)}`),
     })),
+    ...pathCommands,
+    ...(indexCommand ? [indexCommand] : []),
     ...(showAccessControl ? ACCESS_COMMANDS.map(([section, label, icon]) => ({
       id: `access-${section}`,
       label,
@@ -116,6 +171,8 @@ function AuthenticatedWorkspace() {
   ], [
     mounts,
     navigate,
+    indexCommand,
+    pathCommands,
     refreshMounts,
     showAccessControl,
     theme,
@@ -129,6 +186,7 @@ function AuthenticatedWorkspace() {
         health={vault.health}
         onSignOut={signOut}
         onOpenCommandPalette={shortcuts.openPalette}
+        onClearNavigationData={navigationHistory.clearLocalNavigationData}
       />
       {accessNotice && (
         <div className="flex items-center gap-2 border-b border-warning-200 bg-warning-50 px-4 py-1.5 text-xs text-warning-700" role="status">
@@ -150,6 +208,9 @@ function AuthenticatedWorkspace() {
           showAccessControl={showAccessControl}
           activeAccessSection={activeAccessSection}
           onAccessSectionSelect={(section) => navigate(`/access-control/${section}`)}
+          favorites={navigationHistory.favorites}
+          recents={navigationHistory.recents}
+          onPathSelect={openNavigationPath}
         />
         <Outlet context={context} />
         <CreateKvMountDialog

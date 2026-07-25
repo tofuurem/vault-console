@@ -72,4 +72,30 @@ describe('TopBar', () => {
     await user.click(screen.getByRole('button', { name: 'Session menu for Alice' }));
     expect(screen.getByText(/choice applies only until/i)).toBeVisible();
   });
+
+  it('clears locally stored navigation paths from the session menu', async () => {
+    const user = userEvent.setup();
+    const onClearNavigationData = vi.fn();
+
+    render(
+      <ThemeProvider storage={null} colorSchemeQuery={lightQuery}>
+        <TopBar
+          session={{
+            serverUrl: 'https://vault.example.test',
+            token: vaultToken('hvs.test'),
+            authMethod: 'token',
+            displayName: 'Alice',
+          }}
+          health={{ initialized: true, sealed: false, standby: false }}
+          onSignOut={vi.fn()}
+          onClearNavigationData={onClearNavigationData}
+        />
+      </ThemeProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Session menu for Alice' }));
+    await user.click(screen.getByRole('button', { name: 'Clear recent & favorite paths' }));
+
+    expect(onClearNavigationData).toHaveBeenCalledOnce();
+  });
 });

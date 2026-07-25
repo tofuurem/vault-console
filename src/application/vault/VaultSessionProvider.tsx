@@ -26,6 +26,7 @@ import {
   createVaultSessionStorage,
   type VaultSessionStorageLike,
 } from './session-storage';
+import { clearNavigationSessionStorage } from '@/application/navigation-history/navigation-history';
 import {
   resolveAccessControlPermission,
   resolvePermission,
@@ -59,11 +60,13 @@ export function VaultSessionProvider({
   storage: suppliedStorage,
 }: VaultSessionProviderProps) {
   const gateway = useMemo(() => suppliedGateway ?? new VaultAuthAdapter(), [suppliedGateway]);
-  const tabSession = useMemo(
-    () => createVaultSessionStorage(
-      suppliedStorage === undefined ? browserSessionStorage() : suppliedStorage,
-    ),
+  const storageBackend = useMemo(
+    () => suppliedStorage === undefined ? browserSessionStorage() : suppliedStorage,
     [suppliedStorage],
+  );
+  const tabSession = useMemo(
+    () => createVaultSessionStorage(storageBackend),
+    [storageBackend],
   );
   const [initialSession] = useState(() => tabSession.load());
   const [status, setStatus] = useState<VaultSessionStatus>(
@@ -125,6 +128,7 @@ export function VaultSessionProvider({
     setCapabilities({});
     setCapabilityDiscovery('idle');
     if (!tabSession.clear()) setSessionPersistenceAvailable(false);
+    clearNavigationSessionStorage(storageBackend);
     try {
       const healthResult = await checkHealth(serverUrl, signal);
       await openSession(healthResult, authenticate, signal);
@@ -138,7 +142,7 @@ export function VaultSessionProvider({
       setStatus('anonymous');
       throw nextError;
     }
-  }, [checkHealth, openSession, tabSession]);
+  }, [checkHealth, openSession, storageBackend, tabSession]);
 
   const signInWithToken = useCallback(async (
     serverUrl: string,
@@ -163,21 +167,23 @@ export function VaultSessionProvider({
 
   const signOut = useCallback(() => {
     if (!tabSession.clear()) setSessionPersistenceAvailable(false);
+    clearNavigationSessionStorage(storageBackend);
     setSession(undefined);
     setCapabilities({});
     setCapabilityDiscovery('idle');
     setError(undefined);
     setStatus('anonymous');
-  }, [tabSession]);
+  }, [storageBackend, tabSession]);
 
   const expireSession = useCallback(() => {
     if (!tabSession.clear()) setSessionPersistenceAvailable(false);
+    clearNavigationSessionStorage(storageBackend);
     setSession(undefined);
     setCapabilities({});
     setCapabilityDiscovery('idle');
     setError(new VaultError('session-expired'));
     setStatus('expired');
-  }, [tabSession]);
+  }, [storageBackend, tabSession]);
 
   useEffect(() => {
     if (status !== 'restoring' || !session) return;

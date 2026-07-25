@@ -7,8 +7,13 @@ import {
 } from 'react';
 
 import { useShortcuts } from '@/application/shortcuts/ShortcutContext';
-import { commandSearchText, type ShortcutCommand } from '@/application/shortcuts/shortcut';
+import {
+  rankShortcutCommands,
+  type ShortcutCommand,
+} from '@/application/shortcuts/shortcut';
 import Modal from '@/components/base/Modal';
+
+const MAX_VISIBLE_COMMANDS = 100;
 
 function nextEnabledIndex(
   commands: readonly ShortcutCommand[],
@@ -28,16 +33,20 @@ export default function CommandPalette() {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const listboxId = useId();
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const commands = useMemo(() => shortcuts.commands.filter((command) => (
-    normalizedQuery.length === 0 || commandSearchText(command).includes(normalizedQuery)
-  )), [normalizedQuery, shortcuts.commands]);
+  const rankedCommands = useMemo(
+    () => rankShortcutCommands(shortcuts.commands, query),
+    [query, shortcuts.commands],
+  );
+  const commands = useMemo(
+    () => rankedCommands.slice(0, MAX_VISIBLE_COMMANDS),
+    [rankedCommands],
+  );
 
   useEffect(() => {
     if (!shortcuts.paletteOpen) return;
     setQuery('');
-    setActiveIndex(nextEnabledIndex(shortcuts.commands, -1, 1));
-  }, [shortcuts.commands, shortcuts.paletteOpen]);
+    setActiveIndex(0);
+  }, [shortcuts.paletteOpen]);
 
   useEffect(() => {
     setActiveIndex(nextEnabledIndex(commands, -1, 1));
@@ -56,6 +65,15 @@ export default function CommandPalette() {
         commands,
         current,
         event.key === 'ArrowDown' ? 1 : -1,
+      ));
+      return;
+    }
+    if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      setActiveIndex(nextEnabledIndex(
+        commands,
+        event.key === 'Home' ? -1 : 0,
+        event.key === 'Home' ? 1 : -1,
       ));
       return;
     }
@@ -110,40 +128,49 @@ export default function CommandPalette() {
             <p className="mt-2 text-xs font-medium text-foreground-700">No matching commands</p>
             <p className="mt-1 text-[11px] text-foreground-400">Try a mount name, path, or section.</p>
           </div>
-        ) : commands.map((command, index) => (
-          <button
-            key={command.id}
-            id={`${listboxId}-${index}`}
-            type="button"
-            role="option"
-            aria-selected={activeIndex === index}
-            aria-disabled={command.disabledReason ? 'true' : undefined}
-            onMouseMove={() => {
-              if (!command.disabledReason) setActiveIndex(index);
-            }}
-            onClick={() => run(command)}
-            className={`grid min-h-11 w-full grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2.5 py-1.5 text-left transition-colors ${
-              command.disabledReason
-                ? 'cursor-not-allowed text-foreground-400'
-                : activeIndex === index
-                  ? 'bg-primary-100 text-primary-800'
-                  : 'text-foreground-700 hover:bg-background-100'
-            }`}
-          >
-            <i className={`${command.icon ?? 'ri-terminal-box-line'} text-sm`} aria-hidden="true" />
-            <span className="min-w-0">
-              <span className="block truncate text-xs font-medium">{command.label}</span>
-              <span className="block truncate text-[10px] text-foreground-400">
-                {command.disabledReason ?? command.group}
-              </span>
-            </span>
-            {command.shortcut && (
-              <kbd className="rounded border border-background-300 bg-background-50 px-1.5 py-0.5 font-mono text-[9px] text-foreground-400">
-                {command.shortcut}
-              </kbd>
+        ) : (
+          <>
+            {commands.map((command, index) => (
+              <button
+                key={command.id}
+                id={`${listboxId}-${index}`}
+                type="button"
+                role="option"
+                aria-selected={activeIndex === index}
+                aria-disabled={command.disabledReason ? 'true' : undefined}
+                onMouseMove={() => {
+                  if (!command.disabledReason) setActiveIndex(index);
+                }}
+                onClick={() => run(command)}
+                className={`grid min-h-11 w-full grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2.5 py-1.5 text-left transition-colors ${
+                  command.disabledReason
+                    ? 'cursor-not-allowed text-foreground-400'
+                    : activeIndex === index
+                      ? 'bg-primary-100 text-primary-800'
+                      : 'text-foreground-700 hover:bg-background-100'
+                }`}
+              >
+                <i className={`${command.icon ?? 'ri-terminal-box-line'} text-sm`} aria-hidden="true" />
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-medium">{command.label}</span>
+                  <span className="block truncate text-[10px] text-foreground-400">
+                    {command.disabledReason ?? command.group}
+                  </span>
+                </span>
+                {command.shortcut && (
+                  <kbd className="rounded border border-background-300 bg-background-50 px-1.5 py-0.5 font-mono text-[9px] text-foreground-400">
+                    {command.shortcut}
+                  </kbd>
+                )}
+              </button>
+            ))}
+            {rankedCommands.length > commands.length && (
+              <p className="px-3 py-2 text-center text-[10px] text-foreground-400">
+                Showing the first {commands.length} of {rankedCommands.length} matches. Refine your search.
+              </p>
             )}
-          </button>
-        ))}
+          </>
+        )}
       </div>
     </Modal>
   );

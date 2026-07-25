@@ -10,6 +10,10 @@ import type {
 } from '@/domain/vault/contracts';
 import { VaultError } from '@/domain/vault/errors';
 import { vaultToken, type VaultToken } from '@/domain/vault/sensitive-value';
+import {
+  RECENT_PATHS_STORAGE_KEY,
+  SESSION_FAVORITES_STORAGE_KEY,
+} from '@/application/navigation-history/navigation-history';
 import { SESSION_STORAGE_KEY, createVaultSessionStorage } from './session-storage';
 import { useVaultSession } from './VaultSessionContext';
 import { VaultSessionProvider } from './VaultSessionProvider';
@@ -90,11 +94,15 @@ describe('VaultSessionProvider', () => {
       token: 'hvs.session',
       displayName: 'alice',
     });
+    sessionStorage.setItem(RECENT_PATHS_STORAGE_KEY, '{"version":1,"paths":[]}');
+    sessionStorage.setItem(SESSION_FAVORITES_STORAGE_KEY, '{"version":1,"paths":[]}');
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(screen.getByTestId('status')).toHaveTextContent('anonymous');
     expect(screen.getByTestId('identity')).toHaveTextContent('none');
     expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(RECENT_PATHS_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(SESSION_FAVORITES_STORAGE_KEY)).toBeNull();
   });
 
   it('restores a saved tab session without asking for credentials again', async () => {
@@ -214,11 +222,15 @@ describe('VaultSessionProvider', () => {
       await Promise.resolve();
     });
     expect(screen.getByTestId('status')).toHaveTextContent('authenticated');
+    sessionStorage.setItem(RECENT_PATHS_STORAGE_KEY, '{"version":1,"paths":[]}');
+    sessionStorage.setItem(SESSION_FAVORITES_STORAGE_KEY, '{"version":1,"paths":[]}');
 
     act(() => vi.advanceTimersByTime(1_000));
     expect(screen.getByTestId('status')).toHaveTextContent('expired');
     expect(screen.getByTestId('identity')).toHaveTextContent('none');
     expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(RECENT_PATHS_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(SESSION_FAVORITES_STORAGE_KEY)).toBeNull();
   });
 
   it('invalidates the active session when a capability query receives a 401', async () => {

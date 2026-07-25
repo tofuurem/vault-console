@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import App from '@/App';
+import { RECENT_PATHS_STORAGE_KEY } from '@/application/navigation-history/navigation-history';
 import type {
   KvV2Gateway,
   UserpassLogin,
@@ -172,6 +173,24 @@ describe('ExplorerPage', () => {
       undefined,
       expect.any(AbortSignal),
     );
+    expect(await screen.findByRole('button', {
+      name: 'Open recent path applications/shared',
+    })).toBeVisible();
+    const storedNavigation = sessionStorage.getItem(RECENT_PATHS_STORAGE_KEY) ?? '';
+    expect(storedNavigation).toContain('"path":"shared"');
+    expect(storedNavigation).not.toContain('memory-only-value');
+    expect(storedNavigation).not.toContain('hvs.reader');
+
+    await user.click(screen.getByRole('button', { name: 'Open folder billing/' }));
+    await user.click(screen.getByRole('button', { name: 'Open command palette' }));
+    const paletteSearch = await screen.findByRole('combobox', { name: 'Search commands' });
+    await user.type(paletteSearch, 'shared');
+    expect(screen.getByRole('option', { name: /applications\/shared/ })).toHaveTextContent(
+      'Recent secret',
+    );
+    await user.keyboard('{Enter}');
+    expect(window.location.pathname).toBe('/explorer/applications');
+    expect(window.location.search).toBe('?secret=shared');
   });
 
   it('renders authorization failures next to the denied folder', async () => {

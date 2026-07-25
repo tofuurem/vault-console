@@ -7,6 +7,7 @@ interface TopBarProps {
   health?: VaultHealth;
   onSignOut: () => void;
   onOpenCommandPalette?: () => void;
+  onClearNavigationData?: () => void;
 }
 
 function formatTtl(expiresAt: number | undefined): string {
@@ -22,6 +23,7 @@ export default function TopBar({
   health,
   onSignOut,
   onOpenCommandPalette,
+  onClearNavigationData,
 }: TopBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -130,6 +132,19 @@ export default function TopBar({
                   </p>
                 )}
               </fieldset>
+              {onClearNavigationData && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClearNavigationData();
+                    setMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground-700 hover:bg-background-100"
+                >
+                  <i className="ri-eraser-line text-sm" aria-hidden="true" />
+                  Clear recent &amp; favorite paths
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => { setMenuOpen(false); onSignOut(); }}

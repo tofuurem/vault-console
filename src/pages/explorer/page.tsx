@@ -2,13 +2,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { useAuthenticatedShell } from '@/app/authenticated-shell';
+import { useNavigationHistory } from '@/application/navigation-history/NavigationHistoryContext';
 import { useKvV2Gateway } from '@/application/vault/KvV2GatewayContext';
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import { kvActionPaths, useKvActionPermissions } from '@/application/vault/useKvActionPermissions';
 import { useKvDirectory, useKvSecretDetails } from '@/application/vault/useKvExplorerData';
 import type { VaultCapability } from '@/domain/vault/contracts';
 import { normalizeVaultError, VaultError } from '@/domain/vault/errors';
-import { directoryPathFromWildcard, explorerRoute } from '@/router/explorer-route';
+import {
+  directoryPathForSecret,
+  directoryPathFromWildcard,
+  explorerRoute,
+} from '@/router/explorer-route';
 import CreateSecretDrawer from './components/CreateSecretDrawer';
 import DestructionConfirm, { type KvDestructiveAction } from './components/DestructionConfirm';
 import ExplorerMain from './components/ExplorerMain';
@@ -23,6 +28,11 @@ export default function ExplorerPage() {
   const [searchParams] = useSearchParams();
   const { mountsState, refreshMounts } = useAuthenticatedShell();
   const vault = useVaultSession();
+  const {
+    recordRecent,
+    isFavorite,
+    toggleFavorite,
+  } = useNavigationHistory();
   const kvGateway = useKvV2Gateway();
   const session = vault.session!;
   const mounts = mountsState.data ?? NO_MOUNTS;
@@ -60,7 +70,7 @@ export default function ExplorerPage() {
   }, [details, directory, permissionsState, vault]);
 
   const selectSecret = (path: string) => {
-    navigate(explorerRoute(activeMount, activePath, path));
+    navigate(explorerRoute(activeMount, directoryPathForSecret(path), path));
   };
   const navigateFolder = (path: string) => {
     navigate(explorerRoute(activeMount, path));
@@ -70,6 +80,15 @@ export default function ExplorerPage() {
   const selectedPermissions = permissionsState.data?.scope === selectedPermissionScope
     ? permissionsState.data
     : undefined;
+
+  useEffect(() => {
+    if (!selectedPath || !selectedDetails?.secret) return;
+    recordRecent({
+      mount: activeMount,
+      path: selectedPath,
+      kind: 'secret',
+    });
+  }, [activeMount, recordRecent, selectedDetails?.secret, selectedPath]);
 
   const ensureCapability = async (path: string, capability: VaultCapability) => {
     const result = await vault.queryCapabilities([path]);
@@ -209,6 +228,8 @@ export default function ExplorerPage() {
       onUndelete={(version) => void undeleteVersion(version)}
       onDestroyVersion={(version) => setDestructiveAction({ kind: 'destroy-version', version })}
       onDeleteMetadata={(version) => setDestructiveAction({ kind: 'delete-metadata', version })}
+      isFavorite={isFavorite}
+      onToggleFavorite={toggleFavorite}
     />
   );
 

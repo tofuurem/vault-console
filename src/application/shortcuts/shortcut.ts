@@ -6,6 +6,7 @@ export interface ShortcutCommand {
   readonly icon?: string;
   readonly shortcut?: string;
   readonly disabledReason?: string;
+  readonly searchTieBreaker?: number;
   run(): void;
 }
 
@@ -37,4 +38,39 @@ export function commandSearchText(command: ShortcutCommand): string {
     command.group,
     ...(command.keywords ?? []),
   ].join(' ').toLocaleLowerCase();
+}
+
+function commandMatchScore(command: ShortcutCommand, query: string): number | null {
+  const label = command.label.toLocaleLowerCase();
+  const group = command.group.toLocaleLowerCase();
+  const keywords = (command.keywords ?? []).map((keyword) => keyword.toLocaleLowerCase());
+  if (label === query || keywords.some((keyword) => keyword === query)) return 0;
+  if (label.startsWith(query) || keywords.some((keyword) => keyword.startsWith(query))) return 10;
+  if (label.includes(query) || keywords.some((keyword) => keyword.includes(query))) return 20;
+  if (group.includes(query)) return 40;
+  return commandSearchText(command).includes(query) ? 50 : null;
+}
+
+export function rankShortcutCommands(
+  commands: readonly ShortcutCommand[],
+  rawQuery: string,
+): readonly ShortcutCommand[] {
+  const query = rawQuery.trim().toLocaleLowerCase();
+  if (!query) return commands;
+  return commands
+    .flatMap((command, index) => {
+      const score = commandMatchScore(command, query);
+      return score === null ? [] : [{
+        command,
+        index,
+        score,
+        tieBreaker: command.searchTieBreaker ?? 0,
+      }];
+    })
+    .sort((left, right) => (
+      left.score - right.score
+      || right.tieBreaker - left.tieBreaker
+      || left.index - right.index
+    ))
+    .map(({ command }) => command);
 }

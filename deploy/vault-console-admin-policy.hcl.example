@@ -70,3 +70,16 @@ path "auth/userpass/users" {
 path "auth/userpass/users/*" {
   capabilities = ["create", "read", "update", "delete"]
 }
+
+# Optional recursive path-name search. Uncomment and replace "applications"
+# with each exact KV v2 mount or narrower prefix that this operator may browse.
+# LIST reveals logical path names within the granted metadata scope; it does
+# not grant secret data reads.
+#
+# path "applications/metadata" {
+#   capabilities = ["list"]
+# }
+#
+# path "applications/metadata/*" {
+#   capabilities = ["list"]
+# }

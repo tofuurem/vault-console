@@ -3,6 +3,12 @@ export function directoryPathFromWildcard(wildcard: string | undefined): string 
   return segments.length ? `${segments.join('/')}/` : '';
 }
 
+export function directoryPathForSecret(secretPath: string): string {
+  const segments = secretPath.split('/').filter(Boolean);
+  segments.pop();
+  return segments.length ? `${segments.join('/')}/` : '';
+}
+
 export function explorerRoute(
   mount: string,
   directoryPath = '',
