@@ -35,6 +35,8 @@ describe('VaultAuthAdapter', () => {
         data: {
           display_name: 'userpass-alice',
           expire_time: '2030-01-02T03:04:05Z',
+          ttl: 7200,
+          renewable: true,
         },
       }),
     );
@@ -48,6 +50,8 @@ describe('VaultAuthAdapter', () => {
       authMethod: 'token',
       displayName: 'userpass-alice',
       expiresAt: Date.parse('2030-01-02T03:04:05Z'),
+      leaseDurationSeconds: 7200,
+      renewable: true,
     });
     expect(session.token).toBe(token);
     expect(new Headers(fetchRequest.mock.calls[0][1]?.headers).get('X-Vault-Token')).toBe('hvs.token');
@@ -77,6 +81,7 @@ describe('VaultAuthAdapter', () => {
         auth: {
           client_token: 'hvs.session',
           lease_duration: 3600,
+          renewable: true,
           metadata: { username: 'alice@example.com' },
         },
       }),
@@ -98,6 +103,8 @@ describe('VaultAuthAdapter', () => {
       authMethod: 'userpass',
       displayName: 'alice@example.com',
       expiresAt: Date.parse('2026-07-21T13:00:00Z'),
+      leaseDurationSeconds: 3600,
+      renewable: true,
     });
     expect(session.token.reveal()).toBe('hvs.session');
     vi.useRealTimers();
@@ -118,6 +125,63 @@ describe('VaultAuthAdapter', () => {
         password: vaultPassword('wrong'),
       }),
     ).rejects.toMatchObject({ code: 'authentication' });
+  });
+
+  it('renews the calling token without requesting an increment and trusts a capped TTL', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-21T12:00:00Z'));
+    const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(
+      jsonResponse({
+        auth: {
+          lease_duration: 900,
+          renewable: true,
+        },
+      }),
+    );
+    const gateway = new VaultAuthAdapter(new VaultHttpClient(fetchRequest));
+    const session = {
+      serverUrl: 'https://vault.example.test',
+      token: vaultToken('hvs.renewable'),
+      authMethod: 'userpass' as const,
+    };
+
+    await expect(gateway.renewSelf(session)).resolves.toEqual({
+      expiresAt: Date.parse('2026-07-21T12:15:00Z'),
+      leaseDurationSeconds: 900,
+      renewable: true,
+      renewedAt: Date.parse('2026-07-21T12:00:00Z'),
+    });
+    expect(String(fetchRequest.mock.calls[0][0])).toBe(
+      'https://vault.example.test/v1/auth/token/renew-self',
+    );
+    expect(fetchRequest.mock.calls[0][1]?.method).toBe('POST');
+    expect(fetchRequest.mock.calls[0][1]?.body).toBeUndefined();
+    expect(new Headers(fetchRequest.mock.calls[0][1]?.headers).get('X-Vault-Token')).toBe(
+      'hvs.renewable',
+    );
+    vi.useRealTimers();
+  });
+
+  it('maps a successful non-renewable response without inventing an expiry', async () => {
+    const gateway = new VaultAuthAdapter(new VaultHttpClient(
+      vi.fn<VaultFetch>().mockResolvedValue(jsonResponse({
+        auth: {
+          lease_duration: 0,
+          renewable: false,
+        },
+      })),
+    ));
+
+    await expect(gateway.renewSelf({
+      serverUrl: 'https://vault.example.test',
+      token: vaultToken('hvs.batch'),
+      authMethod: 'token',
+    })).resolves.toMatchObject({
+      expiresAt: undefined,
+      leaseDurationSeconds: 0,
+      renewable: false,
+      renewedAt: expect.any(Number),
+    });
   });
 
   it('queries the current token capabilities for every requested path', async () => {

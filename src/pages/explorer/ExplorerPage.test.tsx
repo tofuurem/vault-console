@@ -27,6 +27,7 @@ function authGateway(options: { metadataRead?: boolean; mountAdmin?: boolean } =
     getHealth: vi.fn(async (): Promise<VaultHealth> => ({ initialized: true, sealed: false, standby: false, version: '1.21.0' })),
     validateToken: vi.fn(async (_serverUrl: string, _token: VaultToken) => session),
     loginUserpass: vi.fn(async (_input: UserpassLogin) => session),
+    renewSelf: vi.fn(async () => ({ renewable: false })),
     getCapabilities: vi.fn(async (_session, paths): Promise<VaultCapabilityMap> => Object.fromEntries(
       paths.map((path) => [
         path,

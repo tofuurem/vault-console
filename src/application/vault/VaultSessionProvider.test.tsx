@@ -7,6 +7,7 @@ import type {
   VaultCapabilityMap,
   VaultHealth,
   VaultSession,
+  VaultSessionLease,
 } from '@/domain/vault/contracts';
 import { VaultError } from '@/domain/vault/errors';
 import { vaultToken, type VaultToken } from '@/domain/vault/sensitive-value';
@@ -38,6 +39,7 @@ class StubAuthGateway implements VaultAuthGateway {
   getHealth = vi.fn(async (): Promise<VaultHealth> => this.health);
   validateToken = vi.fn(async (_serverUrl: string, _token: VaultToken): Promise<VaultSession> => this.session);
   loginUserpass = vi.fn(async (_input: UserpassLogin): Promise<VaultSession> => this.session);
+  renewSelf = vi.fn(async (): Promise<VaultSessionLease> => ({ renewable: false }));
   getCapabilities = vi.fn(async (): Promise<VaultCapabilityMap> => this.capabilities);
 }
 
@@ -52,6 +54,10 @@ function SessionProbe() {
       <output data-testid="capability-discovery">{session.capabilityDiscovery}</output>
       <output data-testid="persistence">{String(session.sessionPersistenceAvailable)}</output>
       <output data-testid="error">{session.error?.code ?? 'none'}</output>
+      <output data-testid="renewable">{String(session.session?.renewable)}</output>
+      <output data-testid="expiry">{session.session?.expiresAt ?? 'none'}</output>
+      <output data-testid="renewal-status">{session.renewal.status}</output>
+      <output data-testid="renewal-error">{session.renewal.error?.code ?? 'none'}</output>
       <button
         type="button"
         onClick={() => void session.signInWithToken('https://vault.example.test', 'hvs.raw').catch(() => undefined)}
@@ -59,6 +65,13 @@ function SessionProbe() {
         Token login
       </button>
       <button type="button" onClick={session.signOut}>Sign out</button>
+      <button
+        type="button"
+        onClick={() => void session.renewSession().catch(() => undefined)}
+      >
+        Renew
+      </button>
+      <button type="button" onClick={session.expireSession}>Expire</button>
     </div>
   );
 }
@@ -204,28 +217,20 @@ describe('VaultSessionProvider', () => {
     expect(gateway.validateToken).not.toHaveBeenCalled();
   });
 
-  it('expires the in-memory session when the token lease ends', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-07-21T12:00:00Z'));
+  it('cleans the in-memory session when the session clock reports expiry', async () => {
     const gateway = new StubAuthGateway();
-    gateway.session = { ...gateway.session, expiresAt: Date.now() + 1_000 };
 
     render(
       <VaultSessionProvider gateway={gateway}>
         <SessionProbe />
       </VaultSessionProvider>,
     );
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Token login' }));
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(screen.getByTestId('status')).toHaveTextContent('authenticated');
+    fireEvent.click(screen.getByRole('button', { name: 'Token login' }));
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
     sessionStorage.setItem(RECENT_PATHS_STORAGE_KEY, '{"version":1,"paths":[]}');
     sessionStorage.setItem(SESSION_FAVORITES_STORAGE_KEY, '{"version":1,"paths":[]}');
 
-    act(() => vi.advanceTimersByTime(1_000));
+    fireEvent.click(screen.getByRole('button', { name: 'Expire' }));
     expect(screen.getByTestId('status')).toHaveTextContent('expired');
     expect(screen.getByTestId('identity')).toHaveTextContent('none');
     expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
@@ -255,5 +260,127 @@ describe('VaultSessionProvider', () => {
     await waitFor(() => expect(screen.getByTestId('capability-status')).toHaveTextContent('authenticated'));
     fireEvent.click(screen.getByRole('button', { name: 'Query' }));
     await waitFor(() => expect(screen.getByTestId('capability-status')).toHaveTextContent('expired'));
+  });
+
+  it('serializes renewal and persists the exact shorter lease returned by Vault', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-21T12:00:00Z'));
+    const gateway = new StubAuthGateway();
+    gateway.session = {
+      ...gateway.session,
+      renewable: true,
+      expiresAt: Date.parse('2026-07-21T13:00:00Z'),
+      leaseDurationSeconds: 3600,
+    };
+    let resolveRenewal!: (lease: {
+      expiresAt: number;
+      leaseDurationSeconds: number;
+      renewable: boolean;
+      renewedAt: number;
+    }) => void;
+    gateway.renewSelf.mockReturnValue(new Promise((resolve) => {
+      resolveRenewal = resolve;
+    }));
+
+    render(<VaultSessionProvider gateway={gateway}><SessionProbe /></VaultSessionProvider>);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Token login' }));
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('status')).toHaveTextContent('authenticated');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Renew' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Renew' }));
+    expect(gateway.renewSelf).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('renewal-status')).toHaveTextContent('renewing');
+
+    const returnedExpiry = Date.parse('2026-07-21T12:05:00Z');
+    await act(async () => resolveRenewal({
+      expiresAt: returnedExpiry,
+      leaseDurationSeconds: 300,
+      renewable: true,
+      renewedAt: Date.now(),
+    }));
+
+    expect(screen.getByTestId('renewal-status')).toHaveTextContent('succeeded');
+    expect(screen.getByTestId('expiry')).toHaveTextContent(String(returnedExpiry));
+    expect(JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY)!)).toMatchObject({
+      expiresAt: returnedExpiry,
+      leaseDurationSeconds: 300,
+      renewable: true,
+      renewedAt: Date.now(),
+    });
+  });
+
+  it('keeps a valid session after renewal denial and removes the renewal action', async () => {
+    const gateway = new StubAuthGateway();
+    gateway.session = {
+      ...gateway.session,
+      renewable: true,
+      expiresAt: Date.now() + 60_000,
+    };
+    gateway.renewSelf.mockRejectedValue(new VaultError('authorization', { status: 403 }));
+
+    render(<VaultSessionProvider gateway={gateway}><SessionProbe /></VaultSessionProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Token login' }));
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+    fireEvent.click(screen.getByRole('button', { name: 'Renew' }));
+
+    await waitFor(() => expect(screen.getByTestId('renewal-status')).toHaveTextContent('failed'));
+    expect(screen.getByTestId('status')).toHaveTextContent('authenticated');
+    expect(screen.getByTestId('renewable')).toHaveTextContent('false');
+    expect(screen.getByTestId('renewal-error')).toHaveTextContent('authorization');
+    expect(JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY)!)).toMatchObject({
+      renewable: false,
+    });
+  });
+
+  it('expires globally when renewal proves the token is no longer valid', async () => {
+    const gateway = new StubAuthGateway();
+    gateway.session = {
+      ...gateway.session,
+      renewable: true,
+      expiresAt: Date.now() + 60_000,
+    };
+    gateway.renewSelf.mockRejectedValue(new VaultError('session-expired', { status: 401 }));
+
+    render(<VaultSessionProvider gateway={gateway}><SessionProbe /></VaultSessionProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Token login' }));
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+    sessionStorage.setItem(RECENT_PATHS_STORAGE_KEY, '{"version":1,"paths":[]}');
+    fireEvent.click(screen.getByRole('button', { name: 'Renew' }));
+
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('expired'));
+    expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(RECENT_PATHS_STORAGE_KEY)).toBeNull();
+  });
+
+  it('renews a restored eligible session', async () => {
+    const gateway = new StubAuthGateway();
+    const restored = {
+      ...gateway.session,
+      token: vaultToken('hvs.restored-renewable'),
+      renewable: true,
+      expiresAt: Date.now() + 60_000,
+    };
+    createVaultSessionStorage(sessionStorage).save(restored);
+    gateway.renewSelf.mockResolvedValue({
+      expiresAt: Date.now() + 120_000,
+      leaseDurationSeconds: 120,
+      renewable: true,
+      renewedAt: Date.now(),
+    });
+
+    render(<VaultSessionProvider gateway={gateway}><SessionProbe /></VaultSessionProvider>);
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+    fireEvent.click(screen.getByRole('button', { name: 'Renew' }));
+
+    await waitFor(() => expect(gateway.renewSelf).toHaveBeenCalledWith(
+      expect.objectContaining({ token: restored.token }),
+      expect.any(AbortSignal),
+    ));
+    expect(screen.getByTestId('renewal-status')).toHaveTextContent('succeeded');
   });
 });

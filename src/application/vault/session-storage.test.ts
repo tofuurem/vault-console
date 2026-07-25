@@ -19,6 +19,9 @@ describe('Vault tab session storage', () => {
       authMethod: 'userpass' as const,
       displayName: 'alice',
       expiresAt: Date.parse('2030-01-02T03:04:05Z'),
+      leaseDurationSeconds: 3600,
+      renewable: true,
+      renewedAt: Date.parse('2030-01-02T02:04:05Z'),
     };
 
     expect(storage.save(session)).toBe(true);
@@ -30,11 +33,17 @@ describe('Vault tab session storage', () => {
       displayName: 'alice',
       createdAt: expect.any(Number),
       expiresAt: Date.parse('2030-01-02T03:04:05Z'),
+      leaseDurationSeconds: 3600,
+      renewable: true,
+      renewedAt: Date.parse('2030-01-02T02:04:05Z'),
     });
     expect(storage.load(Date.parse('2029-01-01T00:00:00Z')).session).toMatchObject({
       serverUrl: 'https://vault.example.test',
       authMethod: 'userpass',
       displayName: 'alice',
+      leaseDurationSeconds: 3600,
+      renewable: true,
+      renewedAt: Date.parse('2030-01-02T02:04:05Z'),
     });
     expect(storage.load(Date.parse('2029-01-01T00:00:00Z')).session?.token.reveal()).toBe('hvs.persisted');
   });
@@ -56,6 +65,27 @@ describe('Vault tab session storage', () => {
     sessionStorage.setItem(SESSION_STORAGE_KEY, '{"token":');
     expect(storage.load()).toEqual({ available: true });
     expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
+  });
+
+  it('restores pre-lease records with unknown renewal metadata', () => {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      serverUrl: 'https://vault.example.test',
+      token: 'hvs.legacy',
+      authMethod: 'token',
+      createdAt: 100,
+    }));
+
+    const restored = createVaultSessionStorage(sessionStorage).load(200);
+    expect(restored.session).toMatchObject({
+      serverUrl: 'https://vault.example.test',
+      authMethod: 'token',
+      expiresAt: undefined,
+      leaseDurationSeconds: undefined,
+      renewable: undefined,
+      renewedAt: undefined,
+    });
+    expect(restored.session?.token.reveal()).toBe('hvs.legacy');
   });
 
   it('degrades safely when browser storage is unavailable', () => {

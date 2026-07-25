@@ -30,6 +30,7 @@ class LoginGateway implements VaultAuthGateway {
   getHealth = vi.fn(async (): Promise<VaultHealth> => this.health);
   validateToken = vi.fn(async (_serverUrl: string, _token: VaultToken): Promise<VaultSession> => this.session);
   loginUserpass = vi.fn(async (_input: UserpassLogin): Promise<VaultSession> => ({ ...this.session, authMethod: 'userpass' }));
+  renewSelf = vi.fn(async () => ({ renewable: false }));
   getCapabilities = vi.fn(async (): Promise<VaultCapabilityMap> => this.capabilities);
 }
 

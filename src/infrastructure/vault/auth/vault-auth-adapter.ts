@@ -5,8 +5,10 @@ import type {
   VaultCapabilityMap,
   VaultHealth,
   VaultSession,
+  VaultSessionLease,
 } from '../../../domain/vault/contracts';
 import { VaultError } from '../../../domain/vault/errors';
+import { leaseFromDuration, leaseFromLookup } from '../../../domain/vault/session-lease';
 import { vaultToken, type VaultToken } from '../../../domain/vault/sensitive-value';
 import { encodeVaultPath, VaultHttpClient } from '../http/vault-http-client';
 import { asBoolean, asNumber, asObject, asString, asStringArray, optionalString } from '../http/validation';
@@ -23,11 +25,12 @@ const VAULT_CAPABILITIES = new Set<VaultCapability>([
   'root',
 ]);
 
-function expiresAtFromDate(value: unknown): number | undefined {
-  const date = optionalString(value);
-  if (!date) return undefined;
-  const timestamp = Date.parse(date);
-  return Number.isNaN(timestamp) ? undefined : timestamp;
+function optionalNumber(value: unknown): number | undefined {
+  return value === undefined || value === null ? undefined : asNumber(value);
+}
+
+function optionalBooleanValue(value: unknown): boolean | undefined {
+  return value === undefined || value === null ? undefined : asBoolean(value);
 }
 
 export class VaultAuthAdapter implements VaultAuthGateway {
@@ -65,7 +68,11 @@ export class VaultAuthAdapter implements VaultAuthGateway {
         token,
         authMethod: 'token',
         displayName: optionalString(data.display_name),
-        expiresAt: expiresAtFromDate(data.expire_time),
+        ...leaseFromLookup({
+          expireTime: optionalString(data.expire_time),
+          ttlSeconds: optionalNumber(data.ttl),
+          renewable: optionalBooleanValue(data.renewable),
+        }),
       };
     } catch (error) {
       if (error instanceof VaultError && error.status === 403) {
@@ -95,6 +102,7 @@ export class VaultAuthAdapter implements VaultAuthGateway {
       );
       const auth = asObject(response.auth);
       const leaseDuration = asNumber(auth.lease_duration);
+      const renewable = optionalBooleanValue(auth.renewable);
       const metadata = auth.metadata === null ? {} : asObject(auth.metadata);
 
       return {
@@ -102,7 +110,10 @@ export class VaultAuthAdapter implements VaultAuthGateway {
         token: vaultToken(asString(auth.client_token)),
         authMethod: 'userpass',
         displayName: optionalString(metadata.username) ?? input.username,
-        expiresAt: leaseDuration > 0 ? Date.now() + leaseDuration * 1_000 : undefined,
+        ...leaseFromDuration({
+          durationSeconds: leaseDuration,
+          renewable,
+        }),
       };
     } catch (error) {
       if (error instanceof VaultError && (error.status === 400 || error.status === 403)) {
@@ -110,6 +121,25 @@ export class VaultAuthAdapter implements VaultAuthGateway {
       }
       throw error;
     }
+  }
+
+  async renewSelf(
+    session: VaultSession,
+    signal?: AbortSignal,
+  ): Promise<VaultSessionLease> {
+    const response = asObject(
+      await this.client.request(session.serverUrl, 'auth/token/renew-self', {
+        method: 'POST',
+        token: session.token,
+        signal,
+      }),
+    );
+    const auth = asObject(response.auth);
+    return leaseFromDuration({
+      durationSeconds: asNumber(auth.lease_duration),
+      renewable: optionalBooleanValue(auth.renewable),
+      renewed: true,
+    });
   }
 
   async getCapabilities(

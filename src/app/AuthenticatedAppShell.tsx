@@ -4,6 +4,7 @@ import { matchPath, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useNavigationHistory } from '@/application/navigation-history/NavigationHistoryContext';
 import { NavigationHistoryProvider } from '@/application/navigation-history/NavigationHistoryProvider';
 import type { NavigationPath } from '@/application/navigation-history/navigation-history';
+import { useToast } from '@/application/notifications/ToastContext';
 import { useShortcutCommands, useShortcuts } from '@/application/shortcuts/ShortcutContext';
 import { ShortcutProvider } from '@/application/shortcuts/ShortcutProvider';
 import {
@@ -16,12 +17,15 @@ import { useKvMounts } from '@/application/vault/useKvExplorerData';
 import { useKvV2Gateway } from '@/application/vault/KvV2GatewayContext';
 import { KvSearchProvider } from '@/application/vault/search/KvSearchProvider';
 import { useKvSearch } from '@/application/vault/search/KvSearchContext';
+import { useSessionClock } from '@/application/vault/useSessionClock';
 import CommandPalette from '@/components/feature/CommandPalette';
 import CreateKvMountDialog from '@/components/feature/CreateKvMountDialog';
+import SessionExpiryBanner from '@/components/feature/SessionExpiryBanner';
 import Sidebar from '@/components/feature/Sidebar';
 import TopBar from '@/components/feature/TopBar';
 import type { AuthenticatedShellContextValue } from './authenticated-shell';
 import { directoryPathForSecret, explorerRoute } from '@/router/explorer-route';
+import { normalizeVaultError } from '@/domain/vault/errors';
 
 const NO_MOUNTS = [] as const;
 const ACCESS_SECTIONS = new Set(['users', 'groups', 'roles', 'policies']);
@@ -60,10 +64,30 @@ function AuthenticatedWorkspace() {
   const location = useLocation();
   const vault = useVaultSession();
   const theme = useTheme();
+  const toast = useToast();
   const shortcuts = useShortcuts();
   const kvSearch = useKvSearch();
   const navigationHistory = useNavigationHistory();
   const session = vault.session!;
+  const sessionClock = useSessionClock({
+    expiresAt: session.expiresAt,
+    leaseDurationSeconds: session.leaseDurationSeconds,
+    onExpire: vault.expireSession,
+  });
+  const renewSession = useCallback(async () => {
+    try {
+      await vault.renewSession();
+      toast.success('Vault session renewed with the TTL returned by Vault.');
+    } catch (cause) {
+      const error = normalizeVaultError(cause);
+      if (error.code === 'aborted' || error.code === 'session-expired') return;
+      if (error.code === 'authorization' || error.code === 'invalid-request') {
+        toast.warning('Vault could not renew this token. The current session remains active until its existing expiry.');
+        return;
+      }
+      toast.error(error.message, { title: 'Session renewal failed' });
+    }
+  }, [toast, vault]);
   const [mountsState, refreshMounts] = useKvMounts(session);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [createMountOpen, setCreateMountOpen] = useState(false);
@@ -180,13 +204,22 @@ function AuthenticatedWorkspace() {
   useShortcutCommands(commands);
 
   return (
-    <div data-testid="authenticated-app-shell" className="flex h-full flex-col bg-background-50">
+    <div data-testid="authenticated-app-shell" className="relative flex h-full flex-col bg-background-50">
       <TopBar
         session={session}
         health={vault.health}
         onSignOut={signOut}
         onOpenCommandPalette={shortcuts.openPalette}
         onClearNavigationData={navigationHistory.clearLocalNavigationData}
+        remainingLabel={sessionClock.remainingLabel}
+        renewal={vault.renewal}
+        onRenewSession={renewSession}
+      />
+      <SessionExpiryBanner
+        session={session}
+        clock={sessionClock}
+        renewal={vault.renewal}
+        onRenew={renewSession}
       />
       {accessNotice && (
         <div className="flex items-center gap-2 border-b border-warning-200 bg-warning-50 px-4 py-1.5 text-xs text-warning-700" role="status">

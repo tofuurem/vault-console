@@ -17,6 +17,9 @@ interface StoredVaultSession {
   readonly displayName?: string;
   readonly createdAt: number;
   readonly expiresAt?: number;
+  readonly leaseDurationSeconds?: number;
+  readonly renewable?: boolean;
+  readonly renewedAt?: number;
 }
 
 interface StoredSessionResult {
@@ -52,6 +55,15 @@ function asStoredSession(value: unknown): StoredVaultSession | null {
     || (record.displayName !== undefined && typeof record.displayName !== 'string')
     || (record.expiresAt !== undefined && (
       typeof record.expiresAt !== 'number' || !Number.isFinite(record.expiresAt)
+    ))
+    || (record.leaseDurationSeconds !== undefined && (
+      typeof record.leaseDurationSeconds !== 'number'
+      || !Number.isFinite(record.leaseDurationSeconds)
+      || record.leaseDurationSeconds < 0
+    ))
+    || (record.renewable !== undefined && typeof record.renewable !== 'boolean')
+    || (record.renewedAt !== undefined && (
+      typeof record.renewedAt !== 'number' || !Number.isFinite(record.renewedAt)
     ))
   ) return null;
   return record as StoredVaultSession;
@@ -94,6 +106,9 @@ export function createVaultSessionStorage(storage: StorageLike | null | undefine
           authMethod: stored.authMethod,
           displayName: stored.displayName,
           expiresAt: stored.expiresAt,
+          leaseDurationSeconds: stored.leaseDurationSeconds,
+          renewable: stored.renewable,
+          renewedAt: stored.renewedAt,
         },
       };
     },
@@ -108,6 +123,9 @@ export function createVaultSessionStorage(storage: StorageLike | null | undefine
         displayName: session.displayName,
         createdAt: Date.now(),
         expiresAt: session.expiresAt,
+        leaseDurationSeconds: session.leaseDurationSeconds,
+        renewable: session.renewable,
+        renewedAt: session.renewedAt,
       };
       try {
         storage.setItem(SESSION_STORAGE_KEY, JSON.stringify(record));

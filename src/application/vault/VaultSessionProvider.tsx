@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -20,6 +21,7 @@ import {
   VaultSessionContext,
   type UserpassCredentials,
   type VaultSessionContextValue,
+  type VaultSessionRenewalState,
   type VaultSessionStatus,
 } from './VaultSessionContext';
 import {
@@ -82,6 +84,11 @@ export function VaultSessionProvider({
     initialSession.available,
   );
   const [error, setError] = useState<VaultError>();
+  const [renewal, setRenewal] = useState<VaultSessionRenewalState>({ status: 'idle' });
+  const sessionRef = useRef(session);
+  const renewalPromiseRef = useRef<Promise<void> | null>(null);
+  const renewalControllerRef = useRef<AbortController | null>(null);
+  sessionRef.current = session;
 
   const checkHealth = useCallback(async (serverUrl: string, signal?: AbortSignal) => {
     const result = await gateway.getHealth(serverUrl, signal);
@@ -97,6 +104,7 @@ export function VaultSessionProvider({
     if (!healthResult.initialized) throw new VaultError('uninitialized');
     if (healthResult.sealed) throw new VaultError('sealed');
     const nextSession = await authenticate();
+    sessionRef.current = nextSession;
     setSession(nextSession);
     setSessionPersistenceAvailable(tabSession.save(nextSession));
     setCapabilityDiscovery('loading');
@@ -123,8 +131,11 @@ export function VaultSessionProvider({
     signal?: AbortSignal,
   ) => {
     setStatus('authenticating');
+    renewalControllerRef.current?.abort();
+    setRenewal({ status: 'idle' });
     setError(undefined);
     setSession(undefined);
+    sessionRef.current = undefined;
     setCapabilities({});
     setCapabilityDiscovery('idle');
     if (!tabSession.clear()) setSessionPersistenceAvailable(false);
@@ -137,6 +148,7 @@ export function VaultSessionProvider({
       if (nextError.code !== 'aborted') setError(nextError);
       tabSession.clear();
       setSession(undefined);
+      sessionRef.current = undefined;
       setCapabilities({});
       setCapabilityDiscovery('idle');
       setStatus('anonymous');
@@ -166,22 +178,28 @@ export function VaultSessionProvider({
   }, [gateway, signIn]);
 
   const signOut = useCallback(() => {
+    renewalControllerRef.current?.abort();
     if (!tabSession.clear()) setSessionPersistenceAvailable(false);
     clearNavigationSessionStorage(storageBackend);
     setSession(undefined);
+    sessionRef.current = undefined;
     setCapabilities({});
     setCapabilityDiscovery('idle');
     setError(undefined);
+    setRenewal({ status: 'idle' });
     setStatus('anonymous');
   }, [storageBackend, tabSession]);
 
   const expireSession = useCallback(() => {
+    renewalControllerRef.current?.abort();
     if (!tabSession.clear()) setSessionPersistenceAvailable(false);
     clearNavigationSessionStorage(storageBackend);
     setSession(undefined);
+    sessionRef.current = undefined;
     setCapabilities({});
     setCapabilityDiscovery('idle');
     setError(new VaultError('session-expired'));
+    setRenewal({ status: 'idle' });
     setStatus('expired');
   }, [storageBackend, tabSession]);
 
@@ -227,6 +245,63 @@ export function VaultSessionProvider({
     }
   }, [expireSession, gateway, session, status]);
 
+  const renewSession = useCallback((signal?: AbortSignal): Promise<void> => {
+    if (renewalPromiseRef.current) return renewalPromiseRef.current;
+    const currentSession = sessionRef.current;
+    if (!currentSession || status !== 'authenticated') {
+      return Promise.reject(new VaultError('session-expired'));
+    }
+    if (currentSession.renewable !== true) {
+      return Promise.reject(new VaultError('invalid-request'));
+    }
+
+    const controller = new AbortController();
+    renewalControllerRef.current = controller;
+    const abortFromCaller = () => controller.abort();
+    if (signal?.aborted) controller.abort();
+    else signal?.addEventListener('abort', abortFromCaller, { once: true });
+    setRenewal({ status: 'renewing' });
+
+    const promise = gateway.renewSelf(currentSession, controller.signal)
+      .then((lease) => {
+        if (sessionRef.current?.token !== currentSession.token) return;
+        const nextSession = { ...currentSession, ...lease };
+        sessionRef.current = nextSession;
+        setSession(nextSession);
+        setSessionPersistenceAvailable(tabSession.save(nextSession));
+        setRenewal({ status: 'succeeded' });
+      })
+      .catch((cause: unknown) => {
+        const nextError = normalizeVaultError(cause);
+        if (sessionRef.current?.token !== currentSession.token) throw nextError;
+        if (nextError.code === 'session-expired') {
+          expireSession();
+        } else if (nextError.code === 'aborted') {
+          setRenewal({ status: 'idle' });
+        } else {
+          if (nextError.code === 'authorization' || nextError.code === 'invalid-request') {
+            const nextSession = { ...currentSession, renewable: false };
+            sessionRef.current = nextSession;
+            setSession(nextSession);
+            setSessionPersistenceAvailable(tabSession.save(nextSession));
+          }
+          setRenewal({ status: 'failed', error: nextError });
+        }
+        throw nextError;
+      })
+      .finally(() => {
+        signal?.removeEventListener('abort', abortFromCaller);
+        if (renewalControllerRef.current === controller) {
+          renewalControllerRef.current = null;
+        }
+        if (renewalPromiseRef.current === promise) {
+          renewalPromiseRef.current = null;
+        }
+      });
+    renewalPromiseRef.current = promise;
+    return promise;
+  }, [expireSession, gateway, status, tabSession]);
+
   const permissionFor = useCallback((
     path: string,
     required: VaultCapability | readonly VaultCapability[],
@@ -234,21 +309,6 @@ export function VaultSessionProvider({
     capabilities,
     capabilityDiscovery,
   ]);
-
-  useEffect(() => {
-    if (status !== 'authenticated' || !session?.expiresAt) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const scheduleExpiration = () => {
-      const remaining = session.expiresAt! - Date.now();
-      if (remaining <= 0) {
-        expireSession();
-        return;
-      }
-      timer = setTimeout(scheduleExpiration, Math.min(remaining, 2_147_000_000));
-    };
-    scheduleExpiration();
-    return () => clearTimeout(timer);
-  }, [expireSession, session, status]);
 
   const accessControlPermission = resolveAccessControlPermission(
     capabilities,
@@ -262,12 +322,14 @@ export function VaultSessionProvider({
     capabilityDiscovery,
     accessControlPermission,
     sessionPersistenceAvailable,
+    renewal,
     error,
     checkHealth,
     queryCapabilities,
     permissionFor,
     signInWithToken,
     signInWithUserpass,
+    renewSession,
     expireSession,
     signOut,
   }), [
@@ -278,12 +340,14 @@ export function VaultSessionProvider({
     capabilityDiscovery,
     accessControlPermission,
     sessionPersistenceAvailable,
+    renewal,
     error,
     checkHealth,
     queryCapabilities,
     permissionFor,
     signInWithToken,
     signInWithUserpass,
+    renewSession,
     expireSession,
     signOut,
   ]);

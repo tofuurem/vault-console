@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/application/theme/ThemeContext';
+import type { VaultSessionRenewalState } from '@/application/vault/VaultSessionContext';
 import type { VaultHealth, VaultSession } from '@/domain/vault/contracts';
 
 interface TopBarProps {
@@ -8,14 +9,9 @@ interface TopBarProps {
   onSignOut: () => void;
   onOpenCommandPalette?: () => void;
   onClearNavigationData?: () => void;
-}
-
-function formatTtl(expiresAt: number | undefined): string {
-  if (!expiresAt) return 'No fixed expiry';
-  const seconds = Math.max(0, Math.floor((expiresAt - Date.now()) / 1_000));
-  if (seconds >= 86_400) return `${Math.floor(seconds / 86_400)}d remaining`;
-  if (seconds >= 3_600) return `${Math.floor(seconds / 3_600)}h remaining`;
-  return `${Math.floor(seconds / 60)}m remaining`;
+  remainingLabel?: string;
+  renewal?: VaultSessionRenewalState;
+  onRenewSession?: () => Promise<void>;
 }
 
 export default function TopBar({
@@ -24,6 +20,9 @@ export default function TopBar({
   onSignOut,
   onOpenCommandPalette,
   onClearNavigationData,
+  remainingLabel = 'No fixed expiry',
+  renewal = { status: 'idle' },
+  onRenewSession,
 }: TopBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -96,8 +95,18 @@ export default function TopBar({
               <div className="px-3 py-2 border-b border-background-200">
                 <div className="text-xs font-medium text-foreground-900">{identity}</div>
                 <div className="text-[11px] text-foreground-500 mt-0.5">
-                  {formatTtl(session.expiresAt)} · via {session.authMethod}
+                  {remainingLabel} · via {session.authMethod}
                 </div>
+                {renewal.status === 'succeeded' && (
+                  <p className="mt-1 text-[10px] font-medium text-success-700">
+                    Session renewed with Vault&apos;s returned TTL.
+                  </p>
+                )}
+                {renewal.status === 'failed' && (
+                  <p className="mt-1 text-[10px] font-medium text-danger-700" role="alert">
+                    Renewal failed; this session remains active until expiry.
+                  </p>
+                )}
               </div>
               <fieldset className="border-b border-background-200 px-3 py-2">
                 <legend className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-400">
@@ -132,6 +141,20 @@ export default function TopBar({
                   </p>
                 )}
               </fieldset>
+              {session.renewable === true && onRenewSession && (
+                <button
+                  type="button"
+                  disabled={renewal.status === 'renewing'}
+                  onClick={() => void onRenewSession().catch(() => undefined)}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground-700 hover:bg-background-100 disabled:cursor-wait disabled:text-foreground-400"
+                >
+                  <i
+                    className={`${renewal.status === 'renewing' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} text-sm`}
+                    aria-hidden="true"
+                  />
+                  {renewal.status === 'renewing' ? 'Renewing session…' : 'Renew session'}
+                </button>
+              )}
               {onClearNavigationData && (
                 <button
                   type="button"

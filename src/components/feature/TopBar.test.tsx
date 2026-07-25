@@ -98,4 +98,33 @@ describe('TopBar', () => {
 
     expect(onClearNavigationData).toHaveBeenCalledOnce();
   });
+
+  it('shows a live TTL label and manually renews eligible sessions', async () => {
+    const user = userEvent.setup();
+    const onRenewSession = vi.fn(async () => undefined);
+
+    render(
+      <ThemeProvider storage={null} colorSchemeQuery={lightQuery}>
+        <TopBar
+          session={{
+            serverUrl: 'https://vault.example.test',
+            token: vaultToken('hvs.renewable'),
+            authMethod: 'userpass',
+            displayName: 'Alice',
+            renewable: true,
+          }}
+          health={{ initialized: true, sealed: false, standby: false }}
+          remainingLabel="4m 59s remaining"
+          renewal={{ status: 'idle' }}
+          onRenewSession={onRenewSession}
+          onSignOut={vi.fn()}
+        />
+      </ThemeProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Session menu for Alice' }));
+    expect(screen.getByText('4m 59s remaining · via userpass')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Renew session' }));
+    expect(onRenewSession).toHaveBeenCalledOnce();
+  });
 });

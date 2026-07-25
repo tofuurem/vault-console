@@ -3,12 +3,18 @@ import type { CreateKvV2Mount } from './kv-mount';
 
 export type VaultAuthMethod = 'token' | 'userpass';
 
-export interface VaultSession {
+export interface VaultSessionLease {
+  readonly expiresAt?: number;
+  readonly leaseDurationSeconds?: number;
+  readonly renewable?: boolean;
+  readonly renewedAt?: number;
+}
+
+export interface VaultSession extends VaultSessionLease {
   readonly serverUrl: string;
   readonly token: VaultToken;
   readonly authMethod: VaultAuthMethod;
   readonly displayName?: string;
-  readonly expiresAt?: number;
 }
 
 export interface VaultHealth {
@@ -42,6 +48,7 @@ export interface VaultAuthGateway {
   getHealth(serverUrl: string, signal?: AbortSignal): Promise<VaultHealth>;
   validateToken(serverUrl: string, token: VaultToken, signal?: AbortSignal): Promise<VaultSession>;
   loginUserpass(input: UserpassLogin, signal?: AbortSignal): Promise<VaultSession>;
+  renewSelf(session: VaultSession, signal?: AbortSignal): Promise<VaultSessionLease>;
   getCapabilities(session: VaultSession, paths: readonly string[], signal?: AbortSignal): Promise<VaultCapabilityMap>;
 }
 

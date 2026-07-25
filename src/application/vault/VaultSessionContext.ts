@@ -26,6 +26,13 @@ export interface UserpassCredentials {
   readonly password: string;
 }
 
+export type VaultSessionRenewalStatus = 'idle' | 'renewing' | 'succeeded' | 'failed';
+
+export interface VaultSessionRenewalState {
+  readonly status: VaultSessionRenewalStatus;
+  readonly error?: VaultError;
+}
+
 export interface VaultSessionContextValue {
   readonly status: VaultSessionStatus;
   readonly session?: VaultSession;
@@ -34,6 +41,7 @@ export interface VaultSessionContextValue {
   readonly capabilityDiscovery: CapabilityDiscoveryState;
   readonly accessControlPermission: PermissionDecision;
   readonly sessionPersistenceAvailable: boolean;
+  readonly renewal: VaultSessionRenewalState;
   readonly error?: VaultError;
   checkHealth(serverUrl: string, signal?: AbortSignal): Promise<VaultHealth>;
   queryCapabilities(paths: readonly string[], signal?: AbortSignal): Promise<VaultCapabilityMap>;
@@ -43,6 +51,7 @@ export interface VaultSessionContextValue {
   ): PermissionDecision;
   signInWithToken(serverUrl: string, rawToken: string, signal?: AbortSignal): Promise<void>;
   signInWithUserpass(credentials: UserpassCredentials, signal?: AbortSignal): Promise<void>;
+  renewSession(signal?: AbortSignal): Promise<void>;
   expireSession(): void;
   signOut(): void;
 }
