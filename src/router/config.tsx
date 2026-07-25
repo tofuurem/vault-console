@@ -1,10 +1,14 @@
+import { lazy } from 'react';
 import type { RouteObject } from "react-router-dom";
+
 import AuthenticatedAppShell from '@/app/AuthenticatedAppShell';
 import NotFound from "../pages/NotFound";
 import LoginPage from "../pages/login/page";
-import ExplorerPage from "../pages/explorer/page";
-import AccessControlPage from "../pages/access-control/page";
 import { HomeRoute, LoginRoute, RequireSession } from './RouteGuards';
+import LazyRoute from './LazyRoute';
+
+const ExplorerPage = lazy(() => import('../pages/explorer/page'));
+const AccessControlPage = lazy(() => import('../pages/access-control/page'));
 
 const routes: RouteObject[] = [
   {
@@ -20,23 +24,23 @@ const routes: RouteObject[] = [
     children: [
       {
         path: '/explorer',
-        element: <ExplorerPage />,
+        element: <LazyRoute><ExplorerPage /></LazyRoute>,
       },
       {
         path: '/explorer/:mount/*',
-        element: <ExplorerPage />,
+        element: <LazyRoute><ExplorerPage /></LazyRoute>,
       },
       {
         path: '/access-control',
-        element: <RequireSession accessControl><AccessControlPage /></RequireSession>,
+        element: <RequireSession accessControl><LazyRoute><AccessControlPage /></LazyRoute></RequireSession>,
       },
       {
         path: '/access-control/:section',
-        element: <RequireSession accessControl><AccessControlPage /></RequireSession>,
+        element: <RequireSession accessControl><LazyRoute><AccessControlPage /></LazyRoute></RequireSession>,
       },
       {
         path: '/access-control/users/:username',
-        element: <RequireSession accessControl><AccessControlPage /></RequireSession>,
+        element: <RequireSession accessControl><LazyRoute><AccessControlPage /></LazyRoute></RequireSession>,
       },
     ],
   },

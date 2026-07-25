@@ -6,9 +6,12 @@ const distDirectory = new URL('../dist/', import.meta.url);
 const files = await readdir(assetsDirectory);
 const entryFile = files.find((name) => /^index-[^.]+\.js$/.test(name));
 const editorFile = files.find((name) => /^CodeMirrorJsonEditor-[^.]+\.js$/.test(name));
+const authenticatedRouteFiles = files.filter((name) => /^page-[^.]+\.js$/.test(name));
 
-if (!entryFile || !editorFile) {
-  throw new Error('Expected production entry and lazy CodeMirror chunks were not found.');
+if (!entryFile || !editorFile || authenticatedRouteFiles.length < 2) {
+  throw new Error(
+    'Expected production entry, authenticated route, and lazy CodeMirror chunks were not found.',
+  );
 }
 
 async function gzipBytes(name) {
@@ -17,14 +20,25 @@ async function gzipBytes(name) {
 
 const entryBytes = await gzipBytes(entryFile);
 const editorBytes = await gzipBytes(editorFile);
+const authenticatedRouteBytes = await Promise.all(
+  authenticatedRouteFiles.map(gzipBytes),
+);
 const entryBudget = 165 * 1024;
 const editorBudget = 100 * 1024;
+const authenticatedRouteBudget = 30 * 1024;
 
 if (entryBytes > entryBudget) {
   throw new Error(`Production entry is ${entryBytes} bytes gzip; budget is ${entryBudget}.`);
 }
 if (editorBytes > editorBudget) {
   throw new Error(`Lazy JSON editor is ${editorBytes} bytes gzip; budget is ${editorBudget}.`);
+}
+const largestAuthenticatedRoute = Math.max(...authenticatedRouteBytes);
+if (largestAuthenticatedRoute > authenticatedRouteBudget) {
+  throw new Error(
+    `Largest authenticated route is ${largestAuthenticatedRoute} bytes gzip; `
+    + `budget is ${authenticatedRouteBudget}.`,
+  );
 }
 
 if (process.env.VAULT_UI_BUILD_SOURCEMAPS !== 'true') {
@@ -35,5 +49,6 @@ if (process.env.VAULT_UI_BUILD_SOURCEMAPS !== 'true') {
 
 process.stdout.write(
   `Bundle budgets passed: entry ${(entryBytes / 1024).toFixed(1)} KiB gzip, `
+  + `largest authenticated route ${(largestAuthenticatedRoute / 1024).toFixed(1)} KiB gzip, `
   + `lazy editor ${(editorBytes / 1024).toFixed(1)} KiB gzip.\n`,
 );

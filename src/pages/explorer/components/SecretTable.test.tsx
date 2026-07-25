@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -62,5 +63,44 @@ describe('SecretTable', () => {
       name: 'database',
       path: 'database',
     });
+  });
+
+  it('selects only secret rows and exposes a visible select-all control', () => {
+    const onSelectionChange = vi.fn();
+    const onToggleSelectAll = vi.fn();
+    render(
+      <SecretTable
+        entries={[
+          { kind: 'folder', name: 'platform', path: 'platform/' },
+          { kind: 'secret', name: 'database', path: 'database' },
+          { kind: 'secret', name: 'redis', path: 'redis' },
+        ]}
+        selectedPath={null}
+        selectedPaths={['database']}
+        onNavigateToFolder={vi.fn()}
+        onSelectSecret={vi.fn()}
+        onSelectionChange={onSelectionChange}
+        onToggleSelectAll={onToggleSelectAll}
+      />,
+    );
+
+    expect(screen.queryByRole('checkbox', { name: /folder platform/i }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Deselect secret database' }))
+      .toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('checkbox', { name: 'Select all visible secrets' }))
+      .toHaveAttribute('aria-checked', 'mixed');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select secret redis' }), {
+      shiftKey: true,
+    });
+    expect(onSelectionChange).toHaveBeenCalledWith(
+      { kind: 'secret', name: 'redis', path: 'redis' },
+      true,
+      true,
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all visible secrets' }));
+    expect(onToggleSelectAll).toHaveBeenCalledOnce();
   });
 });

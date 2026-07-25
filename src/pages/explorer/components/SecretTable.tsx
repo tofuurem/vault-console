@@ -12,6 +12,14 @@ interface SecretTableProps {
   readonly onCreateSecret?: () => void;
   readonly isFavorite?: (entry: KvDirectoryEntry) => boolean;
   readonly onToggleFavorite?: (entry: KvDirectoryEntry) => void;
+  readonly selectedPaths?: readonly string[];
+  readonly onSelectionChange?: (
+    entry: KvDirectoryEntry,
+    checked: boolean,
+    range: boolean,
+  ) => void;
+  readonly onToggleSelectAll?: () => void;
+  readonly emptyReason?: 'folder' | 'filter';
 }
 
 export default function SecretTable({
@@ -22,6 +30,10 @@ export default function SecretTable({
   onCreateSecret,
   isFavorite,
   onToggleFavorite,
+  selectedPaths = [],
+  onSelectionChange,
+  onToggleSelectAll,
+  emptyReason = 'folder',
 }: SecretTableProps) {
   if (entries.length === 0) {
     return (
@@ -29,9 +41,15 @@ export default function SecretTable({
         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-background-200">
           <i className="ri-folder-open-line text-xl text-foreground-400" aria-hidden="true" />
         </div>
-        <p className="text-sm font-medium text-foreground-600">This folder is empty</p>
-        <p className="mt-1 text-xs text-foreground-400">Vault returned no secrets or subfolders.</p>
-        {onCreateSecret && (
+        <p className="text-sm font-medium text-foreground-600">
+          {emptyReason === 'filter' ? 'No matches in this folder' : 'This folder is empty'}
+        </p>
+        <p className="mt-1 text-xs text-foreground-400">
+          {emptyReason === 'filter'
+            ? 'Try a different logical path filter.'
+            : 'Vault returned no secrets or subfolders.'}
+        </p>
+        {onCreateSecret && emptyReason === 'folder' && (
           <button type="button" onClick={onCreateSecret} className="mt-4 flex h-8 items-center gap-1.5 rounded-md bg-primary-500 px-3 text-xs font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
             <i className="ri-add-line text-sm" aria-hidden="true" /> Create secret
           </button>
@@ -40,10 +58,48 @@ export default function SecretTable({
     );
   }
 
+  const selectable = Boolean(onSelectionChange && onToggleSelectAll);
+  const visibleSecretPaths = entries
+    .filter((entry) => entry.kind === 'secret')
+    .map((entry) => entry.path);
+  const selectedSet = new Set(selectedPaths);
+  const selectedVisibleCount = visibleSecretPaths
+    .filter((path) => selectedSet.has(path))
+    .length;
+  const allVisibleSelected = visibleSecretPaths.length > 0
+    && selectedVisibleCount === visibleSecretPaths.length;
+  const selectAllState = allVisibleSelected
+    ? true
+    : selectedVisibleCount > 0 ? 'mixed' as const : false;
+
   return (
     <table className="w-full">
       <thead>
         <tr className="border-b border-background-200">
+          {selectable && (
+            <th className="w-12 px-0 py-0">
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={selectAllState}
+                aria-label={allVisibleSelected
+                  ? 'Clear visible secret selection'
+                  : 'Select all visible secrets'}
+                disabled={visibleSecretPaths.length === 0}
+                onClick={onToggleSelectAll}
+                className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-500 disabled:cursor-not-allowed disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              >
+                <i
+                  className={`${allVisibleSelected
+                    ? 'ri-checkbox-fill'
+                    : selectedVisibleCount > 0
+                      ? 'ri-checkbox-indeterminate-fill'
+                      : 'ri-checkbox-blank-line'} text-base`}
+                  aria-hidden="true"
+                />
+              </button>
+            </th>
+          )}
           <th aria-label="Type" className="w-10 px-3 py-2" />
           <th className="px-0 py-2 text-left text-[11px] font-medium text-foreground-500">Name</th>
           <th className="w-28 px-3 py-2 text-left text-[11px] font-medium text-foreground-500">Type</th>
@@ -54,12 +110,38 @@ export default function SecretTable({
       <tbody>
         {entries.map((entry) => {
           const selected = entry.kind === 'secret' && selectedPath === entry.path;
+          const bulkSelected = entry.kind === 'secret' && selectedSet.has(entry.path);
           const favorite = isFavorite?.(entry) ?? false;
           return (
             <tr
               key={`${entry.kind}:${entry.path}`}
               className={`group border-b border-background-100 transition-colors ${selected ? 'bg-primary-50/70' : 'hover:bg-background-100 focus-within:bg-background-100'}`}
             >
+              {selectable && (
+                <td className="w-12 px-0 py-0">
+                  {entry.kind === 'secret' && (
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={bulkSelected}
+                      aria-label={`${bulkSelected ? 'Deselect' : 'Select'} secret ${entry.path}`}
+                      onClick={(event) => onSelectionChange?.(
+                        entry,
+                        !bulkSelected,
+                        event.shiftKey,
+                      )}
+                      className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                    >
+                      <i
+                        className={`${bulkSelected
+                          ? 'ri-checkbox-fill text-primary-600'
+                          : 'ri-checkbox-blank-line'} text-base`}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  )}
+                </td>
+              )}
               <td className="px-3 py-2.5">
                 <i className={`${entry.kind === 'folder' ? 'ri-folder-3-line text-warning-500' : 'ri-key-2-line text-foreground-400'} text-sm`} aria-hidden="true" />
               </td>

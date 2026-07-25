@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -242,6 +242,7 @@ describe('ExplorerPage', () => {
       { USERNAME: 'billing' },
       0,
     ));
+    expect(await screen.findByText('Created applications/database at version 3.')).toBeVisible();
 
     await user.click((await screen.findAllByText('shared'))[0]);
     await screen.findByText('API_KEY');
@@ -256,6 +257,9 @@ describe('ExplorerPage', () => {
       { API_KEY: 'rotated' },
       2,
     ));
+    expect(await screen.findByText(
+      'Saved applications/shared as version 3 with check-and-set.',
+    )).toBeVisible();
   });
 
   it('opens nested data full screen and preserves its structure when editing', async () => {
@@ -295,7 +299,7 @@ describe('ExplorerPage', () => {
     ));
   });
 
-  it('guards a soft delete with the full logical path', async () => {
+  it('soft-deletes without typed friction and restores the exact version once', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
     window.history.replaceState({}, '', '/login');
@@ -307,7 +311,7 @@ describe('ExplorerPage', () => {
     await user.click(screen.getByRole('button', { name: 'Version actions for version 2' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Delete current version 2' }));
 
-    await user.type(screen.getByLabelText('Type applications/shared to confirm'), 'applications/shared');
+    expect(screen.queryByLabelText('Type applications/shared to confirm')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Delete current version' }));
 
     await waitFor(() => expect(gateway.deleteLatestVersion).toHaveBeenCalledWith(
@@ -315,6 +319,158 @@ describe('ExplorerPage', () => {
       'applications',
       'shared',
     ));
+    expect(await screen.findByText(
+      'Version 2 of applications/shared was soft-deleted.',
+    )).toBeVisible();
+    const undo = screen.getByRole('button', { name: 'Undo' });
+    act(() => {
+      undo.click();
+      undo.click();
+    });
+    await waitFor(() => expect(gateway.undeleteVersions).toHaveBeenCalledTimes(1));
+    expect(gateway.undeleteVersions).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'shared',
+      [2],
+    );
+    expect(await screen.findByText(
+      'Restored version 2 of applications/shared.',
+    )).toBeVisible();
+  });
+
+  it('preflights and soft-deletes selected current versions with one exact bulk Undo', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
+    await login(user);
+    await screen.findByRole('heading', { name: 'Application secrets' });
+
+    await user.click(await screen.findByRole('checkbox', {
+      name: 'Select secret nested',
+    }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select secret shared' }));
+    await user.click(screen.getByRole('button', { name: 'Soft-delete latest' }));
+
+    const confirm = await screen.findByRole('button', {
+      name: 'Soft-delete 2 current versions',
+    });
+    expect(screen.getAllByText('Undo available')).toHaveLength(2);
+    await user.click(confirm);
+
+    await waitFor(() => expect(gateway.deleteLatestVersion).toHaveBeenCalledTimes(2));
+    expect(gateway.deleteLatestVersion).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'nested',
+      undefined,
+    );
+    expect(gateway.deleteLatestVersion).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'shared',
+      undefined,
+    );
+    expect(await screen.findByText(
+      '2 current versions were soft-deleted.',
+    )).toBeVisible();
+    expect(screen.queryByRole('toolbar', { name: 'Bulk secret actions' }))
+      .not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Undo 2' }));
+    await waitFor(() => expect(gateway.undeleteVersions).toHaveBeenCalledTimes(2));
+    expect(gateway.undeleteVersions).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'nested',
+      [2],
+      undefined,
+    );
+    expect(gateway.undeleteVersions).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'shared',
+      [2],
+      undefined,
+    );
+  });
+
+  it('destroys only explicitly checked versions after exact mount confirmation', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
+    await login(user);
+    await screen.findByRole('heading', { name: 'Application secrets' });
+
+    await user.click(await screen.findByRole('checkbox', {
+      name: 'Select secret nested',
+    }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select secret shared' }));
+    await user.click(screen.getByRole('button', { name: 'Destroy versions…' }));
+
+    await user.click(await screen.findByRole('checkbox', {
+      name: 'Destroy nested version 1',
+    }));
+    await user.click(screen.getByRole('checkbox', {
+      name: 'Destroy shared version 2',
+    }));
+    const confirm = screen.getByRole('button', {
+      name: 'Destroy 2 versions permanently',
+    });
+    expect(confirm).toBeDisabled();
+    await user.type(
+      screen.getByLabelText('Type applications to confirm'),
+      'applications',
+    );
+    await user.click(confirm);
+
+    await waitFor(() => expect(gateway.destroyVersions).toHaveBeenCalledTimes(2));
+    expect(gateway.destroyVersions).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'nested',
+      [1],
+      undefined,
+    );
+    expect(gateway.destroyVersions).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'shared',
+      [2],
+      undefined,
+    );
+    expect(await screen.findByText(
+      'Permanently destroyed 2 versions across 2 secrets.',
+    )).toBeVisible();
+    expect(screen.queryByRole('button', { name: /^Undo/ }))
+      .not.toBeInTheDocument();
+  });
+
+  it('keeps a failed soft-delete Undo as a persistent error', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    gateway.undeleteVersions = vi.fn(async () => {
+      throw new VaultError('authorization', { status: 403 });
+    });
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
+    await login(user);
+    await user.click((await screen.findAllByText('shared'))[0]);
+    await screen.findByText('API_KEY');
+    await user.click(screen.getByRole('tab', { name: /^Versions/ }));
+    await user.click(screen.getByRole('button', { name: 'Version actions for version 2' }));
+    await user.click(await screen.findByRole('menuitem', {
+      name: 'Delete current version 2',
+    }));
+    await user.click(screen.getByRole('button', { name: 'Delete current version' }));
+    await user.click(await screen.findByRole('button', { name: 'Undo' }));
+
+    expect(await screen.findByText('Undo failed for applications/shared v2')).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Your Vault token does not allow this operation.',
+    );
   });
 
   it('restores historical data as a new CAS-protected version', async () => {

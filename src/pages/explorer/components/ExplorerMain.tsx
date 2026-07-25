@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { NavigationPath } from '@/application/navigation-history/navigation-history';
 import { useKvSearch, type KvSearchMountState } from '@/application/vault/search/KvSearchContext';
@@ -9,11 +9,19 @@ import Button from '@/components/base/Button';
 import Tooltip from '@/components/base/Tooltip';
 import type { KvV2Mount } from '@/domain/vault/contracts';
 import type { KvPathEntry } from '@/domain/vault/search';
+import BulkToolbar from './BulkToolbar';
 import ExplorerSearch, { type ExplorerSearchScope } from './ExplorerSearch';
 import Inspector from './Inspector';
 import InspectorDock from './InspectorDock';
 import SearchResults from './SearchResults';
 import SecretTable, { type KvDirectoryEntry } from './SecretTable';
+import {
+  emptySecretSelection,
+  hiddenSelectionCount,
+  selectionForScope,
+  toggleAllVisibleSecrets,
+  updateSecretSelection,
+} from './bulk/selection';
 
 interface ExplorerMainProps {
   readonly mount: string;
@@ -38,6 +46,13 @@ interface ExplorerMainProps {
   readonly onDeleteMetadata?: (version: number) => void;
   readonly isFavorite?: (path: NavigationPath) => boolean;
   readonly onToggleFavorite?: (path: NavigationPath) => void;
+  readonly onClipboardFeedback?: (
+    kind: 'path' | 'paths' | 'cli' | 'secret-value',
+    success: boolean,
+  ) => void;
+  readonly onBulkSoftDelete?: (paths: readonly string[]) => void;
+  readonly onBulkDestroy?: (paths: readonly string[]) => void;
+  readonly selectionClearKey?: number;
 }
 
 function entriesFromKeys(currentPath: string, keys: readonly string[]): readonly KvDirectoryEntry[] {
@@ -74,12 +89,21 @@ export default function ExplorerMain({
   onDeleteMetadata,
   isFavorite,
   onToggleFavorite,
+  onClipboardFeedback,
+  onBulkSoftDelete,
+  onBulkDestroy,
+  selectionClearKey = 0,
 }: ExplorerMainProps) {
+  const selectionScope = `${mount}\u001f${currentPath}`;
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [inspectorTab, setInspectorTab] = useState('data');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchScope, setSearchScope] = useState<ExplorerSearchScope>('folder');
-  const [clipboardMessage, setClipboardMessage] = useState('');
+  const [copiedTarget, setCopiedTarget] = useState<'path' | 'cli' | null>(null);
+  const [selection, setSelection] = useState(
+    () => emptySecretSelection(selectionScope),
+  );
+  const clipboardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const search = useKvSearch();
   const entries = useMemo(() => entriesFromKeys(currentPath, directory.data ?? []), [currentPath, directory.data]);
   const folderPathEntries = useMemo<readonly KvPathEntry[]>(() => entries.map((entry) => ({
@@ -103,7 +127,28 @@ export default function ExplorerMain({
     totalListRequests: 0,
     totalScannedPrefixes: 1,
   }), [currentPath, folderPathEntries, mount]);
-  const showSearchResults = searchScope === 'mount' || searchQuery.trim().length > 0;
+  const showMountSearchResults = searchScope === 'mount';
+  const visibleEntries = useMemo<readonly KvDirectoryEntry[]>(() => (
+    searchScope === 'folder' && searchQuery.trim().length > 0
+      ? searchMatches.map(({ entry: { kind, name, path } }) => ({
+        kind,
+        name,
+        path,
+      }))
+      : entries
+  ), [entries, searchMatches, searchQuery, searchScope]);
+  const visibleSecretPaths = useMemo(
+    () => visibleEntries
+      .filter((entry) => entry.kind === 'secret')
+      .map((entry) => entry.path),
+    [visibleEntries],
+  );
+  const activeSelection = selectionForScope(selection, selectionScope);
+  const selectedPaths = activeSelection.paths;
+  const hiddenSelectedCount = hiddenSelectionCount(
+    selectedPaths,
+    visibleSecretPaths,
+  );
   const breadcrumbs = currentPath.split('/').filter(Boolean).map((part, index, parts) => ({
     label: part,
     path: `${parts.slice(0, index + 1).join('/')}/`,
@@ -121,19 +166,66 @@ export default function ExplorerMain({
   }, [mount, search]);
 
   useEffect(() => {
+    setSelection(emptySecretSelection(selectionScope));
+  }, [selectionClearKey, selectionScope]);
+
+  useEffect(() => {
+    if (selectedPaths.length === 0) return;
+    const clearOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      const target = event.target;
+      if (
+        target instanceof Element
+        && target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')
+      ) return;
+      setSelection(emptySecretSelection(selectionScope));
+    };
+    document.addEventListener('keydown', clearOnEscape);
+    return () => document.removeEventListener('keydown', clearOnEscape);
+  }, [selectedPaths.length, selectionScope]);
+
+  useEffect(() => () => {
+    if (clipboardTimerRef.current) clearTimeout(clipboardTimerRef.current);
+  }, []);
+
+  useEffect(() => {
     if (searchScope !== 'mount' || searchQuery.trim().length < 2) return;
     const timer = setTimeout(() => search.start(mount), 250);
     return () => clearTimeout(timer);
   }, [mount, search, searchQuery, searchScope]);
 
-  const copy = async (value: string, success: string) => {
+  const copy = async (value: string, target: 'path' | 'cli') => {
     try {
       await navigator.clipboard.writeText(value);
-      setClipboardMessage(success);
-      setTimeout(() => setClipboardMessage(''), 1_500);
+      setCopiedTarget(target);
+      if (clipboardTimerRef.current) clearTimeout(clipboardTimerRef.current);
+      clipboardTimerRef.current = setTimeout(() => setCopiedTarget(null), 1_500);
+      onClipboardFeedback?.(target, true);
     } catch {
-      setClipboardMessage('Clipboard unavailable');
+      setCopiedTarget(null);
+      onClipboardFeedback?.(target, false);
     }
+  };
+
+  const copySelectedPaths = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        selectedPaths.map((path) => `${mount}/${path}`).join('\n'),
+      );
+      onClipboardFeedback?.('paths', true);
+    } catch {
+      onClipboardFeedback?.('paths', false);
+    }
+  };
+
+  const updateFavorites = (favorite: boolean) => {
+    if (!onToggleFavorite) return;
+    selectedPaths.forEach((path) => {
+      const navigationPath: NavigationPath = { mount, path, kind: 'secret' };
+      if (Boolean(isFavorite?.(navigationPath)) !== favorite) {
+        onToggleFavorite(navigationPath);
+      }
+    });
   };
 
   return (
@@ -171,6 +263,7 @@ export default function ExplorerMain({
             path: selectedPath,
             kind: 'secret',
           }) : undefined}
+          onClipboardFeedback={(success) => onClipboardFeedback?.('secret-value', success)}
         />
       )}
     >
@@ -193,7 +286,9 @@ export default function ExplorerMain({
                 <h1 id="directory-heading" className="text-sm font-semibold text-foreground-900">{currentMount?.description || `${mount}/`}</h1>
                 {directory.status === 'success' && (
                   <span className="text-xs text-foreground-400">
-                    {showSearchResults ? `${searchMatches.length} matches` : `${entries.length} items`}
+                    {searchQuery.trim().length > 0
+                      ? `${searchMatches.length} matches`
+                      : `${entries.length} items`}
                   </span>
                 )}
               </div>
@@ -202,11 +297,11 @@ export default function ExplorerMain({
               <Tooltip content="Refresh directory">
                 <button type="button" aria-label="Refresh directory" onClick={onRefresh} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className={`${directory.status === 'loading' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} text-sm`} aria-hidden="true" /></button>
               </Tooltip>
-              <Tooltip content={clipboardMessage || 'Copy logical path'}>
-                <button type="button" aria-label="Copy logical path" onClick={() => void copy(`${mount}/${currentPath}`, 'Path copied')} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className="ri-file-copy-line text-sm" aria-hidden="true" /></button>
+              <Tooltip content={copiedTarget === 'path' ? 'Path copied' : 'Copy logical path'}>
+                <button type="button" aria-label="Copy logical path" onClick={() => void copy(`${mount}/${currentPath}`, 'path')} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className={`${copiedTarget === 'path' ? 'ri-check-line text-success-600' : 'ri-file-copy-line'} text-sm`} aria-hidden="true" /></button>
               </Tooltip>
-              <Tooltip content="Copy Vault CLI command">
-                <button type="button" aria-label="Copy Vault CLI command" onClick={() => void copy(`vault kv list -mount=${mount} ${currentPath || '/'}`, 'CLI command copied')} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className="ri-terminal-line text-sm" aria-hidden="true" /></button>
+              <Tooltip content={copiedTarget === 'cli' ? 'CLI command copied' : 'Copy Vault CLI command'}>
+                <button type="button" aria-label="Copy Vault CLI command" onClick={() => void copy(`vault kv list -mount=${mount} ${currentPath || '/'}`, 'cli')} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className={`${copiedTarget === 'cli' ? 'ri-check-line text-success-600' : 'ri-terminal-line'} text-sm`} aria-hidden="true" /></button>
               </Tooltip>
               {onCreateSecret && <Button size="sm" variant="primary" onClick={onCreateSecret}><i className="ri-add-line" aria-hidden="true" /> Create secret</Button>}
             </div>
@@ -221,6 +316,21 @@ export default function ExplorerMain({
           </div>
         </header>
 
+        <BulkToolbar
+          selectedCount={selectedPaths.length}
+          hiddenSelectedCount={hiddenSelectedCount}
+          onCopyPaths={() => void copySelectedPaths()}
+          onPin={() => updateFavorites(true)}
+          onUnpin={() => updateFavorites(false)}
+          onClear={() => setSelection(emptySecretSelection(selectionScope))}
+          onSoftDelete={onBulkSoftDelete
+            ? () => onBulkSoftDelete(selectedPaths)
+            : undefined}
+          onDestroy={onBulkDestroy
+            ? () => onBulkDestroy(selectedPaths)
+            : undefined}
+        />
+
         <div className="flex-1 overflow-y-auto">
           {directory.status === 'loading' && !directory.data && (
             <div aria-label="Loading directory" className="space-y-px p-3"><div className="h-10 animate-pulse rounded bg-background-100" /><div className="h-10 animate-pulse rounded bg-background-100" /><div className="h-10 animate-pulse rounded bg-background-100" /></div>
@@ -233,7 +343,7 @@ export default function ExplorerMain({
             </div>
           )}
           {directory.data && (
-            showSearchResults ? (
+            showMountSearchResults ? (
               <SearchResults
                 query={searchQuery}
                 scope={searchScope}
@@ -252,15 +362,34 @@ export default function ExplorerMain({
               />
             ) : (
               <SecretTable
-                entries={entries}
+                entries={visibleEntries}
                 selectedPath={selectedPath}
                 onSelectSecret={onSelectSecret}
                 onNavigateToFolder={onNavigateToFolder}
                 onCreateSecret={onCreateSecret}
+                emptyReason={searchQuery.trim().length > 0 ? 'filter' : 'folder'}
                 isFavorite={isFavorite ? (entry) => isFavorite({ ...entry, mount }) : undefined}
                 onToggleFavorite={onToggleFavorite
                   ? (entry) => onToggleFavorite({ ...entry, mount })
                   : undefined}
+                selectedPaths={selectedPaths}
+                onSelectionChange={(entry, checked, range) => {
+                  setSelection((current) => updateSecretSelection({
+                    selection: current,
+                    scope: selectionScope,
+                    visibleSecretPaths,
+                    path: entry.path,
+                    checked,
+                    range,
+                  }));
+                }}
+                onToggleSelectAll={() => {
+                  setSelection((current) => toggleAllVisibleSecrets({
+                    selection: current,
+                    scope: selectionScope,
+                    visibleSecretPaths,
+                  }));
+                }}
               />
             )
           )}

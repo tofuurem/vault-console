@@ -25,6 +25,7 @@ interface InspectorProps {
   readonly onTabChange?: (tab: string) => void;
   readonly favorite?: boolean;
   readonly onToggleFavorite?: () => void;
+  readonly onClipboardFeedback?: (success: boolean) => void;
 }
 
 function printableValue(value: unknown): string {
@@ -32,14 +33,22 @@ function printableValue(value: unknown): string {
   return JSON.stringify(value, null, 2) ?? String(value);
 }
 
-function MaskedValue({ value }: { value: unknown }) {
+function MaskedValue({
+  value,
+  onClipboardFeedback,
+}: {
+  readonly value: unknown;
+  readonly onClipboardFeedback?: (success: boolean) => void;
+}) {
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const printable = printableValue(value);
 
   useEffect(() => () => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
   }, []);
 
   const reveal = () => {
@@ -51,9 +60,12 @@ function MaskedValue({ value }: { value: unknown }) {
     try {
       await navigator.clipboard.writeText(printable);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1_500);
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+      copiedTimeoutRef.current = setTimeout(() => setCopied(false), 1_500);
+      onClipboardFeedback?.(true);
     } catch {
       setCopied(false);
+      onClipboardFeedback?.(false);
     }
   };
 
@@ -78,7 +90,13 @@ function MaskedValue({ value }: { value: unknown }) {
   );
 }
 
-function InspectorValue({ value }: { value: unknown }) {
+function InspectorValue({
+  value,
+  onClipboardFeedback,
+}: {
+  readonly value: unknown;
+  readonly onClipboardFeedback?: (success: boolean) => void;
+}) {
   if (Array.isArray(value) || isSecretJsonObject(value)) {
     const type = secretValueType(value);
     const size = secretContainerSize(value);
@@ -91,7 +109,7 @@ function InspectorValue({ value }: { value: unknown }) {
       </div>
     );
   }
-  return <MaskedValue value={value} />;
+  return <MaskedValue value={value} onClipboardFeedback={onClipboardFeedback} />;
 }
 
 function formatTime(value: string): string {
@@ -243,6 +261,7 @@ export default function Inspector({
   onTabChange,
   favorite = false,
   onToggleFavorite,
+  onClipboardFeedback,
 }: InspectorProps) {
   const [internalTab, setInternalTab] = useState('data');
   const activeTab = controlledTab ?? internalTab;
@@ -342,7 +361,7 @@ export default function Inspector({
               {Object.entries(secret.data).map(([key, value]) => (
                 <div key={key} className="grid grid-cols-[minmax(90px,120px)_1fr] px-2.5 py-2">
                   <span className="break-all pr-2 font-mono text-xs font-medium text-foreground-700">{key}</span>
-                  <InspectorValue value={value} />
+                  <InspectorValue value={value} onClipboardFeedback={onClipboardFeedback} />
                 </div>
               ))}
             </div>

@@ -12,15 +12,18 @@ export const vaultQueryKeys = {
     mount,
     path,
   ] as const,
+  secretScope: (mount: string, path: string) => [
+    ...vaultQueryKeys.all,
+    'kv-secret',
+    mount,
+    path,
+  ] as const,
   secret: (
     mount: string,
     path: string,
     permissionKey: readonly unknown[],
   ) => [
-    ...vaultQueryKeys.all,
-    'kv-secret',
-    mount,
-    path,
+    ...vaultQueryKeys.secretScope(mount, path),
     ...permissionKey,
   ] as const,
   permissions: (mount: string, path: string) => [

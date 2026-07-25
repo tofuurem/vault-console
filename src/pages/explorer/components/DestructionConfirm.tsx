@@ -50,6 +50,7 @@ export default function DestructionConfirm({ open, onClose, mount, path, action,
   if (!path || !action) return null;
   const fullPath = `${mount}/${path}`;
   const content = copy[action.kind];
+  const permanent = action.kind === 'destroy-version' || action.kind === 'delete-metadata';
   const close = () => {
     setTypedPath('');
     setError('');
@@ -57,7 +58,7 @@ export default function DestructionConfirm({ open, onClose, mount, path, action,
     onClose();
   };
   const confirm = async () => {
-    if (typedPath.trim() !== fullPath) return;
+    if (permanent && typedPath.trim() !== fullPath) return;
     setSubmitting(true);
     setError('');
     try {
@@ -72,11 +73,19 @@ export default function DestructionConfirm({ open, onClose, mount, path, action,
   return (
     <Modal open={open} onClose={close} title={content.title} width="md">
       <div className="space-y-4 p-4">
-        <div className="flex items-start gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-danger-100"><i className="ri-alert-line text-sm text-danger-600" aria-hidden="true" /></div><div><p className="text-sm leading-5 text-foreground-700">{content.description}</p><p className="mt-2 break-all font-mono text-xs text-foreground-800">{fullPath} · v{action.version}</p></div></div>
+        <div className="flex items-start gap-3"><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${permanent ? 'bg-danger-100' : 'bg-warning-100'}`}><i className={`ri-alert-line text-sm ${permanent ? 'text-danger-600' : 'text-warning-700'}`} aria-hidden="true" /></div><div><p className="text-sm leading-5 text-foreground-700">{content.description}</p><p className="mt-2 break-all font-mono text-xs text-foreground-800">{fullPath} · v{action.version}</p></div></div>
         {error && <div role="alert" className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</div>}
-        <div className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-[11px] leading-5 text-danger-700">Type the full logical path to confirm. Permanent actions cannot be rolled back.</div>
-        <Input label={`Type ${fullPath} to confirm`} value={typedPath} onChange={(event) => setTypedPath(event.target.value)} placeholder={fullPath} monospace autoComplete="off" />
-        <div className="flex justify-end gap-2"><Button size="sm" onClick={close} disabled={submitting}>Cancel</Button><Button size="sm" variant="danger" disabled={typedPath.trim() !== fullPath} loading={submitting} onClick={() => void confirm()}>{content.button}</Button></div>
+        {permanent ? (
+          <>
+            <div className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-[11px] leading-5 text-danger-700">Type the full logical path to confirm. This permanent action cannot be rolled back.</div>
+            <Input label={`Type ${fullPath} to confirm`} value={typedPath} onChange={(event) => setTypedPath(event.target.value)} placeholder={fullPath} monospace autoComplete="off" />
+          </>
+        ) : (
+          <div className="rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-[11px] leading-5 text-warning-800">
+            This is a reversible soft delete. You can undelete the exact version later.
+          </div>
+        )}
+        <div className="flex justify-end gap-2"><Button size="sm" onClick={close} disabled={submitting}>Cancel</Button><Button size="sm" variant="danger" disabled={submitting || (permanent && typedPath.trim() !== fullPath)} loading={submitting} onClick={() => void confirm()}>{content.button}</Button></div>
       </div>
     </Modal>
   );
