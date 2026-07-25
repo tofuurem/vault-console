@@ -98,7 +98,7 @@ export default function CreateSecretDrawer({ open, onClose, mount, currentPath, 
     <Drawer open={open} onClose={close} title="Create secret" width="560px">
       <div className="space-y-4 p-4">
         {(errors.length > 0 || saveError) && (
-          <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <div role="alert" className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">
             {errors.map((error) => <p key={error}>{error}</p>)}
             {saveError && <p>{saveError}</p>}
           </div>
@@ -138,7 +138,7 @@ export default function CreateSecretDrawer({ open, onClose, mount, currentPath, 
                     <div key={pair.id} className="grid grid-cols-[1fr_1fr_32px] gap-2">
                       <input aria-label="Secret key" value={pair.key} onChange={(event) => updatePair(pair.id, 'key', event.target.value)} placeholder="KEY" className="h-8 rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:outline-none focus:border-primary-400" />
                       <input aria-label={`Value for ${pair.key || 'new key'}`} value={pair.value} onChange={(event) => updatePair(pair.id, 'value', event.target.value)} placeholder="value" className="h-8 rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:outline-none focus:border-primary-400" />
-                      <button type="button" aria-label="Remove field" disabled={pairs.length === 1} onClick={() => setPairs((current) => current.filter((candidate) => candidate.id !== pair.id))} className="flex h-8 w-8 items-center justify-center rounded-md text-foreground-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"><i className="ri-close-line" aria-hidden="true" /></button>
+                      <button type="button" aria-label="Remove field" disabled={pairs.length === 1} onClick={() => setPairs((current) => current.filter((candidate) => candidate.id !== pair.id))} className="flex h-8 w-8 items-center justify-center rounded-md text-foreground-400 hover:bg-danger-50 hover:text-danger-600 disabled:opacity-30"><i className="ri-close-line" aria-hidden="true" /></button>
                     </div>
                   ))}
                 </div>

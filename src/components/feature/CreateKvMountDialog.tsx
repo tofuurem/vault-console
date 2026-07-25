@@ -186,12 +186,12 @@ export default function CreateKvMountDialog({
             </p>
           )}
           {permission.data?.state === 'allowed' && permissionPath === normalizedPath && (
-            <p role="status" className="text-xs text-emerald-700">
+            <p role="status" className="text-xs text-success-700">
               <i className="ri-shield-check-line mr-1" aria-hidden="true" /> Permission verified for this path.
             </p>
           )}
           {permissionDenied && permissionPath === normalizedPath && (
-            <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+            <div role="alert" className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs leading-5 text-warning-800">
               This Vault token cannot enable a secrets engine at <span className="font-mono">sys/mounts/{normalizedPath}</span>.
             </div>
           )}
@@ -201,7 +201,7 @@ export default function CreateKvMountDialog({
             </div>
           )}
           {mutationError && (
-            <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-800">
+            <div role="alert" className="rounded-md border border-danger-200 bg-danger-50 p-3 text-xs leading-5 text-danger-800">
               <p className="font-semibold">Mount was not created</p>
               <p>{mutationError.message}</p>
             </div>

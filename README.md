@@ -15,6 +15,8 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community, орие
 - просмотр пользователей, identity entities, групп и ACL policies;
 - создание `userpass`-пользователя с автоматически сгенерированным паролем;
 - визуальное назначение групп, ролей и прямых прав на KV paths;
+- светлая, тёмная и системная тема с переключением без перезагрузки;
+- command palette по `⌘K`/`Ctrl+K` для mounts, access-control, тем и действий;
 - безопасные диагностические данные и восстановление после ошибки экрана;
 - хранение token в `sessionStorage` текущей вкладки до logout/expiry; пароль
   никогда не сохраняется.
@@ -47,6 +49,10 @@ Vault остаётся единственным источником автор�
 CSP и Permissions-Policy. Production source maps по умолчанию не публикуются.
 Пароль `userpass` не сохраняется. Не передавайте Vault token, пароли,
 unseal keys или recovery keys через `.env`, Git и reverse-proxy headers.
+В `localStorage` сохраняется только выбранная тема интерфейса; секреты,
+credentials, Vault responses и пути там не сохраняются.
+Датированные решения по dependency advisories находятся в
+[SECURITY.md](SECURITY.md).
 
 Проект ориентирован на self-hosted Vault Community, проверен с Vault `1.21.3`
 и сейчас находится на версии `0.3.0`.

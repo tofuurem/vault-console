@@ -22,10 +22,10 @@ const LEVEL_LABELS: Readonly<Record<EffectiveKvPermissionLevel, string>> = {
 const LEVEL_STYLES: Readonly<Record<EffectiveKvPermissionLevel, string>> = {
   none: 'border-background-300 bg-background-100 text-foreground-500',
   view: 'border-sky-200 bg-sky-50 text-sky-700',
-  edit: 'border-amber-200 bg-amber-50 text-amber-700',
-  'manage-versions': 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  edit: 'border-warning-200 bg-warning-50 text-warning-700',
+  'manage-versions': 'border-success-200 bg-success-50 text-success-700',
   owner: 'border-violet-200 bg-violet-50 text-violet-700',
-  deny: 'border-red-200 bg-red-50 text-red-700',
+  deny: 'border-danger-200 bg-danger-50 text-danger-700',
   custom: 'border-background-400 bg-background-100 text-foreground-700',
 };
 
@@ -89,13 +89,13 @@ export default function EffectivePermissionTree({
           ) : (
             <span className="w-6 shrink-0" />
           )}
-          <i className={`${node.target === 'folder' ? 'ri-folder-3-line text-amber-500' : 'ri-key-2-line text-foreground-400'} shrink-0 text-sm`} aria-hidden="true" />
+          <i className={`${node.target === 'folder' ? 'ri-folder-3-line text-warning-500' : 'ri-key-2-line text-foreground-400'} shrink-0 text-sm`} aria-hidden="true" />
 
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
               <span className="truncate font-mono text-xs font-medium text-foreground-800">{node.label}</span>
               {direct && (
-                <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${direct.level === 'deny' ? 'bg-red-100 text-red-700' : 'bg-primary-100 text-primary-700'}`}>
+                <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${direct.level === 'deny' ? 'bg-danger-100 text-danger-700' : 'bg-primary-100 text-primary-700'}`}>
                   {direct.level === 'deny' ? 'Direct deny' : 'Direct'}
                 </span>
               )}
@@ -145,7 +145,7 @@ export default function EffectivePermissionTree({
       {!readOnly && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-background-200 bg-background-100/50 px-3.5 py-2 text-[10px] text-foreground-500">
           <span><strong className="font-semibold text-foreground-700">Inherited</strong> keeps group and role access</span>
-          <span><strong className="font-semibold text-red-700">Deny</strong> emits an explicit Vault deny</span>
+          <span><strong className="font-semibold text-danger-700">Deny</strong> emits an explicit Vault deny</span>
           <span>Folder rules apply recursively</span>
         </div>
       )}

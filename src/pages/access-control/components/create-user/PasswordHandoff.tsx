@@ -25,7 +25,7 @@ export default function PasswordHandoff({
   return (
     <div className="space-y-4 p-4 sm:p-5">
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success-100 text-success-700">
           <i className="ri-check-line text-lg" aria-hidden="true" />
         </span>
         <div>
@@ -34,13 +34,13 @@ export default function PasswordHandoff({
         </div>
       </div>
 
-      <div className="rounded-lg border border-amber-300 bg-amber-50/70 p-3.5">
+      <div className="rounded-lg border border-warning-300 bg-warning-50/70 p-3.5">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold text-amber-900">One-time password handoff</p>
-            <p className="mt-0.5 text-[10px] leading-4 text-amber-700">Leaving this dialog permanently removes the password from the UI state.</p>
+            <p className="text-xs font-semibold text-warning-900">One-time password handoff</p>
+            <p className="mt-0.5 text-[10px] leading-4 text-warning-700">Leaving this dialog permanently removes the password from the UI state.</p>
           </div>
-          <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-800">Not stored</span>
+          <span className="shrink-0 rounded bg-warning-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-warning-800">Not stored</span>
         </div>
 
         <dl className="grid grid-cols-[90px_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
@@ -55,13 +55,13 @@ export default function PasswordHandoff({
               type={visible ? 'text' : 'password'}
               readOnly
               value={password}
-              className="h-8 min-w-0 flex-1 rounded-md border border-amber-300 bg-background-50 px-2.5 font-mono text-xs text-foreground-900 outline-none"
+              className="h-8 min-w-0 flex-1 rounded-md border border-warning-300 bg-background-50 px-2.5 font-mono text-xs text-foreground-900 outline-none"
             />
             <button
               type="button"
               onClick={() => setVisible((current) => !current)}
               aria-label={visible ? 'Hide created password' : 'Show created password'}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-amber-300 bg-background-50 text-foreground-500 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-warning-300 bg-background-50 text-foreground-500 hover:bg-warning-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-400"
             >
               <i className={visible ? 'ri-eye-off-line' : 'ri-eye-line'} aria-hidden="true" />
             </button>

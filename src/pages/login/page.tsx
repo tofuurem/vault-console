@@ -156,11 +156,11 @@ export default function LoginPage() {
   };
 
   const statusContent: Readonly<Record<Exclude<ConnectionStatus, 'idle'>, { dot: string; title: string }>> = {
-    checking: { dot: 'bg-amber-400 animate-pulse', title: 'Checking Vault…' },
-    ready: { dot: 'bg-emerald-500', title: health?.standby ? 'Connected to standby' : 'Vault is ready' },
-    sealed: { dot: 'bg-amber-500', title: 'Vault is sealed' },
-    uninitialized: { dot: 'bg-red-500', title: 'Vault is not initialized' },
-    unavailable: { dot: 'bg-red-500', title: 'Vault is unavailable' },
+    checking: { dot: 'bg-warning-400 animate-pulse', title: 'Checking Vault…' },
+    ready: { dot: 'bg-success-500', title: health?.standby ? 'Connected to standby' : 'Vault is ready' },
+    sealed: { dot: 'bg-warning-500', title: 'Vault is sealed' },
+    uninitialized: { dot: 'bg-danger-500', title: 'Vault is not initialized' },
+    unavailable: { dot: 'bg-danger-500', title: 'Vault is unavailable' },
   };
   const status = connectionStatus === 'idle' ? null : statusContent[connectionStatus];
   const isAuthenticating = session.status === 'authenticating';
@@ -176,7 +176,7 @@ export default function LoginPage() {
   return (
     <main id="main-content" tabIndex={-1} className="relative flex h-full items-center justify-center overflow-auto bg-background-100 px-4 py-8">
       <div className="pointer-events-none absolute inset-0 opacity-50 [background-image:linear-gradient(to_right,oklch(var(--background-300)/.35)_1px,transparent_1px),linear-gradient(to_bottom,oklch(var(--background-300)/.35)_1px,transparent_1px)] [background-size:32px_32px]" />
-      <section aria-labelledby="login-heading" className="relative w-full max-w-[430px] overflow-hidden rounded-xl border border-background-300 bg-background-50 shadow-[0_16px_50px_rgba(30,28,38,0.08)]">
+      <section aria-labelledby="login-heading" className="relative w-full max-w-[430px] overflow-hidden rounded-xl border border-background-300 bg-background-50 shadow-xl shadow-overlay/10">
         <header className="border-b border-background-200 px-6 pb-5 pt-6">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-500 text-background-50">
@@ -279,7 +279,7 @@ export default function LoginPage() {
 
         <div className="p-6">
           {errorMessage && (
-            <div role="alert" className="mb-4 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">
+            <div role="alert" className="mb-4 flex items-start gap-2 rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs leading-5 text-danger-700">
               <i className="ri-error-warning-line mt-0.5 shrink-0 text-sm" aria-hidden="true" />
               <span>{errorMessage}</span>
             </div>
@@ -335,7 +335,7 @@ export default function LoginPage() {
         </div>
 
         <footer className="flex items-center justify-center gap-2 border-t border-background-200 bg-background-100 px-6 py-3 text-[10px] text-foreground-400">
-          <i className="ri-shield-check-line text-emerald-600" aria-hidden="true" />
+          <i className="ri-shield-check-line text-success-600" aria-hidden="true" />
           {session.sessionPersistenceAvailable
             ? 'Token stays in this tab until sign out or expiry; passwords are never stored'
             : 'Session restore is unavailable; credentials remain in memory only'}

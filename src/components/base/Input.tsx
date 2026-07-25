@@ -32,12 +32,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               disabled:opacity-50 disabled:cursor-not-allowed
               ${monospace ? 'font-mono' : ''}
               ${icon ? 'pl-8' : ''}
-              ${error ? 'border-red-400 focus:border-red-400 focus:ring-red-400/30' : ''}
+              ${error ? 'border-danger-400 focus:border-danger-400 focus:ring-danger-400/30' : ''}
               ${className}`}
             {...props}
           />
         </div>
-        {error && <span id={errorId} className="text-xs text-red-500">{error}</span>}
+        {error && <span id={errorId} className="text-xs text-danger-500">{error}</span>}
       </div>
     );
   }
@@ -69,11 +69,11 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30
             disabled:opacity-50 disabled:cursor-not-allowed
             ${monospace ? 'font-mono' : ''}
-            ${error ? 'border-red-400 focus:border-red-400' : ''}
+            ${error ? 'border-danger-400 focus:border-danger-400' : ''}
             ${className}`}
           {...props}
         />
-        {error && <span id={errorId} className="text-xs text-red-500">{error}</span>}
+        {error && <span id={errorId} className="text-xs text-danger-500">{error}</span>}
       </div>
     );
   }

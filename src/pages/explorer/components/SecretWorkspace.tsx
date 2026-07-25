@@ -157,7 +157,7 @@ export default function SecretWorkspace({
               <div className="flex flex-wrap items-center gap-2">
                 <h2 id={titleId} className="break-all font-mono text-sm font-semibold text-foreground-900">{secret.mount}/{secret.path}</h2>
                 <span className="rounded bg-primary-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-primary-700">v{secret.metadata.version}</span>
-                <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${mode === 'edit' ? 'bg-amber-100 text-amber-700' : 'bg-background-200 text-foreground-500'}`}>{mode}</span>
+                <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${mode === 'edit' ? 'bg-warning-100 text-warning-700' : 'bg-background-200 text-foreground-500'}`}>{mode}</span>
               </div>
               <p className="mt-0.5 text-[10px] text-foreground-400">Created {formatTime(secret.metadata.createdTime)} · save creates v{secret.metadata.version + 1}</p>
             </div>
@@ -214,13 +214,13 @@ export default function SecretWorkspace({
             />
             <footer className="flex shrink-0 flex-wrap items-center gap-3 rounded-lg border border-background-300 bg-background-50 px-3 py-2">
               <div className="flex items-center gap-1.5 text-[10px]">
-                <span className="rounded bg-emerald-50 px-2 py-1 font-medium text-emerald-700"><strong className="mr-1 font-mono tabular-nums">{changes.added}</strong>added</span>
-                <span className="rounded bg-amber-50 px-2 py-1 font-medium text-amber-700"><strong className="mr-1 font-mono tabular-nums">{changes.changed}</strong>changed</span>
-                <span className="rounded bg-red-50 px-2 py-1 font-medium text-red-700"><strong className="mr-1 font-mono tabular-nums">{changes.removed}</strong>removed</span>
+                <span className="rounded bg-success-50 px-2 py-1 font-medium text-success-700"><strong className="mr-1 font-mono tabular-nums">{changes.added}</strong>added</span>
+                <span className="rounded bg-warning-50 px-2 py-1 font-medium text-warning-700"><strong className="mr-1 font-mono tabular-nums">{changes.changed}</strong>changed</span>
+                <span className="rounded bg-danger-50 px-2 py-1 font-medium text-danger-700"><strong className="mr-1 font-mono tabular-nums">{changes.removed}</strong>removed</span>
               </div>
               <p className="min-w-[220px] flex-1 text-[10px] leading-4 text-foreground-500">Check-and-set is fixed to v{secret.metadata.version}. Concurrent changes fail instead of being overwritten.</p>
               {!dirty && <span className="text-[10px] text-foreground-400">No changes</span>}
-              {saveError && <p role="alert" className="w-full border-t border-red-100 pt-2 text-xs text-red-700">{saveError}</p>}
+              {saveError && <p role="alert" className="w-full border-t border-danger-100 pt-2 text-xs text-danger-700">{saveError}</p>}
             </footer>
           </main>
         )}

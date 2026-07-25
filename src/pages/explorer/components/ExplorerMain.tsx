@@ -168,7 +168,7 @@ export default function ExplorerMain({
             <div aria-label="Loading directory" className="space-y-px p-3"><div className="h-10 animate-pulse rounded bg-background-100" /><div className="h-10 animate-pulse rounded bg-background-100" /><div className="h-10 animate-pulse rounded bg-background-100" /></div>
           )}
           {directory.status === 'error' && !directory.data && (
-            <div role="alert" className="m-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            <div role="alert" className="m-4 rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">
               <p className="font-semibold">{directory.error.code === 'authorization' ? 'This folder is outside your Vault policy' : 'Directory could not be loaded'}</p>
               <p className="mt-1 text-xs leading-5">{directory.error.message}</p>
               <button type="button" onClick={onRefresh} className="mt-2 text-xs font-medium underline underline-offset-2">Retry</button>

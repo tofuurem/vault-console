@@ -171,7 +171,7 @@ export default function ExplorerPage() {
     </main>
   ) : mountsState.status === 'error' && !mountsState.data ? (
     <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center p-6">
-      <div role="alert" className="max-w-md rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+      <div role="alert" className="max-w-md rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">
         <p className="font-semibold">KV mounts could not be discovered</p>
         <p className="mt-1 text-xs leading-5">{mountsState.error.message}</p>
         <button type="button" onClick={refreshMounts} className="mt-3 text-xs font-medium underline underline-offset-2">Retry</button>
@@ -215,7 +215,7 @@ export default function ExplorerPage() {
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       {mutationNotice && (
-        <div role={mutationNotice.kind === 'error' ? 'alert' : 'status'} className={`flex items-center gap-2 border-b px-4 py-1.5 text-xs ${mutationNotice.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+        <div role={mutationNotice.kind === 'error' ? 'alert' : 'status'} className={`flex items-center gap-2 border-b px-4 py-1.5 text-xs ${mutationNotice.kind === 'success' ? 'border-success-200 bg-success-50 text-success-700' : 'border-danger-200 bg-danger-50 text-danger-700'}`}>
           <i className={mutationNotice.kind === 'success' ? 'ri-check-line' : 'ri-error-warning-line'} aria-hidden="true" />
           <span>{mutationNotice.message}</span>
           <button type="button" aria-label="Dismiss notification" onClick={() => setMutationNotice(null)} className="ml-auto"><i className="ri-close-line" aria-hidden="true" /></button>

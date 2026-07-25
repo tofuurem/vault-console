@@ -63,7 +63,7 @@ export default function CreateUserConfirmation({
           <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-foreground-400">Roles</p>
           {[...inheritedRoleNames, ...directRoleNames].length ? (
             <div className="space-y-1 text-foreground-600">
-              {inheritedRoleNames.map((name) => <p key={`inherited-${name}`}><i className="ri-git-merge-line mr-1.5 text-emerald-600" aria-hidden="true" />{name} <span className="text-[9px] text-foreground-400">via group</span></p>)}
+              {inheritedRoleNames.map((name) => <p key={`inherited-${name}`}><i className="ri-git-merge-line mr-1.5 text-success-600" aria-hidden="true" />{name} <span className="text-[9px] text-foreground-400">via group</span></p>)}
               {directRoleNames.map((name) => <p key={`direct-${name}`}><i className="ri-shield-check-line mr-1.5 text-primary-600" aria-hidden="true" />{name} <span className="text-[9px] text-primary-500">direct</span></p>)}
             </div>
           ) : <p className="text-foreground-400">None</p>}
@@ -76,7 +76,7 @@ export default function CreateUserConfirmation({
           <div className="space-y-1">
             {directRules.map((rule) => (
               <div key={rule.nodeId} className="flex items-center gap-2 text-[11px]">
-                <span className={`rounded px-1.5 py-0.5 font-semibold ${rule.level === 'deny' ? 'bg-red-50 text-red-700' : 'bg-primary-50 text-primary-700'}`}>{rule.level}</span>
+                <span className={`rounded px-1.5 py-0.5 font-semibold ${rule.level === 'deny' ? 'bg-danger-50 text-danger-700' : 'bg-primary-50 text-primary-700'}`}>{rule.level}</span>
                 <span className="truncate font-mono text-foreground-600">{rule.mount}/{rule.path || '*'}</span>
               </div>
             ))}
@@ -103,7 +103,7 @@ export default function CreateUserConfirmation({
         <summary className="cursor-pointer select-none px-3 py-2 text-[11px] font-medium text-foreground-600 hover:bg-background-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400">
           <i className="ri-code-line mr-1.5" aria-hidden="true" />Generated HCL
         </summary>
-        <pre className="max-h-44 overflow-auto border-t border-background-200 bg-background-950 p-3 font-mono text-[10px] leading-5 text-background-200">{generatedHcl || '# No per-user policy will be created'}</pre>
+        <pre className="max-h-44 overflow-auto border-t border-background-200 bg-background-950 p-3 font-mono text-[10px] leading-5 text-foreground-300">{generatedHcl || '# No per-user policy will be created'}</pre>
       </details>
 
       <details className="rounded-md border border-background-200">

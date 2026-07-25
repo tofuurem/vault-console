@@ -27,7 +27,7 @@ export default function UsersList({ users, warnings, onCreateUser, onViewUser, o
             <Button size="sm" variant="primary" onClick={onCreateUser}><i className="ri-user-add-line" aria-hidden="true" /> Create user</Button>
           </div>
         </div>
-        {warnings.length > 0 && <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-800">Some auth mounts or aliases could not be read. The list may be partial.</div>}
+        {warnings.length > 0 && <div className="mt-3 rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-[11px] leading-5 text-warning-800">Some auth mounts or aliases could not be read. The list may be partial.</div>}
       </header>
 
       <div className="flex-1 overflow-auto">

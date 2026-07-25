@@ -105,7 +105,7 @@ function SecretTreeNode({
                   onClick={() => onCopy(path, value)}
                   className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-background-200 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                 >
-                  <i className={`${copiedPath === path ? 'ri-check-line text-emerald-600' : 'ri-file-copy-line'} text-xs`} aria-hidden="true" />
+                  <i className={`${copiedPath === path ? 'ri-check-line text-success-600' : 'ri-file-copy-line'} text-xs`} aria-hidden="true" />
                 </button>
               </Tooltip>
             </div>

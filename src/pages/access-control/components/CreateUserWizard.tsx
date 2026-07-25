@@ -213,12 +213,12 @@ export default function CreateUserWizard({
           </div>
 
           <ol aria-label="Create user steps" className="flex items-center gap-1.5">
-            <li className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${step === 'account' ? 'border-primary-300 bg-primary-500 text-white' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+            <li className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${step === 'account' ? 'border-primary-300 bg-primary-500 text-on-primary' : 'border-success-200 bg-success-50 text-success-700'}`}>
               {step === 'access' ? <i className="ri-check-line" aria-hidden="true" /> : <span className="font-mono text-[9px]">01</span>}
               Account
             </li>
             <li role="presentation" className="h-px w-5 bg-background-300" aria-hidden="true" />
-            <li className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${step === 'access' ? 'border-primary-300 bg-primary-500 text-white' : 'border-background-200 bg-background-100 text-foreground-400'}`}>
+            <li className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${step === 'access' ? 'border-primary-300 bg-primary-500 text-on-primary' : 'border-background-200 bg-background-100 text-foreground-400'}`}>
               <span className="font-mono text-[9px]">02</span> Access
             </li>
           </ol>

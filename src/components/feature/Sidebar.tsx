@@ -145,7 +145,7 @@ export default function Sidebar({
 
       <div className="hidden space-y-0.5 border-t border-background-200 px-3 py-2 text-[10px] text-foreground-400 sm:block">
         <div className="flex items-center gap-1.5">
-          <span className={`h-1.5 w-1.5 rounded-full ${vaultHealth?.sealed ? 'bg-red-500' : 'bg-emerald-500'}`} />
+          <span className={`h-1.5 w-1.5 rounded-full ${vaultHealth?.sealed ? 'bg-danger-500' : 'bg-success-500'}`} />
           <span>{vaultHealth?.sealed ? 'Sealed' : 'Unsealed'}</span>
           {vaultHealth?.standby && <span>· standby</span>}
         </div>

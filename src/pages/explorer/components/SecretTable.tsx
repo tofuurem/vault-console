@@ -55,7 +55,7 @@ export default function SecretTable({
               className={`group border-b border-background-100 transition-colors ${selected ? 'bg-primary-50/70' : 'hover:bg-background-100 focus-within:bg-background-100'}`}
             >
               <td className="px-3 py-2.5">
-                <i className={`${entry.kind === 'folder' ? 'ri-folder-3-line text-amber-500' : 'ri-key-2-line text-foreground-400'} text-sm`} aria-hidden="true" />
+                <i className={`${entry.kind === 'folder' ? 'ri-folder-3-line text-warning-500' : 'ri-key-2-line text-foreground-400'} text-sm`} aria-hidden="true" />
               </td>
               <td className="px-0 py-2.5">
                 <button

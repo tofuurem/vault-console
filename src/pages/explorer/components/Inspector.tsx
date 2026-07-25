@@ -68,7 +68,7 @@ function MaskedValue({ value }: { value: unknown }) {
         </Tooltip>
         <Tooltip content={copied ? 'Copied' : 'Copy value'}>
           <button type="button" aria-label="Copy value" onClick={() => void copy()} className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
-            <i className={`${copied ? 'ri-check-line text-emerald-600' : 'ri-file-copy-line'} text-xs`} aria-hidden="true" />
+            <i className={`${copied ? 'ri-check-line text-success-600' : 'ri-file-copy-line'} text-xs`} aria-hidden="true" />
           </button>
         </Tooltip>
       </div>
@@ -108,12 +108,12 @@ function ScopedResourceError({
   readonly onRetry: () => void;
 }) {
   return (
-    <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+    <div role="alert" className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
       <p className="font-semibold">{title}</p>
       <p className="mt-1 leading-5">
         {error?.message ?? 'Vault did not return this part of the secret.'}
       </p>
-      <button type="button" onClick={onRetry} className="mt-2 font-medium text-amber-900 underline underline-offset-2">
+      <button type="button" onClick={onRetry} className="mt-2 font-medium text-warning-900 underline underline-offset-2">
         Retry
       </button>
     </div>
@@ -195,8 +195,8 @@ function VersionActionsMenu({
       {open && (
         <div role="menu" aria-label={`Actions for version ${version}`} className="absolute right-0 top-8 z-30 w-64 overflow-hidden rounded-md border border-background-300 bg-background-50 py-1 shadow-xl">
           {canUndelete && (
-            <button type="button" role="menuitem" aria-label={`Undelete version ${version}`} onClick={() => run(() => onUndelete?.(version))} className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400">
-              <i className="ri-arrow-go-back-line mt-0.5 text-sm text-emerald-600" aria-hidden="true" />
+            <button type="button" role="menuitem" aria-label={`Undelete version ${version}`} onClick={() => run(() => onUndelete?.(version))} className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-success-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400">
+              <i className="ri-arrow-go-back-line mt-0.5 text-sm text-success-600" aria-hidden="true" />
               <span><strong className="block text-xs font-medium text-foreground-800">Undelete version</strong><span className="block text-[10px] text-foreground-500">Make this soft-deleted version readable again.</span></span>
             </button>
           )}
@@ -206,16 +206,16 @@ function VersionActionsMenu({
               role="menuitem"
               aria-label={current ? `Delete current version ${version}` : `Delete version ${version}`}
               onClick={() => run(() => current ? onDeleteLatest?.(version) : onDeleteVersion?.(version))}
-              className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400"
+              className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-danger-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400"
             >
-              <i className="ri-delete-bin-line mt-0.5 text-sm text-red-500" aria-hidden="true" />
+              <i className="ri-delete-bin-line mt-0.5 text-sm text-danger-500" aria-hidden="true" />
               <span><strong className="block text-xs font-medium text-foreground-800">Soft-delete version</strong><span className="block text-[10px] text-foreground-500">Data can be undeleted later.</span></span>
             </button>
           )}
           {canDestroy && (
-            <button type="button" role="menuitem" aria-label={`Destroy version ${version}`} onClick={() => run(() => onDestroyVersion?.(version))} className="flex w-full items-start gap-2 border-t border-background-200 px-3 py-2 text-left hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400">
-              <i className="ri-close-circle-line mt-0.5 text-sm text-red-600" aria-hidden="true" />
-              <span><strong className="block text-xs font-medium text-red-700">Permanently destroy version</strong><span className="block text-[10px] text-red-600">Irreversible. The data cannot be recovered.</span></span>
+            <button type="button" role="menuitem" aria-label={`Destroy version ${version}`} onClick={() => run(() => onDestroyVersion?.(version))} className="flex w-full items-start gap-2 border-t border-background-200 px-3 py-2 text-left hover:bg-danger-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400">
+              <i className="ri-close-circle-line mt-0.5 text-sm text-danger-600" aria-hidden="true" />
+              <span><strong className="block text-xs font-medium text-danger-700">Permanently destroy version</strong><span className="block text-[10px] text-danger-600">Irreversible. The data cannot be recovered.</span></span>
             </button>
           )}
         </div>
@@ -262,10 +262,10 @@ export default function Inspector({
   }
   if (state.status === 'error') {
     return (
-      <div role="alert" className="m-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+      <div role="alert" className="m-3 rounded-lg border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
         <p className="font-semibold">{state.error.code === 'authorization' ? 'Secret data is not allowed' : 'Secret could not be loaded'}</p>
         <p className="mt-1 leading-5">{state.error.message}</p>
-        <button type="button" onClick={onRetry} className="mt-2 font-medium text-amber-900 underline underline-offset-2">Retry</button>
+        <button type="button" onClick={onRetry} className="mt-2 font-medium text-warning-900 underline underline-offset-2">Retry</button>
       </div>
     );
   }
@@ -296,7 +296,7 @@ export default function Inspector({
                 onRetry={onRetry}
               />
             ) : currentVersionUnavailable ? (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
                 <p className="font-semibold">Current version has no readable data</p>
                 <p className="mt-1 leading-5">It is deleted or destroyed. Open Versions to inspect its state.</p>
               </div>
@@ -396,7 +396,7 @@ export default function Inspector({
           )}
           {permissions?.canDeleteMetadata && (
             <div className="border-t border-background-200 pt-3">
-              <button type="button" onClick={() => onDeleteMetadata?.(history.currentVersion)} className="text-xs font-medium text-red-600 hover:text-red-700">Delete all versions and metadata…</button>
+              <button type="button" onClick={() => onDeleteMetadata?.(history.currentVersion)} className="text-xs font-medium text-danger-600 hover:text-danger-700">Delete all versions and metadata…</button>
             </div>
           )}
           </div>

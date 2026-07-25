@@ -45,7 +45,7 @@ const editorTheme = EditorView.theme({
   '&': {
     height: '100%',
     backgroundColor: 'transparent',
-    color: 'var(--color-foreground-900, #252529)',
+    color: 'oklch(var(--foreground-900))',
     fontSize: '12px',
   },
   '&.cm-focused': { outline: 'none' },
@@ -54,15 +54,29 @@ const editorTheme = EditorView.theme({
     fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, monospace',
     lineHeight: '1.75',
   },
-  '.cm-content': { padding: '12px 0', caretColor: '#5b4fcf' },
+  '.cm-content': { padding: '12px 0', caretColor: 'oklch(var(--primary-500))' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'oklch(var(--primary-500))' },
+  '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
+    backgroundColor: 'oklch(var(--primary-200) / 0.65)',
+  },
   '.cm-line': { padding: '0 14px 0 6px' },
   '.cm-gutters': {
-    backgroundColor: '#f7f7f8',
-    color: '#88888f',
-    borderRight: '1px solid #e5e5e8',
+    backgroundColor: 'oklch(var(--background-100))',
+    color: 'oklch(var(--foreground-400))',
+    borderRight: '1px solid oklch(var(--background-300))',
   },
-  '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: '#f3f1ff' },
-  '.cm-lintRange-error': { backgroundImage: 'none', borderBottom: '2px solid #dc2626' },
+  '.cm-activeLine, .cm-activeLineGutter': {
+    backgroundColor: 'oklch(var(--primary-100) / 0.7)',
+  },
+  '.cm-lintRange-error': {
+    backgroundImage: 'none',
+    borderBottom: '2px solid oklch(var(--danger-500))',
+  },
+  '.cm-tooltip': {
+    border: '1px solid oklch(var(--background-300))',
+    backgroundColor: 'oklch(var(--background-50))',
+    color: 'oklch(var(--foreground-800))',
+  },
 });
 
 const CodeMirrorJsonEditor = forwardRef<CodeMirrorJsonEditorHandle, CodeMirrorJsonEditorProps>(

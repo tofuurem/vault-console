@@ -33,7 +33,7 @@ export default function Drawer({ open, onClose, title, children, width = '640px'
 
   return (
     <div className="fixed inset-0 z-[70]">
-      <div aria-hidden="true" className={`absolute inset-0 bg-black/30 ${open ? 'modal-backdrop-enter' : ''}`} onClick={onClose} />
+      <div aria-hidden="true" className={`absolute inset-0 bg-overlay/30 ${open ? 'modal-backdrop-enter' : ''}`} onClick={onClose} />
       <div
         ref={dialogRef}
         role="dialog"

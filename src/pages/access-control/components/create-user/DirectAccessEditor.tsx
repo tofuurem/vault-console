@@ -24,7 +24,7 @@ export default function DirectAccessEditor({ label, value, onChange }: DirectAcc
       onClick={(event) => event.stopPropagation()}
       className={`h-7 min-w-[118px] rounded-md border px-2 text-[11px] font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-primary-300 ${
         value === 'deny'
-          ? 'border-red-300 bg-red-50 text-red-700'
+          ? 'border-danger-300 bg-danger-50 text-danger-700'
           : value === 'owner'
             ? 'border-violet-300 bg-violet-50 text-violet-700'
             : value === 'inherited'

@@ -83,8 +83,8 @@ function RecoveryPanel({
 
   return (
     <main id="main-content" tabIndex={-1} className="flex min-h-full items-center justify-center bg-background-100 p-5">
-      <section role="alert" aria-labelledby="application-error-title" className="w-full max-w-xl rounded-xl border border-red-200 bg-background-50 p-5 shadow-sm">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-600">
+      <section role="alert" aria-labelledby="application-error-title" className="w-full max-w-xl rounded-xl border border-danger-200 bg-background-50 p-5 shadow-sm">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-danger-50 text-danger-600">
           <i className="ri-error-warning-line text-xl" aria-hidden="true" />
         </div>
         <h1 id="application-error-title" className="mt-4 text-base font-semibold text-foreground-900">This screen stopped unexpectedly</h1>
@@ -94,7 +94,7 @@ function RecoveryPanel({
           <button type="button" onClick={reset} className="h-8 rounded-md bg-primary-500 px-3 text-xs font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Retry screen</button>
           <button type="button" onClick={returnToExplorer} className="h-8 rounded-md border border-background-300 px-3 text-xs font-medium text-foreground-700 hover:bg-background-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Return to Explorer</button>
           <button type="button" onClick={() => void copy()} className="h-8 rounded-md border border-background-300 px-3 text-xs font-medium text-foreground-700 hover:bg-background-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Copy safe diagnostics</button>
-          <button type="button" onClick={signOut} className="h-8 rounded-md px-3 text-xs font-medium text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400">Sign out</button>
+          <button type="button" onClick={signOut} className="h-8 rounded-md px-3 text-xs font-medium text-danger-600 hover:bg-danger-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400">Sign out</button>
         </div>
         <p role="status" aria-live="polite" className="mt-3 min-h-4 text-xs text-foreground-500">{copyStatus}</p>
       </section>

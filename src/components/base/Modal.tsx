@@ -6,11 +6,19 @@ interface ModalProps {
   open: boolean;
   onClose: () => void;
   title?: string;
+  ariaLabel?: string;
   children: ReactNode;
   width?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
-export default function Modal({ open, onClose, title, children, width = 'md' }: ModalProps) {
+export default function Modal({
+  open,
+  onClose,
+  title,
+  ariaLabel,
+  children,
+  width = 'md',
+}: ModalProps) {
   const [visible, setVisible] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -35,13 +43,13 @@ export default function Modal({ open, onClose, title, children, width = 'md' }: 
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
-      <div aria-hidden="true" className={`absolute inset-0 bg-black/40 ${open ? 'modal-backdrop-enter' : ''}`} onClick={onClose} />
+      <div aria-hidden="true" className={`absolute inset-0 bg-overlay/40 ${open ? 'modal-backdrop-enter' : ''}`} onClick={onClose} />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
-        aria-label={title ? undefined : 'Dialog'}
+        aria-label={title ? undefined : (ariaLabel ?? 'Dialog')}
         tabIndex={-1}
         className={`relative mx-3 max-h-[calc(100dvh-24px)] w-full ${widths[width]} overflow-hidden rounded-lg border border-background-300 bg-background-50 shadow-sm sm:mx-4 sm:max-h-[85vh] ${open ? 'modal-content-enter' : ''}`}
       >

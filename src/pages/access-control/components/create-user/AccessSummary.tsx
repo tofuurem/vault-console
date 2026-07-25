@@ -50,9 +50,9 @@ export default function AccessSummary({
             <strong className="block font-mono text-sm text-foreground-800">{effectiveNodes.length}</strong>
             <span className="text-[9px] uppercase tracking-wider text-foreground-400">Paths</span>
           </div>
-          <div className={`rounded-md px-1 py-2 ${denies.length ? 'bg-red-50' : 'bg-background-100'}`}>
-            <strong className={`block font-mono text-sm ${denies.length ? 'text-red-700' : 'text-foreground-800'}`}>{denies.length}</strong>
-            <span className={`text-[9px] uppercase tracking-wider ${denies.length ? 'text-red-500' : 'text-foreground-400'}`}>Denies</span>
+          <div className={`rounded-md px-1 py-2 ${denies.length ? 'bg-danger-50' : 'bg-background-100'}`}>
+            <strong className={`block font-mono text-sm ${denies.length ? 'text-danger-700' : 'text-foreground-800'}`}>{denies.length}</strong>
+            <span className={`text-[9px] uppercase tracking-wider ${denies.length ? 'text-danger-500' : 'text-foreground-400'}`}>Denies</span>
           </div>
         </div>
 
@@ -65,7 +65,7 @@ export default function AccessSummary({
 
         <div>
           <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-foreground-400">Roles</p>
-          {inheritedRoleNames.map((name) => <p key={`inherited-${name}`} className="mb-1 flex items-center gap-1.5 text-foreground-600"><i className="ri-git-merge-line text-emerald-600" aria-hidden="true" />{name}<span className="ml-auto text-[9px] text-foreground-400">via group</span></p>)}
+          {inheritedRoleNames.map((name) => <p key={`inherited-${name}`} className="mb-1 flex items-center gap-1.5 text-foreground-600"><i className="ri-git-merge-line text-success-600" aria-hidden="true" />{name}<span className="ml-auto text-[9px] text-foreground-400">via group</span></p>)}
           {directRoleNames.map((name) => <p key={`direct-${name}`} className="mb-1 flex items-center gap-1.5 text-foreground-600"><i className="ri-shield-check-line text-primary-600" aria-hidden="true" />{name}<span className="ml-auto text-[9px] text-primary-500">direct</span></p>)}
           {!inheritedRoleNames.length && !directRoleNames.length && <p className="text-foreground-400">No roles selected</p>}
         </div>
@@ -75,22 +75,22 @@ export default function AccessSummary({
             <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-foreground-400">Per-user rules</p>
             {directRules.map((rule) => (
               <p key={rule.nodeId} className="mb-1 flex items-start gap-1.5">
-                <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${rule.level === 'deny' ? 'bg-red-500' : 'bg-primary-500'}`} />
+                <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${rule.level === 'deny' ? 'bg-danger-500' : 'bg-primary-500'}`} />
                 <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-foreground-600">{rule.mount}/{rule.path || '*'}</span>
-                <span className={rule.level === 'deny' ? 'text-red-600' : 'text-primary-600'}>{rule.level}</span>
+                <span className={rule.level === 'deny' ? 'text-danger-600' : 'text-primary-600'}>{rule.level}</span>
               </p>
             ))}
           </div>
         )}
 
         {selection.unresolvedPolicies.length > 0 && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-800">
+          <div className="rounded-md border border-warning-200 bg-warning-50 p-2 text-warning-800">
             <p className="font-semibold">Unresolved external policy</p>
             <p className="mt-0.5 text-[10px]">Effective access may include additional capabilities.</p>
           </div>
         )}
         {selection.ineffectiveDowngrades.length > 0 && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-800" role="alert">
+          <div className="rounded-md border border-warning-200 bg-warning-50 p-2 text-warning-800" role="alert">
             <p className="font-semibold">This rule cannot reduce access</p>
             <p className="mt-0.5 text-[10px]">Vault unions grants on the same policy path. Use Deny or a more-specific path.</p>
           </div>

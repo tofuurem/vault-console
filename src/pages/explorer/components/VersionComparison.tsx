@@ -101,7 +101,7 @@ export default function VersionComparison({
     <Modal open={open} onClose={onClose} title="Compare and restore versions" width="xl">
       <div className="space-y-4 p-4">
         <p className="text-xs text-foreground-500">Comparing <span className="font-mono text-foreground-800">{mount}/{path}</span></p>
-        {error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>}
+        {error && <div role="alert" className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</div>}
         {readableVersions.length < 2 ? (
           <div className="rounded-md border border-background-200 bg-background-100 p-4 text-xs text-foreground-500">At least two readable versions are required for comparison.</div>
         ) : (
@@ -117,7 +117,7 @@ export default function VersionComparison({
                   const leftHas = key in left.data;
                   const rightHas = key in right.data;
                   const changed = JSON.stringify(left.data[key]) !== JSON.stringify(right.data[key]);
-                  return <div key={key} className={`grid grid-cols-[130px_1fr_1fr] px-3 py-2 ${changed ? 'border-l-2 border-amber-400 bg-amber-50/60' : ''}`}><span className="break-all pr-2 font-mono text-xs font-medium text-foreground-700">{key}</span><div className="pr-2">{leftHas ? <DiffValue value={left.data[key]} /> : <span className="text-xs text-foreground-400">—</span>}</div><div>{rightHas ? <DiffValue value={right.data[key]} /> : <span className="text-xs text-foreground-400">—</span>}</div></div>;
+                  return <div key={key} className={`grid grid-cols-[130px_1fr_1fr] px-3 py-2 ${changed ? 'border-l-2 border-warning-400 bg-warning-50/60' : ''}`}><span className="break-all pr-2 font-mono text-xs font-medium text-foreground-700">{key}</span><div className="pr-2">{leftHas ? <DiffValue value={left.data[key]} /> : <span className="text-xs text-foreground-400">—</span>}</div><div>{rightHas ? <DiffValue value={right.data[key]} /> : <span className="text-xs text-foreground-400">—</span>}</div></div>;
                 })}</div>
               </div>
             )}

@@ -21,7 +21,7 @@ export default function Button({
   const variants = {
     primary: 'bg-primary-500 text-background-50 hover:bg-primary-600 focus-visible:ring-primary-400',
     secondary: 'bg-background-100 text-foreground-800 hover:bg-background-200 border border-background-300 focus-visible:ring-primary-400',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-400',
+    danger: 'bg-danger-600 text-on-danger hover:bg-danger-700 focus-visible:ring-danger-400',
     ghost: 'text-foreground-600 hover:bg-background-100 hover:text-foreground-900 focus-visible:ring-primary-400',
   };
 

@@ -68,7 +68,7 @@ function ResourceError({
 }) {
   return (
     <div className="flex h-full items-center justify-center p-6">
-      <div role="alert" className="max-w-md rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+      <div role="alert" className="max-w-md rounded-md border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">
         <p className="font-semibold">This access-control resource could not be loaded</p>
         <p className="mt-1 text-xs leading-5">{error.message}</p>
         <button type="button" onClick={retry} className="mt-2 text-xs font-medium underline">Retry</button>

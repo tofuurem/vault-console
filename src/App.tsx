@@ -1,7 +1,9 @@
 import { BrowserRouter } from 'react-router-dom';
 import { RuntimeConfigProvider } from './application/config/RuntimeConfigProvider';
 import ApplicationErrorBoundary from './application/diagnostics/ApplicationErrorBoundary';
+import { ToastProvider } from './application/notifications/ToastProvider';
 import { VaultQueryProvider } from './application/query/VaultQueryProvider';
+import { ThemeProvider } from './application/theme/ThemeProvider';
 import type { KvV2Gateway, VaultAccessControlGateway, VaultAuthGateway } from './domain/vault/contracts';
 import { AccessControlGatewayProvider } from './application/vault/AccessControlGatewayProvider';
 import { KvV2GatewayProvider } from './application/vault/KvV2GatewayProvider';
@@ -17,22 +19,26 @@ interface AppProps {
 
 function App({ authGateway, kvV2Gateway, accessControlGateway, runtimeConfig }: AppProps) {
   return (
-    <RuntimeConfigProvider config={runtimeConfig}>
-      <AccessControlGatewayProvider gateway={accessControlGateway}>
-        <KvV2GatewayProvider gateway={kvV2Gateway}>
-          <VaultSessionProvider gateway={authGateway}>
-            <VaultQueryProvider>
-              <BrowserRouter basename={import.meta.env.BASE_URL}>
-                <a href="#main-content" className="skip-link">Skip to main content</a>
-                <ApplicationErrorBoundary>
-                  <AppRoutes />
-                </ApplicationErrorBoundary>
-              </BrowserRouter>
-            </VaultQueryProvider>
-          </VaultSessionProvider>
-        </KvV2GatewayProvider>
-      </AccessControlGatewayProvider>
-    </RuntimeConfigProvider>
+    <ThemeProvider>
+      <ToastProvider>
+        <RuntimeConfigProvider config={runtimeConfig}>
+          <AccessControlGatewayProvider gateway={accessControlGateway}>
+            <KvV2GatewayProvider gateway={kvV2Gateway}>
+              <VaultSessionProvider gateway={authGateway}>
+                <VaultQueryProvider>
+                  <BrowserRouter basename={import.meta.env.BASE_URL}>
+                    <a href="#main-content" className="skip-link">Skip to main content</a>
+                    <ApplicationErrorBoundary>
+                      <AppRoutes />
+                    </ApplicationErrorBoundary>
+                  </BrowserRouter>
+                </VaultQueryProvider>
+              </VaultSessionProvider>
+            </KvV2GatewayProvider>
+          </AccessControlGatewayProvider>
+        </RuntimeConfigProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }
 

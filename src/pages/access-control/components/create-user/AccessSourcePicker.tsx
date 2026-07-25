@@ -105,7 +105,7 @@ export default function AccessSourcePicker({
                   <span className="block text-xs font-medium text-foreground-700">{role.name}</span>
                   <span className="block truncate font-mono text-[9px] text-foreground-400">{role.policyNames.join(', ')}</span>
                 </span>
-                {inherited && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700">Via group</span>}
+                {inherited && <span className="rounded bg-success-50 px-1.5 py-0.5 text-[9px] font-medium text-success-700">Via group</span>}
               </label>
             );
           })}

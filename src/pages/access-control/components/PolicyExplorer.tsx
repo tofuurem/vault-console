@@ -84,7 +84,7 @@ export default function PolicyExplorer({
             </div>
           )}
           {selectedName && selectedPolicy.status === 'error' && (
-            <div role="alert" className="m-5 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <div role="alert" className="m-5 rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
               This policy could not be loaded: {selectedPolicy.error.message}
             </div>
           )}
@@ -99,7 +99,7 @@ export default function PolicyExplorer({
                   <PolicyBadge kind={selected.kind} />
                 </div>
                 {selected.kind === 'external' && (
-                  <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-800">
+                  <p className="mt-2 rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-[11px] leading-5 text-warning-800">
                     External policies are read-only. Vault Console never rewrites HCL it did not create.
                   </p>
                 )}
@@ -113,7 +113,7 @@ export default function PolicyExplorer({
                         <p className="break-all font-mono text-xs text-foreground-800">{rule.pattern}</p>
                         <div className="mt-2 flex flex-wrap gap-1">
                           {rule.capabilities.map((capability) => (
-                            <span key={capability} className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${capability === 'deny' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            <span key={capability} className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${capability === 'deny' ? 'bg-danger-100 text-danger-700' : 'bg-success-100 text-success-700'}`}>
                               {capability}
                             </span>
                           ))}

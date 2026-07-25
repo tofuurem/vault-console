@@ -95,7 +95,7 @@ export default function CustomAccessTarget({
             >
               {mounts.map((candidate) => <option key={candidate.mount} value={candidate.mount}>{candidate.mount}</option>)}
             </select>
-            {showErrors && mountError && <span className="text-xs text-red-500">{mountError}</span>}
+            {showErrors && mountError && <span className="text-xs text-danger-500">{mountError}</span>}
           </label>
           <Input
             label="Logical path"
@@ -178,7 +178,7 @@ export default function CustomAccessTarget({
                       type="button"
                       aria-label={`Remove direct target ${rule.mount}/${rule.path || '*'}`}
                       onClick={() => onDirectRuleChange(node, 'inherited')}
-                      className="flex h-7 items-center justify-center rounded-md px-2 text-xs text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+                      className="flex h-7 items-center justify-center rounded-md px-2 text-xs text-danger-600 hover:bg-danger-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-300"
                     >
                       <i className="ri-close-line mr-1" aria-hidden="true" /> Remove
                     </button>
