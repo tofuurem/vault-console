@@ -115,13 +115,14 @@ test('collapses and expands a deeply linked logical path without losing the rout
   await expect(page).toHaveURL(/\/explorer\/applications\/deep\/one\/two\/three\/four\/five\/$/);
   await expect(page.getByRole('button', { name: 'Inspect secret deep/one/two/three/four/five/secret' }))
     .toBeVisible();
-  const expand = page.getByRole('button', { name: 'Show 3 hidden path segments' });
+  const breadcrumbs = page.getByRole('navigation', { name: 'Secret path' });
+  const expand = breadcrumbs.getByRole('button', { name: 'Show 3 hidden path segments' });
   await expect(expand).toBeVisible();
-  await expect(page.getByRole('button', { name: 'one/' })).toHaveCount(0);
+  await expect(breadcrumbs.getByRole('button', { name: 'one/', exact: true })).toHaveCount(0);
   await expand.click();
-  await expect(page.getByRole('button', { name: 'one/' })).toBeVisible();
-  await page.getByRole('button', { name: 'Collapse middle path segments' }).click();
-  await expect(page.getByRole('button', { name: 'one/' })).toHaveCount(0);
+  await expect(breadcrumbs.getByRole('button', { name: 'one/', exact: true })).toBeVisible();
+  await breadcrumbs.getByRole('button', { name: 'Collapse middle path segments' }).click();
+  await expect(breadcrumbs.getByRole('button', { name: 'one/', exact: true })).toHaveCount(0);
 });
 
 test('signs in with userpass without persisting the password and signs out cleanly', async ({ page }) => {
@@ -300,6 +301,9 @@ test('compares, deletes, undeletes, and permanently destroys real KV versions', 
     'Restored version 3 of applications/lifecycle.',
   )).toBeVisible();
   await expect(inspector.getByText('Current', { exact: true })).toBeVisible();
+  await page.getByRole('button', {
+    name: 'Dismiss Restored version 3 of applications/lifecycle. notification',
+  }).click();
 
   await inspector.getByRole('button', { name: 'Version actions for version 1' }).click();
   await inspector.getByRole('menuitem', { name: 'Destroy version 1' }).click();
