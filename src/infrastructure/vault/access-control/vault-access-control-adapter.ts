@@ -427,6 +427,46 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
     return parseEntity(response.data);
   }
 
+  async listEntities(
+    session: VaultSession,
+    signal?: AbortSignal,
+  ): Promise<readonly VaultIdentityEntity[]> {
+    let response: Record<string, unknown>;
+    try {
+      response = asObject(
+        await this.client.request(session.serverUrl, 'identity/entity/id', {
+          token: session.token,
+          query: { list: true },
+          signal,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof VaultError && error.code === 'not-found') return [];
+      throw error;
+    }
+    const ids = asStringArray(asObject(response.data).keys);
+    return mapWithConcurrency(
+      ids,
+      4,
+      (id) => this.readEntity(session, id, signal),
+    );
+  }
+
+  async readEntity(
+    session: VaultSession,
+    entityId: string,
+    signal?: AbortSignal,
+  ): Promise<VaultIdentityEntity> {
+    const response = asObject(
+      await this.client.request(
+        session.serverUrl,
+        `identity/entity/id/${encodeURIComponent(entityId)}`,
+        sessionRequest(session, signal),
+      ),
+    );
+    return parseEntity(response.data);
+  }
+
   async lookupEntityByAlias(
     session: VaultSession,
     name: string,
@@ -554,6 +594,8 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
           || capability === 'delete'
           || capability === 'list'
           || capability === 'sudo'
+          || capability === 'subscribe'
+          || capability === 'recover'
           || capability === 'deny'
           || capability === 'root'
         )),

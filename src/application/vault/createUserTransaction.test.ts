@@ -92,9 +92,11 @@ function gateway(options: {
     updateUserpassPolicies: vi.fn(),
     resetUserpassPassword: vi.fn(),
     deleteUserpassAccount: vi.fn(async () => undefined),
+    listEntities: vi.fn(),
     readEntityByName: vi.fn(async () => {
       throw new VaultError('not-found', { status: 404 });
     }),
+    readEntity: vi.fn(),
     lookupEntityByAlias: vi.fn(async () => null),
     createEntity: vi.fn(async () => 'entity-1'),
     updateEntity: vi.fn(),
@@ -137,6 +139,16 @@ describe('CreateUserTransaction', () => {
     expect(
       (stateful.api.createUserpassAccount as ReturnType<typeof vi.fn>).mock.calls[0][2].password.reveal(),
     ).toBe('memory-only-password');
+    expect(stateful.api.writePolicy).toHaveBeenCalledWith(
+      session,
+      expect.objectContaining({
+        name: 'vc-user-alice',
+        policy: expect.stringContaining(
+          '# vault-console: {"schema":1,"kind":"user-direct","owner":"alice"}',
+        ),
+      }),
+      expect.any(AbortSignal),
+    );
     expect(stateful.api.createEntityAlias).toHaveBeenCalledWith(
       session,
       expect.objectContaining({ mountAccessor: 'auth_userpass_fresh' }),

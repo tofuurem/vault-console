@@ -275,6 +275,7 @@ describe('VaultAccessControlAdapter', () => {
     const fetchRequest = vi
       .fn<VaultFetch>()
       .mockResolvedValueOnce(jsonResponse(entityPayload))
+      .mockResolvedValueOnce(jsonResponse(entityPayload))
       .mockResolvedValueOnce(jsonResponse({ errors: [] }, 404))
       .mockResolvedValueOnce(jsonResponse({ data: { id: 'entity-2' } }))
       .mockResolvedValueOnce(jsonResponse({ data: { id: 'alias-2' } }))
@@ -298,6 +299,10 @@ describe('VaultAccessControlAdapter', () => {
         },
       ],
     });
+    await expect(gateway.readEntity(session, 'entity-1')).resolves.toMatchObject({
+      id: 'entity-1',
+      name: 'alice',
+    });
     await expect(
       gateway.lookupEntityByAlias(session, 'missing', 'auth_userpass_123'),
     ).resolves.toBeNull();
@@ -315,12 +320,15 @@ describe('VaultAccessControlAdapter', () => {
     await gateway.deleteEntity(session, 'entity-2');
 
     expect(String(fetchRequest.mock.calls[1][0])).toBe(
+      'https://vault.example.test/v1/identity/entity/id/entity-1',
+    );
+    expect(String(fetchRequest.mock.calls[2][0])).toBe(
       'https://vault.example.test/v1/identity/lookup/entity',
     );
-    expect(fetchRequest.mock.calls[1][1]?.body).toBe(
+    expect(fetchRequest.mock.calls[2][1]?.body).toBe(
       JSON.stringify({ alias_name: 'missing', alias_mount_accessor: 'auth_userpass_123' }),
     );
-    expect(String(fetchRequest.mock.calls[3][0])).toBe(
+    expect(String(fetchRequest.mock.calls[4][0])).toBe(
       'https://vault.example.test/v1/identity/entity-alias',
     );
   });
@@ -420,5 +428,33 @@ describe('VaultAccessControlAdapter', () => {
     await expect(
       gateway.lookupEntityByAlias(session, 'missing', 'auth_userpass_123'),
     ).resolves.toBeNull();
+  });
+
+  it('lists complete identity entities by ID with bounded reads', async () => {
+    const fetchRequest = vi.fn<VaultFetch>(async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/identity/entity/id')) {
+        return jsonResponse({ data: { keys: ['entity-1', 'entity-2'] } });
+      }
+      const id = url.pathname.split('/').at(-1)!;
+      return jsonResponse({
+        data: {
+          id,
+          name: id === 'entity-1' ? 'Alice' : 'Bob',
+          disabled: false,
+          policies: [],
+          group_ids: [],
+          aliases: [],
+          metadata: {},
+        },
+      });
+    });
+    const gateway = new VaultAccessControlAdapter(new VaultHttpClient(fetchRequest));
+
+    await expect(gateway.listEntities(session)).resolves.toEqual([
+      expect.objectContaining({ id: 'entity-1', name: 'Alice' }),
+      expect.objectContaining({ id: 'entity-2', name: 'Bob' }),
+    ]);
+    expect(fetchRequest).toHaveBeenCalledTimes(3);
   });
 });

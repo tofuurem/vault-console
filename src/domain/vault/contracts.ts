@@ -32,6 +32,8 @@ export type VaultCapability =
   | 'delete'
   | 'list'
   | 'sudo'
+  | 'subscribe'
+  | 'recover'
   | 'deny'
   | 'root';
 
@@ -213,7 +215,9 @@ export interface VaultAccessControlGateway {
   updateUserpassPolicies(session: VaultSession, mount: string, username: string, policies: readonly string[], signal?: AbortSignal): Promise<void>;
   resetUserpassPassword(session: VaultSession, mount: string, username: string, password: VaultPassword, signal?: AbortSignal): Promise<void>;
   deleteUserpassAccount(session: VaultSession, mount: string, username: string, signal?: AbortSignal): Promise<void>;
+  listEntities(session: VaultSession, signal?: AbortSignal): Promise<readonly VaultIdentityEntity[]>;
   readEntityByName(session: VaultSession, name: string, signal?: AbortSignal): Promise<VaultIdentityEntity>;
+  readEntity(session: VaultSession, entityId: string, signal?: AbortSignal): Promise<VaultIdentityEntity>;
   lookupEntityByAlias(session: VaultSession, name: string, mountAccessor: string, signal?: AbortSignal): Promise<VaultIdentityEntity | null>;
   createEntity(session: VaultSession, entity: CreateVaultEntity, signal?: AbortSignal): Promise<string>;
   updateEntity(session: VaultSession, entityId: string, entity: UpdateVaultEntity, signal?: AbortSignal): Promise<void>;

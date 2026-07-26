@@ -43,7 +43,9 @@ function gateway(): VaultAccessControlGateway {
     updateUserpassPolicies: vi.fn(),
     resetUserpassPassword: vi.fn(),
     deleteUserpassAccount: vi.fn(),
+    listEntities: vi.fn(),
     readEntityByName: vi.fn(),
+    readEntity: vi.fn(),
     lookupEntityByAlias: vi.fn(async () => ({
       id: 'entity-1',
       name: 'Alice Operator',

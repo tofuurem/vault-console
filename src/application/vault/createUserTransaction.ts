@@ -6,6 +6,7 @@ import type {
 } from '@/domain/vault/contracts';
 import { VaultError } from '@/domain/vault/errors';
 import { vaultPassword } from '@/domain/vault/sensitive-value';
+import { renderManagedPolicy } from '@/domain/access-control/policy-ownership';
 import type { ApplyUserContext, WorkflowOperation } from '@/pages/access-control/components/create-user/workflow';
 
 export interface CreateUserTransactionInput {
@@ -68,7 +69,10 @@ export class CreateUserTransaction {
         if (this.state.policyCreated) return;
         await this.gateway.writePolicy(this.session, {
           name: this.input.directPolicy!.name,
-          policy: this.input.directPolicy!.hcl,
+          policy: renderManagedPolicy(
+            { kind: 'user-direct', owner: this.input.username },
+            this.input.directPolicy!.hcl,
+          ),
         }, signal);
         this.state.policyCreated = true;
       });
