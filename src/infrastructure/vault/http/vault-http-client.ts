@@ -89,11 +89,59 @@ function diagnosticFor(
   };
 }
 
+function invalidVaultPath(): never {
+  throw new VaultError('invalid-request');
+}
+
+function hasAsciiControl(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || code === 0x7f;
+  });
+}
+
+function assertLiteralVaultSegments(value: string): readonly string[] {
+  if (hasAsciiControl(value)) return invalidVaultPath();
+  const leadingSeparators = value.match(/^\/+/)?.[0].length ?? 0;
+  const trailingSeparators = value.match(/\/+$/)?.[0].length ?? 0;
+  if (leadingSeparators > 1 || trailingSeparators > 1) return invalidVaultPath();
+
+  let normalized = value;
+  if (normalized.startsWith('/')) normalized = normalized.slice(1);
+  if (normalized.endsWith('/')) normalized = normalized.slice(0, -1);
+  if (normalized === '') return [];
+
+  const segments = normalized.split('/');
+  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
+    return invalidVaultPath();
+  }
+  return segments;
+}
+
+function requestUrl(serverUrl: string, path: string): URL {
+  const base = apiBaseUrl(serverUrl);
+  const relativePath = path.replace(/^\/+/, '');
+  if (hasAsciiControl(relativePath)) return invalidVaultPath();
+  const segments = relativePath.split('/');
+  if (segments.some((segment) => {
+    if (segment === '') return true;
+    try {
+      const decoded = decodeURIComponent(segment);
+      return decoded === '.'
+        || decoded === '..'
+        || hasAsciiControl(decoded);
+    } catch {
+      return true;
+    }
+  })) return invalidVaultPath();
+
+  const url = new URL(relativePath, base);
+  if (!url.pathname.startsWith(base.pathname)) return invalidVaultPath();
+  return url;
+}
+
 export function encodeVaultPath(value: string): string {
-  return value
-    .replace(/^\/+|\/+$/g, '')
-    .split('/')
-    .filter(Boolean)
+  return assertLiteralVaultSegments(value)
     .map((segment) => encodeURIComponent(segment))
     .join('/');
 }
@@ -108,7 +156,7 @@ export class VaultHttpClient {
   async request(serverUrl: string, path: string, options: VaultRequestOptions = {}): Promise<unknown> {
     const startedAt = performance.now();
     try {
-      const url = new URL(path.replace(/^\/+/, ''), apiBaseUrl(serverUrl));
+      const url = requestUrl(serverUrl, path);
       Object.entries(options.query ?? {}).forEach(([key, value]) => {
         if (value !== undefined) url.searchParams.set(key, String(value));
       });

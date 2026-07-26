@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { VaultError } from '../../../domain/vault/errors';
 import { vaultToken } from '../../../domain/vault/sensitive-value';
-import { VaultHttpClient, type VaultFetch } from './vault-http-client';
+import {
+  encodeVaultPath,
+  VaultHttpClient,
+  type VaultFetch,
+} from './vault-http-client';
 
 describe('VaultHttpClient', () => {
   it('builds a v1 request with the token, body, and abort signal', async () => {
@@ -158,6 +162,56 @@ describe('VaultHttpClient', () => {
     await expect(client.request('file:///tmp/vault', 'sys/seal-status')).rejects.toMatchObject({
       code: 'invalid-request',
     });
+    expect(fetchRequest).not.toHaveBeenCalled();
+  });
+
+  it('encodes canonical nested paths while preserving boundary slash compatibility', () => {
+    expect(encodeVaultPath('team/app secret/ключ%name\\file')).toBe(
+      'team/app%20secret/%D0%BA%D0%BB%D1%8E%D1%87%25name%5Cfile',
+    );
+    expect(encodeVaultPath('/team/platform/')).toBe('team/platform');
+    expect(encodeVaultPath('')).toBe('');
+    expect(encodeVaultPath('/')).toBe('');
+    expect(encodeVaultPath('%2e%2e')).toBe('%252e%252e');
+  });
+
+  it.each([
+    '.',
+    '..',
+    'team/./app',
+    'team/../app',
+    'team//app',
+    '//team/app',
+    'team/app//',
+    'team/\u0000/app',
+    'team/\u001f/app',
+    'team/\u007f/app',
+  ])('rejects an ambiguous logical Vault path without echoing it: %j', (path) => {
+    let error: unknown;
+    try {
+      encodeVaultPath(path);
+    } catch (cause) {
+      error = cause;
+    }
+    expect(error).toBeInstanceOf(VaultError);
+    expect(error).toMatchObject({ code: 'invalid-request' });
+    expect((error as Error).message).toBe('Vault rejected the requested operation.');
+  });
+
+  it.each([
+    '../sys/health',
+    'auth/userpass/users/..',
+    'auth/userpass/users/%2e%2e',
+    'auth/userpass/users/%00',
+    'auth//userpass/users/alice',
+    'auth/userpass/users/%',
+  ])('rejects a request path that could normalize away from its intended endpoint: %j', async (path) => {
+    const fetchRequest = vi.fn<VaultFetch>();
+    const client = new VaultHttpClient(fetchRequest);
+
+    await expect(
+      client.request('https://vault.example.test/proxy', path),
+    ).rejects.toMatchObject({ code: 'invalid-request' });
     expect(fetchRequest).not.toHaveBeenCalled();
   });
 });
