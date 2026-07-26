@@ -110,7 +110,10 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
 
   async listPolicies(session: VaultSession, signal?: AbortSignal): Promise<readonly string[]> {
     const response = asObject(
-      await this.client.request(session.serverUrl, 'sys/policy', sessionRequest(session, signal)),
+      await this.client.request(session.serverUrl, 'sys/policies/acl', {
+        ...sessionRequest(session, signal),
+        query: { list: true },
+      }),
     );
     if (response.policies !== undefined) return asStringArray(response.policies);
     return asStringArray(asObject(response.data).keys);
@@ -124,7 +127,7 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
     const response = asObject(
       await this.client.request(
         session.serverUrl,
-        `sys/policy/${encodeURIComponent(name)}`,
+        `sys/policies/acl/${encodeURIComponent(name)}`,
         sessionRequest(session, signal),
       ),
     );
@@ -140,7 +143,7 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
     policy: VaultAclPolicy,
     signal?: AbortSignal,
   ): Promise<void> {
-    await this.client.request(session.serverUrl, `sys/policy/${encodeURIComponent(policy.name)}`, {
+    await this.client.request(session.serverUrl, `sys/policies/acl/${encodeURIComponent(policy.name)}`, {
       method: 'POST',
       token: session.token,
       body: { policy: policy.policy },
@@ -149,7 +152,7 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
   }
 
   async deletePolicy(session: VaultSession, name: string, signal?: AbortSignal): Promise<void> {
-    await this.client.request(session.serverUrl, `sys/policy/${encodeURIComponent(name)}`, {
+    await this.client.request(session.serverUrl, `sys/policies/acl/${encodeURIComponent(name)}`, {
       method: 'DELETE',
       token: session.token,
       signal,
@@ -582,23 +585,31 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
         signal,
       }),
     );
-    const raw = asObject(asObject(response.data).capabilities);
+    const data = asObject(response.data);
+    const nested = data.capabilities;
+    const single = Array.isArray(nested) ? asStringArray(nested) : undefined;
+    const raw = nested !== undefined && single === undefined
+      ? asObject(nested)
+      : data;
+    const supported = (value: unknown): readonly VaultCapability[] => (
+      asStringArray(value).filter((capability): capability is VaultCapability => (
+        capability === 'create'
+        || capability === 'read'
+        || capability === 'update'
+        || capability === 'patch'
+        || capability === 'delete'
+        || capability === 'list'
+        || capability === 'sudo'
+        || capability === 'subscribe'
+        || capability === 'recover'
+        || capability === 'deny'
+        || capability === 'root'
+      ))
+    );
     return Object.fromEntries(
       paths.map((path) => [
         path,
-        asStringArray(raw[path] ?? []).filter((capability): capability is VaultCapability => (
-          capability === 'create'
-          || capability === 'read'
-          || capability === 'update'
-          || capability === 'patch'
-          || capability === 'delete'
-          || capability === 'list'
-          || capability === 'sudo'
-          || capability === 'subscribe'
-          || capability === 'recover'
-          || capability === 'deny'
-          || capability === 'root'
-        )),
+        supported(single && paths.length === 1 ? single : raw[path] ?? []),
       ]),
     );
   }

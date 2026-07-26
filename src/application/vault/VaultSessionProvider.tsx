@@ -37,7 +37,7 @@ import {
 
 export const ACCESS_CONTROL_CAPABILITY_PATHS = [
   'sys/auth',
-  'sys/policy',
+  'sys/policies/acl',
   'identity/group/id',
   'identity/entity/id',
 ] as const;

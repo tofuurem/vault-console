@@ -40,7 +40,23 @@ function ValidationHarness() {
   );
 }
 
+function TransitionHarness() {
+  const [errors, setErrors] = useState<readonly WorkspaceValidationError[]>([]);
+  return (
+    <>
+      <WorkspaceErrorSummary errors={errors} onNavigate={() => undefined} />
+      <button type="button" onClick={() => setErrors([nameError])}>Validate</button>
+    </>
+  );
+}
+
 describe('WorkspaceErrorSummary', () => {
+  it('does not steal focus when a workspace opens with incomplete fields', () => {
+    render(<ValidationHarness />);
+
+    expect(screen.getByText('Resolve 2 issues before Review')).not.toHaveFocus();
+  });
+
   it('does not steal focus while an edited field resolves one of several errors', async () => {
     const user = userEvent.setup();
     render(<ValidationHarness />);
@@ -51,5 +67,14 @@ describe('WorkspaceErrorSummary', () => {
     expect(input).toHaveValue('billing-reader');
     expect(input).toHaveFocus();
     expect(screen.getByText('Resolve 1 issue before Review')).toBeVisible();
+  });
+
+  it('focuses the summary when validation introduces an error', async () => {
+    const user = userEvent.setup();
+    render(<TransitionHarness />);
+
+    await user.click(screen.getByRole('button', { name: 'Validate' }));
+
+    expect(screen.getByRole('alert')).toHaveFocus();
   });
 });

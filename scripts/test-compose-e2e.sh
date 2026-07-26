@@ -106,6 +106,15 @@ vault_exec write auth/userpass/users/e2e-login \
   token_policies=e2e-userpass \
   token_ttl=10m >/dev/null
 
+vault_exec write auth/userpass/users/e2e-lifecycle \
+  password=e2e-lifecycle-password \
+  token_policies=default \
+  token_ttl=45m \
+  token_max_ttl=2h \
+  token_explicit_max_ttl=90m \
+  token_bound_cidrs=0.0.0.0/0 \
+  token_type=service >/dev/null
+
 docker exec \
   --interactive \
   --env VAULT_ADDR=http://127.0.0.1:8200 \
@@ -231,6 +240,15 @@ userpass_accessor="$(
   vault_exec auth list -format=json \
     | node -e 'const fs=require("node:fs");process.stdout.write(JSON.parse(fs.readFileSync(0,"utf8"))["userpass/"].accessor)'
 )"
+lifecycle_entity_id="$(
+  vault_exec write -field=id identity/entity \
+    name="E2E Lifecycle User" \
+    metadata=managed_by=vault-console
+)"
+vault_exec write identity/entity-alias \
+  name=e2e-lifecycle \
+  canonical_id="${lifecycle_entity_id}" \
+  mount_accessor="${userpass_accessor}" >/dev/null
 access_entity_id="$(
   vault_exec write -field=id identity/entity \
     name="E2E Access Operator"
@@ -274,7 +292,7 @@ path "applications/metadata" {
   capabilities = ["list"]
 }
 
-path "sys/policy/vc-role-e2e-direct-editor" {
+path "sys/policies/acl/vc-role-e2e-direct-editor" {
   capabilities = ["read"]
 }
 HCL

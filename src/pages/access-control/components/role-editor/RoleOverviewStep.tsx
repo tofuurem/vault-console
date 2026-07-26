@@ -10,6 +10,7 @@ interface RoleOverviewStepProps {
   readonly mode: 'create' | 'edit' | 'adopt';
   readonly snapshot: RoleLifecycleSnapshot;
   readonly draft: RoleEditorDraft;
+  readonly nameError?: string;
   readonly onChange: (draft: RoleEditorDraft) => void;
 }
 
@@ -17,6 +18,7 @@ export default function RoleOverviewStep({
   mode,
   snapshot,
   draft,
+  nameError,
   onChange,
 }: RoleOverviewStepProps) {
   const slug = draft.policyName.startsWith(ROLE_POLICY_PREFIX)
@@ -53,7 +55,11 @@ export default function RoleOverviewStep({
             <label htmlFor="role-slug" className="text-xs font-medium text-foreground-700">
               Role identifier
             </label>
-            <span className="mt-1 flex h-11 overflow-hidden rounded-md border border-background-300 bg-background-50 sm:h-8">
+            <span className={`mt-1 flex h-11 overflow-hidden rounded-md border bg-background-50 focus-within:ring-2 sm:h-8 ${
+              nameError
+                ? 'border-danger-400 focus-within:border-danger-400 focus-within:ring-danger-400/30'
+                : 'border-background-300 focus-within:border-primary-400 focus-within:ring-primary-400/30'
+            }`}>
               <span className="flex items-center border-r border-background-300 bg-background-100 px-2.5 font-mono text-xs text-foreground-500">
                 {ROLE_POLICY_PREFIX}
               </span>
@@ -67,9 +73,16 @@ export default function RoleOverviewStep({
                 autoComplete="off"
                 spellCheck={false}
                 placeholder="platform-reader"
+                aria-invalid={Boolean(nameError)}
+                aria-describedby={nameError ? 'role-slug-error' : undefined}
                 className="min-w-0 flex-1 px-2.5 font-mono text-xs text-foreground-900 outline-none"
               />
             </span>
+            {nameError && (
+              <span id="role-slug-error" className="mt-1 block text-xs text-danger-500">
+                {nameError}
+              </span>
+            )}
           </div>
         ) : (
           <div className="rounded-md border border-background-200 bg-background-100 px-3 py-2.5">

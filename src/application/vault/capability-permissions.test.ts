@@ -26,7 +26,16 @@ describe('Vault capability decisions', () => {
   it('opens access control when any exact discovery surface is readable', () => {
     expect(resolveAccessControlPermission({
       'sys/auth': ['read'],
-      'sys/policy': ['deny'],
+      'sys/policies/acl': ['deny'],
+      'identity/group/id': ['deny'],
+      'identity/entity/id': ['deny'],
+    }, 'ready').state).toBe('allowed');
+  });
+
+  it('uses the canonical ACL policy discovery path', () => {
+    expect(resolveAccessControlPermission({
+      'sys/auth': ['deny'],
+      'sys/policies/acl': ['list'],
       'identity/group/id': ['deny'],
       'identity/entity/id': ['deny'],
     }, 'ready').state).toBe('allowed');

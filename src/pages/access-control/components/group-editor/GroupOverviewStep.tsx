@@ -9,12 +9,14 @@ import type { GroupEditorDraft } from './group-editor-draft';
 interface GroupOverviewStepProps {
   readonly snapshot: GroupLifecycleSnapshot;
   readonly draft: GroupEditorDraft;
+  readonly nameError?: string;
   readonly onChange: (draft: GroupEditorDraft) => void;
 }
 
 export default function GroupOverviewStep({
   snapshot,
   draft,
+  nameError,
   onChange,
 }: GroupOverviewStepProps) {
   const group = snapshot.group;
@@ -41,6 +43,7 @@ export default function GroupOverviewStep({
           value={draft.name}
           onChange={(event) => onChange({ ...draft, name: event.target.value })}
           autoComplete="off"
+          error={nameError}
           required
         />
         <div className="rounded-md border border-background-200 bg-background-100 px-3 py-2.5">

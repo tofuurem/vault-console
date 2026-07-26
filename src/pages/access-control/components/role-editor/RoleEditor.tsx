@@ -34,6 +34,7 @@ import AccessWorkspaceShell, {
   type AccessWorkspaceShellHandle,
   type WorkspaceStep,
 } from '../workspace/AccessWorkspaceShell';
+import PlanExecutionNotice from '../workspace/PlanExecutionNotice';
 import WorkspaceErrorSummary, {
   type WorkspaceValidationError,
 } from '../workspace/WorkspaceErrorSummary';
@@ -173,6 +174,7 @@ function RoleEditorForm({
     }
     return values;
   }, [draft.directRules.length, draft.policyName, initial.visualSupported, mode]);
+  const roleNameError = errors.find(({ fieldId }) => fieldId === 'role-slug')?.message;
   const plan = useMemo(() => {
     try {
       if (mode === 'adopt') return buildAdoptRolePlan(snapshot, draft.description);
@@ -360,6 +362,7 @@ function RoleEditorForm({
           mode={mode}
           snapshot={snapshot}
           draft={draft}
+          nameError={roleNameError}
           onChange={setDraft}
         />
       )}
@@ -405,13 +408,7 @@ function RoleEditorForm({
               ))}
             </div>
           )}
-          {result && result.status !== 'completed' && (
-            <div role="alert" className="rounded-md border border-danger-300 bg-danger-50 p-3 text-xs text-danger-900">
-              {result.status === 'blocked'
-                ? `Apply blocked during ${result.blockReason ?? 'preflight'}.`
-                : result.errorMessage}
-            </div>
-          )}
+          <PlanExecutionNotice result={result} />
         </div>
       )}
       {step === 'review' && !plan && (

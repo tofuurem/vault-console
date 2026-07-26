@@ -18,6 +18,10 @@ import {
   type UserLifecycleRef,
   type UserRemovalPlan,
 } from '@/application/vault/access-lifecycle/user-lifecycle';
+import {
+  identityEntityFingerprint,
+  userpassAccountFingerprint,
+} from '@/application/vault/access-lifecycle/snapshot-normalization';
 import Button from '@/components/base/Button';
 import Modal from '@/components/base/Modal';
 import {
@@ -27,7 +31,6 @@ import {
 import {
   capabilityRequirementsSatisfied,
   requiredCapabilities,
-  snapshotFingerprint,
 } from '@/domain/access-control/lifecycle/change-plan';
 import type {
   CapabilityRequirement,
@@ -45,6 +48,7 @@ import {
   vaultPassword,
 } from '@/domain/vault/sensitive-value';
 import AccessReview from '../workspace/AccessReview';
+import PlanExecutionNotice from '../workspace/PlanExecutionNotice';
 import PasswordHandoff from '../create-user/PasswordHandoff';
 
 type ActionPanel = 'menu' | 'password' | 'password-success' | 'toggle' | 'remove';
@@ -59,36 +63,6 @@ function planAllowed(
     requiredCapabilities(plan.operations),
     capabilities,
   ).allowed;
-}
-
-function ResultNotice({ result }: { readonly result?: PlanExecutionResult }) {
-  if (!result || result.status === 'completed') return null;
-  return (
-    <div
-      role="alert"
-      className={`rounded-md border px-3 py-2 text-[11px] leading-5 ${
-        result.status === 'blocked'
-          ? 'border-warning-300 bg-warning-50 text-warning-900'
-          : 'border-danger-300 bg-danger-50 text-danger-900'
-      }`}
-    >
-      <p className="font-semibold">
-        {result.status === 'blocked'
-          ? 'Vault blocked this action before any write'
-          : 'Vault stopped after a partial change'}
-      </p>
-      <p>
-        {result.status === 'blocked'
-          ? `Preflight reason: ${result.blockReason ?? 'unknown'}`
-          : result.errorMessage ?? 'Review the completed operations before retrying.'}
-      </p>
-      {result.recovery.length > 0 && (
-        <ul className="mt-1 list-disc pl-4">
-          {result.recovery.map((item) => <li key={item.operationId}>{item.summary}</li>)}
-        </ul>
-      )}
-    </div>
-  );
 }
 
 function ActionChoice({
@@ -311,7 +285,7 @@ export default function UserLifecycleActions({
       );
       if (!fresh) throw new Error('The userpass account no longer exists.');
       return {
-        fingerprint: snapshotFingerprint(fresh),
+        fingerprint: userpassAccountFingerprint(fresh),
         visibility: { complete: true, reasons: [] },
       };
     });
@@ -326,7 +300,7 @@ export default function UserLifecycleActions({
     const execution = await applyPlan(togglePlan, async () => {
       const fresh = await gateway.readEntity(session, entityId);
       return {
-        fingerprint: snapshotFingerprint(fresh),
+        fingerprint: identityEntityFingerprint(fresh),
         visibility: { complete: true, reasons: [] },
       };
     });
@@ -350,7 +324,7 @@ export default function UserLifecycleActions({
       );
       if (!fresh) throw new Error('The userpass account no longer exists.');
       return {
-        fingerprint: snapshotFingerprint(fresh),
+        fingerprint: userpassAccountFingerprint(fresh),
         visibility: { complete: true, reasons: [] },
       };
     });
@@ -514,7 +488,7 @@ export default function UserLifecycleActions({
                 </span>
               </label>
             )}
-            <ResultNotice result={result} />
+            <PlanExecutionNotice result={result} />
             <div className="flex justify-between border-t border-background-200 pt-4">
               <Button type="button" size="sm" onClick={backToMenu} disabled={applying}>Back</Button>
               <Button
@@ -559,7 +533,7 @@ export default function UserLifecycleActions({
               confirmation={confirmation}
               onConfirmationChange={setConfirmation}
             />
-            <ResultNotice result={result} />
+            <PlanExecutionNotice result={result} />
             <div className="flex justify-between border-t border-background-200 pt-4">
               <Button type="button" size="sm" onClick={backToMenu} disabled={applying}>Back</Button>
               <Button
@@ -599,7 +573,7 @@ export default function UserLifecycleActions({
               confirmation={confirmation}
               onConfirmationChange={setConfirmation}
             />
-            <ResultNotice result={result} />
+            <PlanExecutionNotice result={result} />
             <div className="flex justify-between border-t border-background-200 pt-4">
               <Button type="button" size="sm" onClick={backToMenu} disabled={applying}>Back</Button>
               <Button

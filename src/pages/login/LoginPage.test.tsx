@@ -17,7 +17,7 @@ class LoginGateway implements VaultAuthGateway {
   health: VaultHealth = { initialized: true, sealed: false, standby: false, version: '1.21.0' };
   capabilities: VaultCapabilityMap = {
     'sys/auth': ['read'],
-    'sys/policy': ['read'],
+    'sys/policies/acl': ['read'],
     'identity/group/id': ['list'],
     'identity/entity/id': ['list'],
   };

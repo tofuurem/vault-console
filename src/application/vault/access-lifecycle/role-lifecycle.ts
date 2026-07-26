@@ -26,6 +26,10 @@ import {
   VaultError,
 } from '@/domain/vault/errors';
 import { mapWithConcurrency } from '@/shared/async/map-with-concurrency';
+import {
+  canonicalDependencies,
+  canonicalVisibility,
+} from './snapshot-normalization';
 
 function uniqueDependencies(
   values: readonly RoleDependency[],
@@ -75,8 +79,8 @@ function snapshotValue(snapshot: Omit<RoleLifecycleSnapshot, 'fingerprint'>): un
     policy: snapshot.policy,
     ownership: snapshot.ownership,
     editable: snapshot.editable,
-    dependencies: snapshot.dependencies,
-    visibility: snapshot.visibility,
+    dependencies: canonicalDependencies(snapshot.dependencies),
+    visibility: canonicalVisibility(snapshot.visibility),
   };
 }
 

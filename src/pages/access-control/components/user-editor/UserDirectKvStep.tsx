@@ -59,7 +59,7 @@ export default function UserDirectKvStep({
     directRules: logicalRules,
   });
   const effectiveTree = resolveEffectiveKvTree(catalog.tree, selection.rules);
-  const editable = supported && (
+  const editable = supported && snapshot.directPolicyEditable && (
     snapshot.directPolicyOwnership !== 'unverified'
     || draft.adoptDirectPolicy
   );
@@ -105,7 +105,10 @@ export default function UserDirectKvStep({
         </div>
       )}
 
-      {supported && snapshot.directPolicyOwnership === 'unverified' && (
+      {supported
+        && snapshot.directPolicyOwnership === 'unverified'
+        && snapshot.directPolicyEditable
+        && (
         <label className="flex items-start gap-3 rounded-lg border border-warning-300 bg-warning-50 p-4">
           <input
             type="checkbox"
@@ -126,6 +129,16 @@ export default function UserDirectKvStep({
             </span>
           </span>
         </label>
+        )}
+
+      {supported && !snapshot.directPolicyEditable && (
+        <div role="alert" className="rounded-lg border border-warning-300 bg-warning-50 p-4 text-warning-900">
+          <p className="text-xs font-semibold">Direct policy is preserved read-only</p>
+          <p className="mt-1 text-[10px] leading-4">
+            Safe editing requires this policy to be attached directly to the userpass account,
+            have no other resource references, and have complete dependency visibility.
+          </p>
+        </div>
       )}
 
       {editable ? (
@@ -153,7 +166,7 @@ export default function UserDirectKvStep({
             />
           </div>
         </>
-      ) : supported ? (
+      ) : supported && snapshot.directPolicyEditable ? (
         <div className="rounded-lg border border-background-300 bg-background-50 p-6 text-center">
           <i className="ri-lock-line text-xl text-foreground-300" aria-hidden="true" />
           <p className="mt-2 text-xs font-semibold text-foreground-700">

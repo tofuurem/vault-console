@@ -12,14 +12,14 @@ Vault Console не запускает, не перезапускает и не �
 
 ## Запуск готового образа рядом с Vault
 
-Текущий стабильный опубликованный контейнер имеет версию `0.5.0`.
+Текущий стабильный опубликованный контейнер имеет версию `0.6.0`.
 
 Добавьте сервис в Compose-файл существующего Vault:
 
 ```yaml
 services:
   vault-console:
-    image: zero-noise-registry.registry.twcstorage.ru/vault-console:0.5.0
+    image: zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.0
     container_name: vault-console
     restart: unless-stopped
     environment:
@@ -51,11 +51,16 @@ docker login zero-noise-registry.registry.twcstorage.ru
 ```
 
 Не передавайте registry password в Compose-файле. Для неизменяемого
-развёртывания вместо tag можно указать опубликованный digest:
+развёртывания получите manifest digest опубликованного multi-architecture
+образа:
 
-```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.5.0@sha256:7bb36489b864094c6cf21e006c22232be530f8dabaf4c1269b964814eb3af41c
+```bash
+docker buildx imagetools inspect \
+  zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.0
 ```
+
+После этого используйте форму
+`zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.0@sha256:…`.
 
 Адрес Vault и стандартный auth mount скрыты на форме входа: их уже задаёт
 deployment. Для редких конфигураций можно разрешить секцию Advanced:
@@ -159,7 +164,7 @@ VAULT_UI_USERPASS_MOUNT=userpass
 VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT=false
 VAULT_CONSOLE_BIND=127.0.0.1
 VAULT_CONSOLE_PORT=8080
-VAULT_CONSOLE_IMAGE=zero-noise-registry.registry.twcstorage.ru/vault-console:0.5.0
+VAULT_CONSOLE_IMAGE=zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.0
 ```
 
 Для готового образа:
@@ -286,12 +291,12 @@ path "identity/group/id/*" {
   capabilities = ["read"]
 }
 
-path "sys/policy/*" {
+path "sys/policies/acl/*" {
   capabilities = ["read"]
 }
 ```
 
-Глобальный `list` на `sys/policy` для уже известной attached policy не нужен:
+Глобальный `list` на `sys/policies/acl` для уже известной attached policy не нужен:
 профиль читает только названия, полученные от учётки, entity и доступных
 групп, максимум по четыре тела одновременно. Он не перечисляет все policies
 Vault. Разделы Roles/Policies и мастер создания пользователя требуют
@@ -325,6 +330,96 @@ keys и secret values. `403`, ошибка отдельной ветки или 
 покрытие частичным: неизвестная ветка не выдаётся за пустую или запрещённую.
 Для discovery нужны те же ограниченные metadata LIST capabilities, которые
 описаны в разделе «Поиск KV v2 путей».
+
+### Lifecycle пользователей, групп и ролей
+
+Vault Console 0.6.0 выполняет изменения доступа через полноэкранные staged
+workspace. До нажатия Apply ни один шаг мастера не пишет в Vault. Экран
+Review показывает будущие операции, добавленные и удалённые capabilities,
+момент вступления изменения в силу и отдельное подтверждение для опасных
+действий.
+
+Непосредственно перед записью UI:
+
+1. повторно читает изменяемые ресурсы;
+2. блокирует Apply как `stale`, если данные изменились после открытия
+   workspace;
+3. требует полную видимость зависимостей для опасного удаления или adoption;
+4. запрашивает `sys/capabilities-self` для точных API paths плана;
+5. выполняет операции в порядке зависимостей и проверяет результат повторным
+   чтением.
+
+Если Vault остановил многошаговый план посередине, UI не сообщает ложный
+успех: он показывает завершённые операции и recovery actions. Автоматический
+retry не запускается, пока оператор не перечитает состояние.
+
+#### Users
+
+Редактор существующего `userpass`-пользователя разделяет источники доступа:
+
+- internal Identity groups применяются к следующему запросу;
+- прямые managed roles в `token_policies` применяются при следующем login;
+- `vc-user-<username>` задаёт прямой визуальный KV-доступ пользователя.
+
+Username и auth mount неизменяемы. Расширенные параметры userpass
+(`token_ttl`, `token_max_ttl`, `token_explicit_max_ttl`, bound CIDRs, token
+type, period, number of uses и default-policy flag) показываются read-only и
+сохраняются при изменении policies. External token policies также остаются
+прикреплёнными.
+
+Кнопка lifecycle actions позволяет:
+
+- сгенерировать или задать новый пароль; старый пароль перестаёт работать,
+  но уже выпущенные tokens не отзываются;
+- disable/enable принадлежащую Vault Console Identity entity;
+- удалить login после точного подтверждения username.
+
+Для полностью managed Identity удаление сначала disables entity, затем
+удаляет userpass login и его alias, снимает прямое членство в доступных
+internal groups и оставляет минимальный disabled tombstone. Это блокирует
+Identity-derived access существующих tokens, но не является token revocation.
+Неиспользуемая managed policy `vc-user-<username>` удаляется только когда
+полностью видны её зависимости.
+
+Если Identity external, содержит external aliases/policies или зависимости
+видны не полностью, UI удаляет только userpass login и явно перечисляет всё,
+что сохранено. Полностью пустой tombstone можно позже permanently purge в
+разделе **Removed identities**; UI повторно проверяет отсутствие login,
+aliases, policies и memberships.
+
+#### Groups
+
+Раздел Groups создаёт только internal groups и помечает их metadata
+`managed_by=vault-console`, `schema=1`. В managed group можно менять имя,
+описание, прямых Identity members и managed role attachments. Nested groups
+и external policies показываются read-only и сохраняются без изменений.
+
+External group доступна для просмотра, но не для редактирования. Удалить
+managed group можно только после полного чтения зависимостей, когда в ней нет
+прямых entities, nested groups и parent groups.
+
+#### Roles и ownership
+
+Визуальная роль — ACL policy с именем `vc-role-<slug>` и первой строкой:
+
+```text
+# vault-console: {"schema":1,"kind":"role","description":"…"}
+```
+
+Редактор компилирует logical KV targets в детерминированный набор data,
+metadata, delete, undelete и destroy paths. Whole-mount или destructive grant
+требует точного ввода имени policy на Review.
+
+Policy с prefix `vc-role-`, каноническими KV rules, но без ownership header
+помечается **Unverified**. Её можно явно adopt: операция добавляет только
+header и description, не меняя capabilities. Unsupported HCL и policies без
+зарезервированного prefix остаются External/read-only. Managed role удаляется
+только при полной видимости и отсутствии ссылок из userpass accounts,
+Identity entities и groups.
+
+Закрытие dirty workspace, переход в другой раздел, Back/Forward и попытка
+обновить вкладку требуют подтверждения. После успешного Apply переход
+выполняется без второго prompt.
 
 ### Версии и подтверждение удаления
 
@@ -578,15 +673,17 @@ npm run test:e2e
 
 `npm run test:e2e` сам создаёт одноразовые Docker network, Vault и production
 контейнер UI, проверяет security headers и отсутствие публичных source maps,
-а затем запускает 15 Chromium-сценариев. Матрица включает token и `userpass`,
+а затем запускает 17 Chromium-сценариев. Матрица включает token и `userpass`,
 reload/deep links, partial ACL для metadata и LIST prefixes, рекурсивный поиск,
 Command palette, тему и плотность, Favorites/Recent, создание mount и
 пользователя, provenance-aware Access Center для direct/group/per-user и
 external policies, ограниченный операторский token, отсутствие data reads при
-matrix discovery, вложенный JSON, exact-version lifecycle при конкурентной
-записи, bulk-операции версий, глубокие breadcrumbs и responsive viewport’ы от
-320 до 1440 px. Одноразовые token, policy, mount, identity и secret fixtures
-удаляются вместе с контейнерами после прогона.
+matrix discovery, создание и применение managed role/group/user lifecycle,
+защиту dirty workspace и client-side navigation, вложенный JSON,
+exact-version lifecycle при конкурентной записи, bulk-операции версий,
+глубокие breadcrumbs и responsive viewport’ы от 320 до 1440 px. Одноразовые
+token, policy, mount, identity и secret fixtures удаляются вместе с
+контейнерами после прогона.
 
 Если Docker daemon недоступен, структуру browser suite без запуска контейнеров
 можно проверить командой:

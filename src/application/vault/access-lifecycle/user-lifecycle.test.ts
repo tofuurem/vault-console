@@ -209,6 +209,131 @@ describe('user access lifecycle use cases', () => {
     });
   });
 
+  it('creates the first canonical per-user policy for an account without one', async () => {
+    const gateway = lifecycleGateway();
+    gateway.readUserpassAccount = vi.fn(async () => ({
+      username: 'alice',
+      mount: 'userpass',
+      tokenPolicies: ['default', 'external-audit'],
+    }));
+    gateway.listUserpassAccounts = vi.fn(async () => [{
+      username: 'alice',
+      mount: 'userpass',
+      tokenPolicies: ['default', 'external-audit'],
+    }]);
+    gateway.readPolicy = vi.fn(async () => {
+      throw new VaultError('not-found', { status: 404 });
+    });
+    const snapshot = await loadUserLifecycleSnapshot(gateway, session, {
+      mount: 'userpass',
+      mountAccessor: 'auth_userpass_123',
+      username: 'alice',
+    });
+    const policy = {
+      name: 'vc-user-alice',
+      policy: renderManagedPolicy(
+        { kind: 'user-direct' as const, owner: 'alice' },
+        'path "applications/data/personal/*" { capabilities = ["read"] }',
+      ),
+    };
+
+    const plan = buildUserEditPlan(snapshot, {
+      displayName: entity.name,
+      groupIds: ['group-platform'],
+      directRolePolicyNames: [],
+      managedRolePolicyNames: ['vc-role-platform-reader'],
+      directPolicy: policy,
+      adoptDirectPolicy: false,
+    });
+
+    expect(plan.operations).toEqual([
+      expect.objectContaining({
+        id: 'write-direct-policy',
+        kind: 'write-policy',
+        created: true,
+        policy,
+      }),
+      expect.objectContaining({
+        id: 'update-userpass-policies',
+        kind: 'update-userpass-policies',
+        policies: ['default', 'external-audit', 'vc-user-alice'],
+      }),
+    ]);
+  });
+
+  it('does not attach an existing reserved policy during an unrelated edit', async () => {
+    const gateway = lifecycleGateway();
+    gateway.readUserpassAccount = vi.fn(async () => ({
+      username: 'alice',
+      mount: 'userpass',
+      tokenPolicies: ['default', 'external-audit'],
+    }));
+    gateway.listUserpassAccounts = vi.fn(async () => [{
+      username: 'alice',
+      mount: 'userpass',
+      tokenPolicies: ['default', 'external-audit'],
+    }]);
+    const snapshot = await loadUserLifecycleSnapshot(gateway, session, {
+      mount: 'userpass',
+      mountAccessor: 'auth_userpass_123',
+      username: 'alice',
+    });
+
+    expect(snapshot.directPolicy?.name).toBe('vc-user-alice');
+    expect(snapshot.directPolicyEditable).toBe(false);
+    const plan = buildUserEditPlan(snapshot, {
+      displayName: 'Alice Renamed',
+      groupIds: ['group-platform'],
+      directRolePolicyNames: [],
+      managedRolePolicyNames: ['vc-role-platform-reader'],
+      directPolicy: snapshot.directPolicy,
+      adoptDirectPolicy: false,
+    });
+
+    expect(plan.operations).toEqual([
+      expect.objectContaining({
+        id: 'update-entity-profile',
+        kind: 'update-entity',
+      }),
+    ]);
+    expect(plan.operations.some(({ kind }) => kind === 'update-userpass-policies'))
+      .toBe(false);
+  });
+
+  it('blocks direct-policy mutation while another Identity reference exists', async () => {
+    const gateway = lifecycleGateway();
+    const entityWithDirectPolicy = {
+      ...entity,
+      policies: ['vc-user-alice'],
+    };
+    gateway.lookupEntityByAlias = vi.fn(async () => entityWithDirectPolicy);
+    gateway.listEntities = vi.fn(async () => [entityWithDirectPolicy]);
+    const snapshot = await loadUserLifecycleSnapshot(gateway, session, {
+      mount: 'userpass',
+      mountAccessor: 'auth_userpass_123',
+      username: 'alice',
+    });
+
+    expect(snapshot.policyReferences).toEqual([
+      { kind: 'user', id: entity.id, name: entity.name },
+    ]);
+    expect(snapshot.directPolicyEditable).toBe(false);
+    expect(() => buildUserEditPlan(snapshot, {
+      displayName: entity.name,
+      groupIds: ['group-platform'],
+      directRolePolicyNames: ['vc-role-platform-reader'],
+      managedRolePolicyNames: ['vc-role-platform-reader'],
+      directPolicy: {
+        ...directPolicy,
+        policy: renderManagedPolicy(
+          { kind: 'user-direct' as const, owner: 'alice' },
+          'path "applications/data/team/*" { capabilities = ["read", "update"] }',
+        ),
+      },
+      adoptDirectPolicy: false,
+    })).toThrow();
+  });
+
   it('adopts an eligible 0.5.0 direct policy without changing its permissions', async () => {
     const gateway = lifecycleGateway();
     gateway.readPolicy = vi.fn(async () => ({

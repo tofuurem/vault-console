@@ -218,6 +218,134 @@ test('browses KV v2 and creates an identity-backed user in real Vault', async ({
   expect(account.ok()).toBe(true);
 });
 
+test('guards unsaved access drafts and keeps Access Center navigation client-side', async ({ page }) => {
+  await login(page);
+  await page.getByRole('button', { name: 'Access Center' }).click();
+  await page.evaluate(() => {
+    document.body.dataset.e2eNavigationMarker = 'preserved';
+    document.body.dataset.e2eConfirmCalls = '0';
+    window.confirm = () => {
+      const calls = Number(document.body.dataset.e2eConfirmCalls ?? '0') + 1;
+      document.body.dataset.e2eConfirmCalls = String(calls);
+      return calls > 1;
+    };
+  });
+  await page.getByRole('button', { name: 'Roles', exact: true }).click();
+  await page.getByRole('button', { name: 'Create role' }).click();
+  await page.getByLabel('Role identifier').fill('discarded-browser-draft');
+
+  await page.getByRole('button', { name: 'Groups', exact: true }).click();
+  await expect(page).toHaveURL(/\/access-control\/roles\/new$/);
+  await expect(page.getByLabel('Role identifier')).toHaveValue('discarded-browser-draft');
+  await expect.poll(
+    () => page.evaluate(() => document.body.dataset.e2eConfirmCalls),
+  ).toBe('1');
+
+  await page.getByRole('button', { name: 'Groups', exact: true }).click();
+  await expect(page).toHaveURL(/\/access-control\/groups$/);
+  await expect(page.getByRole('heading', { name: 'Internal groups' })).toBeVisible();
+  expect(await page.evaluate(() => document.body.dataset.e2eNavigationMarker))
+    .toBe('preserved');
+  await expect.poll(
+    () => page.evaluate(() => document.body.dataset.e2eConfirmCalls),
+  ).toBe('2');
+});
+
+test('creates a role and group, then updates a managed user through real Vault', async ({ page }) => {
+  test.setTimeout(90_000);
+  await login(page);
+  await page.getByRole('button', { name: 'Access Center' }).click();
+
+  await page.getByRole('button', { name: 'Roles' }).click();
+  await page.getByRole('button', { name: 'Create role' }).click();
+  await page.getByLabel('Role identifier').fill('browser-lifecycle-reader');
+  await page.getByLabel('Description').fill('Browser lifecycle read access');
+  await page.getByRole('button', { name: /Continue/ }).click();
+  await page.getByLabel('Logical path').fill('browser-lifecycle');
+  await page.getByRole('button', { name: 'Add target' }).click();
+  await page.getByRole('button', { name: /Continue/ }).click();
+  await page.getByRole('button', { name: /Continue/ }).click();
+  await page.getByRole('button', { name: 'Create role' }).click();
+
+  await expect(page).toHaveURL(
+    /\/access-control\/roles\/vc-role-browser-lifecycle-reader$/,
+  );
+  await expect(page.getByRole('heading', {
+    name: 'Browser Lifecycle Reader',
+  })).toBeFocused();
+  const roleResponse = await page.request.get(
+    '/v1/sys/policies/acl/vc-role-browser-lifecycle-reader',
+    { headers: { 'X-Vault-Token': vaultToken! } },
+  );
+  expect(roleResponse.ok()).toBe(true);
+  expect((await roleResponse.json()).data.policy)
+    .toContain('"description":"Browser lifecycle read access"');
+
+  await page.getByRole('button', { name: 'Groups' }).click();
+  await page.getByRole('button', { name: 'Create group' }).click();
+  await page.getByLabel('Group name').fill('Browser lifecycle team');
+  await page.getByLabel('Description').fill('Managed through browser lifecycle E2E');
+  await page.getByRole('button', { name: /Continue/ }).click();
+  await page.getByRole('checkbox', { name: /E2E Lifecycle User/ }).check();
+  await page.getByRole('button', { name: /Continue/ }).click();
+  await page.getByRole('checkbox', { name: /Browser Lifecycle Reader/ }).check();
+  await page.getByRole('button', { name: /Continue/ }).click();
+  await page.getByRole('button', { name: 'Create group' }).click();
+
+  await expect(page.getByRole('heading', {
+    name: 'Browser lifecycle team',
+  })).toBeFocused();
+  const groupsResponse = await page.request.get('/v1/identity/group/id?list=true', {
+    headers: { 'X-Vault-Token': vaultToken! },
+  });
+  expect(groupsResponse.ok()).toBe(true);
+  const groupIds = (await groupsResponse.json()).data.keys as string[];
+  let createdGroupId: string | undefined;
+  for (const groupId of groupIds) {
+    const response = await page.request.get(`/v1/identity/group/id/${groupId}`, {
+      headers: { 'X-Vault-Token': vaultToken! },
+    });
+    if ((await response.json()).data.name === 'Browser lifecycle team') {
+      createdGroupId = groupId;
+      break;
+    }
+  }
+  expect(createdGroupId).toBeTruthy();
+
+  await page.getByRole('button', { name: 'Users' }).click();
+  await page.getByRole('button', { name: 'Open user e2e-lifecycle' }).click();
+  await page.getByRole('button', { name: 'Edit access' }).click();
+  const displayName = page.getByLabel('Display name');
+  await displayName.fill('E2E Lifecycle Operator');
+  await page.getByRole('button', { name: /Continue/ }).click();
+  const lifecycleGroup = page.getByRole('checkbox', {
+    name: /Browser lifecycle team/,
+  });
+  await expect(lifecycleGroup).toBeChecked();
+  await page.getByRole('button', { name: /Continue/ }).click();
+  await page.getByRole('button', { name: /Continue/ }).click();
+  await page.getByRole('button', { name: /Apply 1 change/ }).click();
+
+  await expect(page.getByRole('heading', {
+    name: 'E2E Lifecycle Operator',
+  })).toBeFocused();
+  const createdGroupResponse = await page.request.get(
+    `/v1/identity/group/id/${createdGroupId}`,
+    { headers: { 'X-Vault-Token': vaultToken! } },
+  );
+  expect(createdGroupResponse.ok()).toBe(true);
+  const memberEntityIds = (await createdGroupResponse.json()).data.member_entity_ids as string[];
+  expect(memberEntityIds).toHaveLength(1);
+  const entityResponse = await page.request.get(
+    `/v1/identity/entity/id/${memberEntityIds[0]}`,
+    { headers: { 'X-Vault-Token': vaultToken! } },
+  );
+  expect(entityResponse.ok()).toBe(true);
+  const entity = (await entityResponse.json()).data;
+  expect(entity.name).toBe('E2E Lifecycle Operator');
+  expect(entity.group_ids).toContain(createdGroupId);
+});
+
 test('explains effective KV access from real user, group, and policy sources', async ({ page }) => {
   test.setTimeout(60_000);
   await login(page);
@@ -445,7 +573,23 @@ test('soft-deletes, undoes, and explicitly destroys selected real Vault versions
     name: 'Soft-delete 2 current versions',
   }).click();
   await expect(page.getByText('2 current versions were soft-deleted.')).toBeVisible();
+  const undeleteResponse = page.waitForResponse((response) => (
+    response.url().includes('/v1/applications/undelete/')
+    && response.request().method() === 'POST'
+  ));
   await page.getByRole('button', { name: 'Undo 2' }).click();
+  await expect((await undeleteResponse).ok()).toBe(true);
+  await expect.poll(async () => {
+    const deletionTimes = await Promise.all(
+      ['bulk-one', 'bulk-two'].map(async (path) => {
+        const metadata = await page.request.get(`/v1/applications/metadata/${path}`, {
+          headers: { 'X-Vault-Token': vaultToken! },
+        });
+        return (await metadata.json()).data.versions['2'].deletion_time;
+      }),
+    );
+    return deletionTimes;
+  }).toEqual(['', '']);
   await expect(page.getByText(
     'Restored 2 soft-deleted current versions.',
   )).toBeVisible();

@@ -32,12 +32,14 @@ function Setting({
 interface UserAccountStepProps {
   readonly snapshot: UserLifecycleSnapshot;
   readonly draft: UserEditorDraft;
+  readonly displayNameError?: string;
   readonly onChange: (draft: UserEditorDraft) => void;
 }
 
 export default function UserAccountStep({
   snapshot,
   draft,
+  displayNameError,
   onChange,
 }: UserAccountStepProps) {
   const account = snapshot.account;
@@ -69,6 +71,7 @@ export default function UserAccountStep({
           })}
           disabled={!managedIdentity}
           autoComplete="off"
+          error={displayNameError}
         />
         <div className="grid grid-cols-2 gap-2">
           <Setting label="Username" value={account.username} />

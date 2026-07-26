@@ -24,6 +24,14 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community, орие
   Policies;
 - профиль `userpass`-пользователя с источниками доступа, полнотой отчёта и
   effective KV v2 matrix до отдельных data/metadata/version endpoints;
+- полноэкранные lifecycle-workspace для безопасного редактирования
+  пользователей, managed internal groups и визуальных KV-ролей;
+- staged Review перед записью: permission diff, effect timing, проверка
+  актуальности данных и точных Vault capabilities;
+- смена `userpass`-пароля, disable/enable Identity и управляемое удаление
+  логина с отдельным списком disabled Identity tombstones;
+- ownership-модель, которая сохраняет external policies, aliases, nested
+  groups и расширенные настройки `userpass`, не переписывая их молча;
 - policy-derived paths без обхода хранилища и опциональное обнаружение
   видимых путей только через metadata `LIST`, без чтения значений секретов;
 - создание `userpass`-пользователя с автоматически сгенерированным паролем;
@@ -49,14 +57,15 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community, орие
 Текущий стабильный multi-architecture образ:
 
 ```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.5.0
+zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.0
 ```
 
-Он опубликован для `linux/amd64` и `linux/arm64`. Для развёртывания с
-неизменяемой привязкой используйте digest:
+Он публикуется для `linux/amd64` и `linux/arm64`. Для неизменяемой привязки
+получите manifest digest после публикации и зафиксируйте его в Compose:
 
-```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.5.0@sha256:7bb36489b864094c6cf21e006c22232be530f8dabaf4c1269b964814eb3af41c
+```bash
+docker buildx imagetools inspect \
+  zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.0
 ```
 
 Подробные инструкции по Docker Compose, подключению к существующему Vault,
@@ -81,4 +90,4 @@ unseal keys или recovery keys через `.env`, Git и reverse-proxy headers
 [SECURITY.md](SECURITY.md).
 
 Проект ориентирован на self-hosted Vault Community, проверен с Vault `1.21.3`.
-Текущий исходный код и опубликованный образ имеют версию `0.5.0`.
+Текущий исходный код и опубликованный образ имеют версию `0.6.0`.

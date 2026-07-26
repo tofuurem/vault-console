@@ -22,12 +22,16 @@ path "sys/auth" {
   capabilities = ["read"]
 }
 
-path "sys/policy" {
+path "sys/policies/acl" {
   capabilities = ["read", "list"]
 }
 
-path "sys/policy/*" {
+path "sys/policies/acl/*" {
   capabilities = ["create", "read", "update", "delete"]
+}
+
+path "identity/group" {
+  capabilities = ["update"]
 }
 
 path "identity/group/id" {
@@ -35,7 +39,7 @@ path "identity/group/id" {
 }
 
 path "identity/group/id/*" {
-  capabilities = ["read", "update"]
+  capabilities = ["read", "update", "delete"]
 }
 
 path "identity/lookup/entity" {
@@ -51,7 +55,7 @@ path "identity/entity" {
 }
 
 path "identity/entity/id/*" {
-  capabilities = ["read", "delete"]
+  capabilities = ["read", "update", "delete"]
 }
 
 path "identity/entity-alias" {

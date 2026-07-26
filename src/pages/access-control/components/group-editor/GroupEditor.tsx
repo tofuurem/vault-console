@@ -32,6 +32,7 @@ import AccessWorkspaceShell, {
   type AccessWorkspaceShellHandle,
   type WorkspaceStep,
 } from '../workspace/AccessWorkspaceShell';
+import PlanExecutionNotice from '../workspace/PlanExecutionNotice';
 import WorkspaceErrorSummary, {
   type WorkspaceValidationError,
 } from '../workspace/WorkspaceErrorSummary';
@@ -150,6 +151,7 @@ function GroupEditorForm({
     }
     return values;
   }, [draft.name]);
+  const groupNameError = errors.find(({ fieldId }) => fieldId === 'group-name')?.message;
   const domainDraft = useMemo(
     () => toGroupDraft(snapshot, draft, catalog),
     [catalog, draft, snapshot],
@@ -321,7 +323,12 @@ function GroupEditorForm({
     >
       <WorkspaceErrorSummary errors={errors} onNavigate={goTo} />
       {step === 'overview' && (
-        <GroupOverviewStep snapshot={snapshot} draft={draft} onChange={setDraft} />
+        <GroupOverviewStep
+          snapshot={snapshot}
+          draft={draft}
+          nameError={groupNameError}
+          onChange={setDraft}
+        />
       )}
       {step === 'members' && (
         <GroupMembersStep snapshot={snapshot} draft={draft} onChange={setDraft} />
@@ -348,13 +355,7 @@ function GroupEditorForm({
               ))}
             </div>
           )}
-          {result && result.status !== 'completed' && (
-            <div role="alert" className="rounded-md border border-danger-300 bg-danger-50 p-3 text-xs text-danger-900">
-              {result.status === 'blocked'
-                ? `Apply blocked during ${result.blockReason ?? 'preflight'}.`
-                : result.errorMessage}
-            </div>
-          )}
+          <PlanExecutionNotice result={result} />
         </div>
       )}
       {step === 'review' && !plan && (

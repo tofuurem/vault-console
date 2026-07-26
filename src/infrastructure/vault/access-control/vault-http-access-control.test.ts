@@ -21,7 +21,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe('VaultAccessControlAdapter', () => {
-  it('lists auth mounts and supports legacy ACL policy responses', async () => {
+  it('uses the canonical ACL policy API and supports legacy response shapes', async () => {
     const fetchRequest = vi
       .fn<VaultFetch>()
       .mockResolvedValueOnce(
@@ -59,8 +59,20 @@ describe('VaultAccessControlAdapter', () => {
     await gateway.writePolicy(session, { name: 'alice-direct', policy: 'path "secret/*" {}' });
     await gateway.deletePolicy(session, 'alice-direct');
 
+    expect(String(fetchRequest.mock.calls[1][0])).toBe(
+      'https://vault.example.test/v1/sys/policies/acl?list=true',
+    );
+    expect(String(fetchRequest.mock.calls[2][0])).toBe(
+      'https://vault.example.test/v1/sys/policies/acl/platform-reader',
+    );
+    expect(String(fetchRequest.mock.calls[3][0])).toBe(
+      'https://vault.example.test/v1/sys/policies/acl/alice-direct',
+    );
     expect(fetchRequest.mock.calls[3][1]?.body).toBe(
       JSON.stringify({ policy: 'path "secret/*" {}' }),
+    );
+    expect(String(fetchRequest.mock.calls[4][0])).toBe(
+      'https://vault.example.test/v1/sys/policies/acl/alice-direct',
     );
     expect(fetchRequest.mock.calls[4][1]?.method).toBe('DELETE');
   });
@@ -382,10 +394,8 @@ describe('VaultAccessControlAdapter', () => {
       .mockResolvedValueOnce(jsonResponse(null, 204))
       .mockResolvedValueOnce(jsonResponse({
         data: {
-          capabilities: {
-            'identity/entity/id/entity-1': ['read', 'update'],
-            'sys/policies/acl/vc-role-reader': ['read'],
-          },
+          'identity/entity/id/entity-1': ['read', 'update'],
+          'sys/policies/acl/vc-role-reader': ['read'],
         },
       }));
     const gateway = new VaultAccessControlAdapter(new VaultHttpClient(fetchRequest));

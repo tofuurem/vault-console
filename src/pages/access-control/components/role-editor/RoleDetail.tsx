@@ -38,6 +38,7 @@ import type {
 import { normalizeVaultError } from '@/domain/vault/errors';
 import type { CreateUserAccessCatalog } from '../create-user/access';
 import AccessReview from '../workspace/AccessReview';
+import PlanExecutionNotice from '../workspace/PlanExecutionNotice';
 import { roleSource } from './role-editor-draft';
 
 interface RoleDetailProps {
@@ -375,13 +376,7 @@ export default function RoleDetail({
               confirmation={confirmation}
               onConfirmationChange={setConfirmation}
             />
-            {result && result.status !== 'completed' && (
-              <div role="alert" className="rounded-md border border-danger-300 bg-danger-50 p-3 text-xs text-danger-900">
-                {result.status === 'blocked'
-                  ? `Delete blocked during ${result.blockReason ?? 'preflight'}.`
-                  : result.errorMessage}
-              </div>
-            )}
+            <PlanExecutionNotice result={result} />
             <div className="flex justify-end gap-2 border-t border-background-200 pt-4">
               <Button type="button" size="sm" onClick={() => setDeleteOpen(false)} disabled={deleting}>
                 Cancel

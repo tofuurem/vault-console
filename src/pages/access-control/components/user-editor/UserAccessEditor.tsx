@@ -35,6 +35,7 @@ import AccessWorkspaceShell, {
   type AccessWorkspaceShellHandle,
   type WorkspaceStep,
 } from '../workspace/AccessWorkspaceShell';
+import PlanExecutionNotice from '../workspace/PlanExecutionNotice';
 import WorkspaceErrorSummary, {
   type WorkspaceValidationError,
 } from '../workspace/WorkspaceErrorSummary';
@@ -76,44 +77,6 @@ function ErrorState({
           <Button size="sm" variant="ghost" onClick={onClose}>Back to user</Button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function ExecutionResult({
-  result,
-}: {
-  readonly result: PlanExecutionResult;
-}) {
-  if (result.status === 'completed') return null;
-  return (
-    <div
-      role="alert"
-      className={`rounded-lg border p-4 ${
-        result.status === 'blocked'
-          ? 'border-warning-300 bg-warning-50 text-warning-900'
-          : 'border-danger-300 bg-danger-50 text-danger-900'
-      }`}
-    >
-      <p className="text-xs font-semibold">
-        {result.status === 'blocked'
-          ? 'Apply was blocked before any Vault write'
-          : 'Vault stopped after a partial apply'}
-      </p>
-      <p className="mt-1 text-[10px] leading-4">
-        {result.status === 'blocked'
-          ? `Reason: ${result.blockReason ?? 'preflight'}`
-          : result.errorMessage}
-      </p>
-      {result.recovery.length > 0 && (
-        <ol className="mt-2 space-y-1 border-t border-current/10 pt-2">
-          {result.recovery.map((action) => (
-            <li key={action.operationId} className="font-mono text-[9px] leading-4">
-              {action.summary}
-            </li>
-          ))}
-        </ol>
-      )}
     </div>
   );
 }
@@ -224,6 +187,9 @@ function UserAccessEditorForm({
     }
     return values;
   }, [draft.displayName, snapshot.entity?.metadata?.managed_by]);
+  const displayNameError = errors.find(
+    ({ fieldId }) => fieldId === 'user-display-name',
+  )?.message;
   const directPolicy = editorDirectPolicy(
     snapshot,
     draft,
@@ -419,7 +385,12 @@ function UserAccessEditorForm({
     >
       <WorkspaceErrorSummary errors={errors} onNavigate={goTo} />
       {step === 'account' && (
-        <UserAccountStep snapshot={snapshot} draft={draft} onChange={setDraft} />
+        <UserAccountStep
+          snapshot={snapshot}
+          draft={draft}
+          displayNameError={displayNameError}
+          onChange={setDraft}
+        />
       )}
       {step === 'sources' && (
         <UserGroupsRolesStep
@@ -460,7 +431,7 @@ function UserAccessEditorForm({
               </div>
             </section>
           )}
-          {result && <ExecutionResult result={result} />}
+          <PlanExecutionNotice result={result} />
         </div>
       )}
       {step === 'review' && !plan && (

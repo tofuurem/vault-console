@@ -31,6 +31,15 @@ import {
 } from '@/domain/vault/errors';
 import type { VaultPassword } from '@/domain/vault/sensitive-value';
 import { mapWithConcurrency } from '@/shared/async/map-with-concurrency';
+import {
+  canonicalDependencies,
+  canonicalIdentityEntity,
+  canonicalIdentityGroup,
+  canonicalUserpassAccount,
+  canonicalVisibility,
+  identityEntityFingerprint,
+  userpassAccountFingerprint,
+} from './snapshot-normalization';
 
 export interface UserLifecycleRef {
   readonly mount: string;
@@ -78,7 +87,6 @@ function policyReferences(
   }[],
   groups: readonly VaultIdentityGroup[],
   entities: readonly VaultIdentityEntity[],
-  currentEntityId?: string,
 ): readonly RoleDependency[] {
   return [
     ...accounts.flatMap((account): readonly RoleDependency[] => (
@@ -97,23 +105,40 @@ function policyReferences(
         : []
     )),
     ...entities.flatMap((candidate): readonly RoleDependency[] => (
-      candidate.id !== currentEntityId && candidate.policies.includes(policyName)
+      candidate.policies.includes(policyName)
         ? [{ kind: 'user', id: candidate.id, name: candidate.name }]
         : []
     )),
   ];
 }
 
+async function readOptionalPolicy(
+  gateway: VaultAccessControlGateway,
+  session: VaultSession,
+  policyName: string,
+  signal?: AbortSignal,
+): Promise<VaultAclPolicy | null> {
+  try {
+    return await gateway.readPolicy(session, policyName, signal);
+  } catch (cause) {
+    const error = normalizeVaultError(cause);
+    if (error.code === 'not-found') return null;
+    throw error;
+  }
+}
+
 function snapshotValue(snapshot: Omit<UserLifecycleSnapshot, 'fingerprint'>): unknown {
   return {
-    account: snapshot.account,
+    account: canonicalUserpassAccount(snapshot.account),
     mountAccessor: snapshot.mountAccessor,
-    entity: snapshot.entity,
-    groups: [...snapshot.groups].sort((left, right) => left.id.localeCompare(right.id)),
+    entity: snapshot.entity ? canonicalIdentityEntity(snapshot.entity) : null,
+    groups: [...snapshot.groups]
+      .map(canonicalIdentityGroup)
+      .sort((left, right) => left.id.localeCompare(right.id)),
     directPolicy: snapshot.directPolicy,
     directPolicyOwnership: snapshot.directPolicyOwnership,
-    policyReferences: snapshot.policyReferences,
-    visibility: snapshot.visibility,
+    policyReferences: canonicalDependencies(snapshot.policyReferences),
+    visibility: canonicalVisibility(snapshot.visibility),
   };
 }
 
@@ -175,16 +200,17 @@ export async function loadUserLifecycleSnapshot(
   ).flat();
 
   const directPolicyName = `${USER_POLICY_PREFIX}${reference.username}`;
-  const directPolicyAttached = account.tokenPolicies.includes(directPolicyName)
-    || Boolean(entity?.policies.includes(directPolicyName));
-  const directPolicy = directPolicyAttached
-    ? await optionalResource(
-        () => gateway.readPolicy(session, directPolicyName, signal),
-        `The attached policy ${directPolicyName} could not be read.`,
-        reasons,
-        null,
-      )
-    : null;
+  const directPolicy = await optionalResource(
+    () => readOptionalPolicy(
+      gateway,
+      session,
+      directPolicyName,
+      signal,
+    ),
+    `The reserved policy ${directPolicyName} could not be checked safely.`,
+    reasons,
+    null,
+  );
   const ownership = directPolicy
     ? assessPolicyOwnership(directPolicy.name, directPolicy.policy)
     : null;
@@ -195,9 +221,10 @@ export async function loadUserLifecycleSnapshot(
         accounts,
         groups,
         entities,
-        entity?.id,
       )
     : [];
+  const snapshotVisibility = visibility(reasons.sort());
+  const directAttachedToAccount = account.tokenPolicies.includes(directPolicyName);
   const base: Omit<UserLifecycleSnapshot, 'fingerprint'> = {
     account,
     mountAccessor: reference.mountAccessor,
@@ -205,9 +232,16 @@ export async function loadUserLifecycleSnapshot(
     groups,
     directPolicy,
     directPolicyOwnership: ownership?.state ?? 'absent',
-    directPolicyEditable: ownership?.editable ?? false,
+    directPolicyEditable: directPolicy
+      ? Boolean(
+          ownership?.editable
+          && directAttachedToAccount
+          && references.length === 0
+          && snapshotVisibility.complete
+        )
+      : snapshotVisibility.complete,
     policyReferences: references,
-    visibility: visibility(reasons.sort()),
+    visibility: snapshotVisibility,
   };
   return {
     ...base,
@@ -243,10 +277,14 @@ export function buildUserEditPlan(
   const username = snapshot.account.username;
   const directName = `${USER_POLICY_PREFIX}${username}`;
   const currentDirect = snapshot.directPolicy;
+  const directAttachedToAccount = snapshot.account.tokenPolicies.includes(directName);
   let nextDirect = draft.directPolicy;
 
-  if (currentDirect?.name !== directName || nextDirect?.name !== directName) {
-    if (currentDirect || nextDirect) throw new VaultError('invalid-request');
+  if (
+    (currentDirect && currentDirect.name !== directName)
+    || (nextDirect && nextDirect.name !== directName)
+  ) {
+    throw new VaultError('invalid-request');
   }
   if (snapshot.directPolicyOwnership === 'unverified') {
     if (draft.adoptDirectPolicy) {
@@ -285,6 +323,13 @@ export function buildUserEditPlan(
 
   const policyChanged = (currentDirect?.policy.trim() ?? '')
     !== (nextDirect?.policy.trim() ?? '');
+  if (
+    currentDirect
+    && policyChanged
+    && !snapshot.directPolicyEditable
+  ) {
+    throw new VaultError('invalid-request');
+  }
   if (nextDirect && policyChanged) {
     operations.push({
       id: 'write-direct-policy',
@@ -362,7 +407,7 @@ export function buildUserEditPlan(
   const nextPolicies = unique([
     ...preservedTokenPolicies,
     ...draft.directRolePolicyNames,
-    ...(nextDirect ? [directName] : []),
+    ...(nextDirect && (directAttachedToAccount || !currentDirect) ? [directName] : []),
   ]);
   if (!sameStrings(snapshot.account.tokenPolicies, nextPolicies)) {
     operations.push({
@@ -452,7 +497,7 @@ export function buildResetPasswordPlan(
     id: `user-password:${snapshot.account.mount}:${snapshot.account.username}`,
     resourceKind: 'user',
     resourceId: snapshot.account.username,
-    baselineFingerprint: snapshotFingerprint(snapshot.account),
+    baselineFingerprint: userpassAccountFingerprint(snapshot.account),
     visibility: { complete: true, reasons: [] },
     permissionDiff: { added: [], removed: [] },
     operations: [{
@@ -486,7 +531,7 @@ export function buildToggleEntityPlan(
     id: `user-${disabled ? 'disable' : 'enable'}:${entity.id}`,
     resourceKind: 'user',
     resourceId: snapshot.account.username,
-    baselineFingerprint: snapshotFingerprint(entity),
+    baselineFingerprint: identityEntityFingerprint(entity),
     visibility: { complete: true, reasons: [] },
     permissionDiff: { added: [], removed: [] },
     operations: [{
@@ -549,7 +594,9 @@ export function buildUserRemovalPlan(
     ...(snapshot.directPolicy && snapshot.directPolicyOwnership !== 'managed'
       ? ['The direct policy is not managed and will be preserved.']
       : []),
-    ...(snapshot.policyReferences.length
+    ...(snapshot.policyReferences.some((reference) => (
+      reference.kind !== 'user' || reference.id !== entity?.id
+    ))
       ? ['The direct policy is referenced by another resource and will be preserved.']
       : []),
   ];
@@ -576,7 +623,7 @@ export function buildUserRemovalPlan(
         id: `user-remove-account:${snapshot.account.mount}:${username}`,
         resourceKind: 'user',
         resourceId: username,
-        baselineFingerprint: snapshotFingerprint(snapshot.account),
+        baselineFingerprint: userpassAccountFingerprint(snapshot.account),
         visibility: { complete: true, reasons: [] },
         permissionDiff: { added: [], removed: [] },
         operations,
@@ -684,7 +731,9 @@ export function buildUserRemovalPlan(
   if (
     snapshot.directPolicy?.name === `${USER_POLICY_PREFIX}${username}`
     && snapshot.directPolicyOwnership === 'managed'
-    && snapshot.policyReferences.length === 0
+    && snapshot.policyReferences.every((reference) => (
+      reference.kind === 'user' && reference.id === entity.id
+    ))
   ) {
     operations.push({
       id: 'delete-direct-policy',
@@ -810,14 +859,19 @@ export async function loadIdentityTombstoneSnapshot(
     if (account) reasons.push('A userpass login still exists for this Identity tombstone.');
   }
   const snapshotVisibility = visibility(reasons.sort());
-  const value = {
+  const fingerprintValue = {
+    entity: canonicalIdentityEntity(entity),
+    groups: [...groups]
+      .map(canonicalIdentityGroup)
+      .sort((left, right) => left.id.localeCompare(right.id)),
+    accountAbsent,
+    visibility: canonicalVisibility(snapshotVisibility),
+  };
+  return {
     entity,
     groups,
     accountAbsent,
     visibility: snapshotVisibility,
-  };
-  return {
-    ...value,
-    fingerprint: snapshotFingerprint(value),
+    fingerprint: snapshotFingerprint(fingerprintValue),
   };
 }

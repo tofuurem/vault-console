@@ -44,7 +44,7 @@ export function resolveAccessControlPermission(
   if (discovery !== 'ready') return { state: 'unknown', reason: UNKNOWN_REASON };
   const decisions = [
     resolvePermission(capabilities, discovery, 'sys/auth', 'read'),
-    resolvePermission(capabilities, discovery, 'sys/policy', ['read', 'list']),
+    resolvePermission(capabilities, discovery, 'sys/policies/acl', 'list'),
     resolvePermission(capabilities, discovery, 'identity/group/id', 'list'),
     resolvePermission(capabilities, discovery, 'identity/entity/id', 'list'),
   ];

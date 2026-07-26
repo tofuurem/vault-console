@@ -27,6 +27,7 @@ import type {
 } from '@/domain/vault/contracts';
 import { normalizeVaultError } from '@/domain/vault/errors';
 import AccessReview from '../workspace/AccessReview';
+import PlanExecutionNotice from '../workspace/PlanExecutionNotice';
 
 interface TombstoneDetailProps {
   readonly entityId: string;
@@ -221,13 +222,7 @@ export default function TombstoneDetail({
                 confirmation={confirmation}
                 onConfirmationChange={setConfirmation}
               />
-              {result && result.status !== 'completed' && (
-                <div role="alert" className="rounded-md border border-danger-300 bg-danger-50 p-3 text-xs text-danger-900">
-                  {result.status === 'blocked'
-                    ? `Purge blocked during ${result.blockReason ?? 'preflight'}.`
-                    : result.errorMessage}
-                </div>
-              )}
+              <PlanExecutionNotice result={result} />
               <div className="flex justify-end border-t border-background-300 pt-4">
                 <Button
                   type="button"

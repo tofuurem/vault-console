@@ -20,6 +20,12 @@ import {
   normalizeVaultError,
   VaultError,
 } from '@/domain/vault/errors';
+import {
+  canonicalDependencies,
+  canonicalIdentityEntity,
+  canonicalIdentityGroup,
+  canonicalVisibility,
+} from './snapshot-normalization';
 
 function unique(values: readonly string[]): readonly string[] {
   return [...new Set(values)];
@@ -47,10 +53,12 @@ async function optionalList<T>(
 
 function snapshotValue(snapshot: Omit<GroupLifecycleSnapshot, 'fingerprint'>): unknown {
   return {
-    group: snapshot.group,
-    entities: [...snapshot.entities].sort((left, right) => left.id.localeCompare(right.id)),
-    parentGroups: snapshot.parentGroups,
-    visibility: snapshot.visibility,
+    group: snapshot.group ? canonicalIdentityGroup(snapshot.group) : null,
+    entities: [...snapshot.entities]
+      .map(canonicalIdentityEntity)
+      .sort((left, right) => left.id.localeCompare(right.id)),
+    parentGroups: canonicalDependencies(snapshot.parentGroups),
+    visibility: canonicalVisibility(snapshot.visibility),
   };
 }
 

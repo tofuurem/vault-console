@@ -87,7 +87,7 @@ describe('VaultSessionProvider', () => {
     const gateway = new StubAuthGateway();
     gateway.capabilities = {
       'sys/auth': ['read', 'sudo'],
-      'sys/policy': ['deny'],
+      'sys/policies/acl': ['deny'],
       'identity/group/id': ['deny'],
       'identity/entity/id': ['deny'],
     };

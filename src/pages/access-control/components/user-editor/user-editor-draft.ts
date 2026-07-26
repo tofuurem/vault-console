@@ -46,7 +46,14 @@ export function createUserEditorInitialState(
   const managedRoleNames = new Set(
     catalog.roles.flatMap(({ policyNames }) => policyNames),
   );
-  const directRules = snapshot.directPolicy
+  const directPolicyApplies = Boolean(
+    snapshot.directPolicy
+    && (
+      snapshot.account.tokenPolicies.includes(snapshot.directPolicy.name)
+      || snapshot.entity?.policies.includes(snapshot.directPolicy.name)
+    )
+  );
+  const directRules = snapshot.directPolicy && directPolicyApplies
     ? decompileKvV2Policy(
         snapshot.directPolicy.policy,
         catalog.tree.map(({ mount }) => mount),
@@ -70,7 +77,8 @@ export function createUserEditorInitialState(
       directRules: directRules?.map(toDirectRule) ?? [],
       adoptDirectPolicy: false,
     },
-    directPolicySupported: snapshot.directPolicy === null || directRules !== null,
+    directPolicySupported: snapshot.directPolicy === null
+      || (directPolicyApplies && directRules !== null),
   };
 }
 
@@ -94,7 +102,7 @@ export function editorDirectPolicy(
   draft: UserEditorDraft,
   supported: boolean,
 ) {
-  if (!supported) return snapshot.directPolicy;
+  if (!supported || !snapshot.directPolicyEditable) return snapshot.directPolicy;
   if (
     snapshot.directPolicyOwnership === 'unverified'
     && !draft.adoptDirectPolicy
