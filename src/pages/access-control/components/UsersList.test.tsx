@@ -12,7 +12,13 @@ const userRecord: AccessControlUserRecord = {
   mount: 'userpass',
   mountAccessor: 'auth_userpass',
   tokenPolicies: ['default'],
+  account: {
+    username: 'alice',
+    mount: 'userpass',
+    tokenPolicies: ['default'],
+  },
   entity: null,
+  identityOwnership: 'external',
   groups: [],
   directRolePolicyNames: [],
   directPolicyNames: [],

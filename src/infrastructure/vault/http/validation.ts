@@ -36,6 +36,11 @@ export function optionalBoolean(value: unknown, fallback = false): boolean {
   return asBoolean(value);
 }
 
+export function optionalNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  return asNumber(value);
+}
+
 export function asStringArray(value: unknown): readonly string[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) return invalidResponse();
   return value;

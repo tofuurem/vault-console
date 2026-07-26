@@ -81,8 +81,26 @@ export const vaultQueryKeys = {
     ...policyNames,
   ] as const,
   groups: () => [...vaultQueryKeys.all, 'groups'] as const,
+  group: (groupId: string) => [...vaultQueryKeys.groups(), groupId] as const,
+  groupEditor: (groupId: string) => [
+    ...vaultQueryKeys.group(groupId),
+    'editor',
+  ] as const,
   policies: () => [...vaultQueryKeys.all, 'policies'] as const,
   policy: (name: string) => [...vaultQueryKeys.all, 'policy', name] as const,
+  roleEditor: (name: string) => [
+    ...vaultQueryKeys.policy(name),
+    'editor',
+  ] as const,
+  userEditor: (mount: string, username: string) => [
+    ...vaultQueryKeys.userpassUser(mount, username),
+    'editor',
+  ] as const,
+  accessPlanCapabilities: (paths: readonly string[]) => [
+    ...vaultQueryKeys.all,
+    'access-plan-capabilities',
+    ...paths,
+  ] as const,
   policyCatalog: (names: readonly string[]) => [
     ...vaultQueryKeys.all,
     'policy-catalog',

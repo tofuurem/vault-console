@@ -278,6 +278,8 @@ export default function AccessControlPage() {
           name: roles.find((role) => role.policyName === policy.name)?.name ?? policy.name,
           policyName: policy.name,
           rules: policy.rules,
+          ownership: policy.ownership,
+          editable: policy.editable,
         })),
       users: usersState.data.users,
       warnings: usersState.data.warnings,

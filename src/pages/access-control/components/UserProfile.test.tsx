@@ -86,6 +86,11 @@ function resource(): UserAccessReportResource {
       mount: 'userpass',
       mountAccessor: 'auth_userpass_123',
       tokenPolicies: ['legacy-root'],
+      account: {
+        username: 'alice',
+        mount: 'userpass',
+        tokenPolicies: ['legacy-root'],
+      },
       entity: {
         id: 'entity-alice',
         name: 'Alice Operator',
@@ -99,6 +104,7 @@ function resource(): UserAccessReportResource {
           mountAccessor: 'auth_userpass_123',
         }],
       },
+      identityOwnership: 'external',
       groups: [group],
       directRolePolicyNames: [],
       directPolicyNames: ['vc-user-missing'],

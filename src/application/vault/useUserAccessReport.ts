@@ -13,6 +13,7 @@ import {
   classifyPolicyName,
   parseManagedPolicyHcl,
 } from '@/domain/access-control/managed-resources';
+import { assessIdentityOwnership } from '@/domain/access-control/resource-ownership';
 import {
   buildUserAccessReport,
   type UserAccessGroupsState,
@@ -284,7 +285,9 @@ function profileUser(
     mount: account.mount,
     mountAccessor: accountRef.mountAccessor,
     tokenPolicies: account.tokenPolicies,
+    account,
     entity: identity.entity,
+    identityOwnership: assessIdentityOwnership(identity.entity?.metadata),
     groups,
     directRolePolicyNames: directPolicies.filter(
       (name) => classifyPolicyName(name) === 'role',

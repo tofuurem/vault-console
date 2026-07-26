@@ -116,6 +116,7 @@ export interface VaultAclPolicy {
 export interface VaultIdentityGroup {
   readonly id: string;
   readonly name: string;
+  readonly type?: 'internal' | 'external';
   readonly policies: readonly string[];
   readonly memberEntityIds: readonly string[];
   readonly memberGroupIds: readonly string[];
@@ -126,6 +127,14 @@ export interface VaultUserpassAccount {
   readonly username: string;
   readonly mount: string;
   readonly tokenPolicies: readonly string[];
+  readonly tokenTtlSeconds?: number;
+  readonly tokenMaxTtlSeconds?: number;
+  readonly tokenExplicitMaxTtlSeconds?: number;
+  readonly tokenBoundCidrs?: readonly string[];
+  readonly tokenType?: string;
+  readonly tokenNumUses?: number;
+  readonly tokenPeriodSeconds?: number;
+  readonly tokenNoDefaultPolicy?: boolean;
 }
 
 export interface VaultAuthMount {
@@ -149,6 +158,7 @@ export interface VaultIdentityEntity {
   readonly policies: readonly string[];
   readonly groupIds: readonly string[];
   readonly aliases: readonly VaultIdentityAlias[];
+  readonly metadata?: Readonly<Record<string, string>>;
 }
 
 export interface CreateVaultEntity {
@@ -162,6 +172,21 @@ export interface CreateVaultEntityAlias {
   readonly canonicalId: string;
   readonly mountAccessor: string;
   readonly customMetadata?: Readonly<Record<string, string>>;
+}
+
+export interface UpdateVaultEntity {
+  readonly name: string;
+  readonly disabled: boolean;
+  readonly policies: readonly string[];
+  readonly metadata: Readonly<Record<string, string>>;
+}
+
+export interface UpsertVaultIdentityGroup {
+  readonly name: string;
+  readonly policies: readonly string[];
+  readonly memberEntityIds: readonly string[];
+  readonly memberGroupIds: readonly string[];
+  readonly metadata: Readonly<Record<string, string>>;
 }
 
 export interface CreateVaultUserpassAccount {
@@ -178,15 +203,22 @@ export interface VaultAccessControlGateway {
   deletePolicy(session: VaultSession, name: string, signal?: AbortSignal): Promise<void>;
   listGroups(session: VaultSession, signal?: AbortSignal): Promise<readonly VaultIdentityGroup[]>;
   readGroup(session: VaultSession, groupId: string, signal?: AbortSignal): Promise<VaultIdentityGroup>;
+  createGroup(session: VaultSession, group: UpsertVaultIdentityGroup, signal?: AbortSignal): Promise<string>;
+  updateGroup(session: VaultSession, groupId: string, group: UpsertVaultIdentityGroup, signal?: AbortSignal): Promise<void>;
+  deleteGroup(session: VaultSession, groupId: string, signal?: AbortSignal): Promise<void>;
   updateGroupMembers(session: VaultSession, group: VaultIdentityGroup, memberEntityIds: readonly string[], signal?: AbortSignal): Promise<void>;
   listUserpassAccounts(session: VaultSession, mount: string, signal?: AbortSignal): Promise<readonly VaultUserpassAccount[]>;
   readUserpassAccount(session: VaultSession, mount: string, username: string, signal?: AbortSignal): Promise<VaultUserpassAccount | null>;
   createUserpassAccount(session: VaultSession, mount: string, account: CreateVaultUserpassAccount, signal?: AbortSignal): Promise<void>;
+  updateUserpassPolicies(session: VaultSession, mount: string, username: string, policies: readonly string[], signal?: AbortSignal): Promise<void>;
+  resetUserpassPassword(session: VaultSession, mount: string, username: string, password: VaultPassword, signal?: AbortSignal): Promise<void>;
   deleteUserpassAccount(session: VaultSession, mount: string, username: string, signal?: AbortSignal): Promise<void>;
   readEntityByName(session: VaultSession, name: string, signal?: AbortSignal): Promise<VaultIdentityEntity>;
   lookupEntityByAlias(session: VaultSession, name: string, mountAccessor: string, signal?: AbortSignal): Promise<VaultIdentityEntity | null>;
   createEntity(session: VaultSession, entity: CreateVaultEntity, signal?: AbortSignal): Promise<string>;
+  updateEntity(session: VaultSession, entityId: string, entity: UpdateVaultEntity, signal?: AbortSignal): Promise<void>;
   deleteEntity(session: VaultSession, entityId: string, signal?: AbortSignal): Promise<void>;
   createEntityAlias(session: VaultSession, alias: CreateVaultEntityAlias, signal?: AbortSignal): Promise<string>;
   deleteEntityAlias(session: VaultSession, aliasId: string, signal?: AbortSignal): Promise<void>;
+  getCapabilities(session: VaultSession, paths: readonly string[], signal?: AbortSignal): Promise<VaultCapabilityMap>;
 }

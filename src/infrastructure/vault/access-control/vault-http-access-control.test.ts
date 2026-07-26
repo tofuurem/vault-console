@@ -106,10 +106,20 @@ describe('VaultAccessControlAdapter', () => {
       {
         id: 'group-1',
         name: 'Platform team',
+        type: 'internal',
         policies: ['platform-reader'],
         memberEntityIds: ['entity-1'],
         memberGroupIds: ['child-group'],
         metadata: { owner: 'platform' },
+      },
+      {
+        id: 'group-2',
+        name: 'LDAP team',
+        type: 'external',
+        policies: [],
+        memberEntityIds: [],
+        memberGroupIds: [],
+        metadata: {},
       },
     ]);
 
@@ -152,6 +162,7 @@ describe('VaultAccessControlAdapter', () => {
     await expect(gateway.readGroup(session, 'group-live')).resolves.toEqual({
       id: 'group-live',
       name: 'Live platform team',
+      type: 'internal',
       policies: ['platform-reader'],
       memberEntityIds: ['entity-concurrent'],
       memberGroupIds: [],
@@ -162,13 +173,27 @@ describe('VaultAccessControlAdapter', () => {
     );
   });
 
-  it('lists, creates, and deletes userpass accounts at a custom mount', async () => {
+  it('lists and mutates userpass accounts at a custom mount without broad updates', async () => {
     const fetchRequest = vi
       .fn<VaultFetch>()
       .mockResolvedValueOnce(jsonResponse({ data: { keys: ['alice'] } }))
       .mockResolvedValueOnce(
-        jsonResponse({ data: { token_policies: ['default', 'platform-reader'] } }),
+        jsonResponse({
+          data: {
+            token_policies: ['default', 'platform-reader'],
+            token_ttl: 3600,
+            token_max_ttl: 7200,
+            token_explicit_max_ttl: 10800,
+            token_bound_cidrs: ['10.0.0.0/8'],
+            token_type: 'service',
+            token_num_uses: 4,
+            token_period: 900,
+            token_no_default_policy: false,
+          },
+        }),
       )
+      .mockResolvedValueOnce(jsonResponse(null, 204))
+      .mockResolvedValueOnce(jsonResponse(null, 204))
       .mockResolvedValueOnce(jsonResponse(null, 204))
       .mockResolvedValueOnce(jsonResponse(null, 204));
     const gateway = new VaultAccessControlAdapter(new VaultHttpClient(fetchRequest));
@@ -178,6 +203,14 @@ describe('VaultAccessControlAdapter', () => {
         username: 'alice',
         mount: 'team/userpass',
         tokenPolicies: ['default', 'platform-reader'],
+        tokenTtlSeconds: 3600,
+        tokenMaxTtlSeconds: 7200,
+        tokenExplicitMaxTtlSeconds: 10800,
+        tokenBoundCidrs: ['10.0.0.0/8'],
+        tokenType: 'service',
+        tokenNumUses: 4,
+        tokenPeriodSeconds: 900,
+        tokenNoDefaultPolicy: false,
       },
     ]);
     await gateway.createUserpassAccount(session, 'team/userpass', {
@@ -185,6 +218,18 @@ describe('VaultAccessControlAdapter', () => {
       password: vaultPassword('memory-only'),
       tokenPolicies: ['billing-editor'],
     });
+    await gateway.updateUserpassPolicies(
+      session,
+      'team/userpass',
+      'bob',
+      ['default', 'billing-reader'],
+    );
+    await gateway.resetUserpassPassword(
+      session,
+      'team/userpass',
+      'bob',
+      vaultPassword('new-memory-only'),
+    );
     await gateway.deleteUserpassAccount(session, 'team/userpass', 'bob');
 
     expect(String(fetchRequest.mock.calls[2][0])).toBe(
@@ -193,7 +238,19 @@ describe('VaultAccessControlAdapter', () => {
     expect(fetchRequest.mock.calls[2][1]?.body).toBe(
       JSON.stringify({ password: 'memory-only', token_policies: ['billing-editor'] }),
     );
-    expect(fetchRequest.mock.calls[3][1]?.method).toBe('DELETE');
+    expect(String(fetchRequest.mock.calls[3][0])).toBe(
+      'https://vault.example.test/v1/auth/team/userpass/users/bob/policies',
+    );
+    expect(fetchRequest.mock.calls[3][1]?.body).toBe(
+      JSON.stringify({ token_policies: ['default', 'billing-reader'] }),
+    );
+    expect(String(fetchRequest.mock.calls[4][0])).toBe(
+      'https://vault.example.test/v1/auth/team/userpass/users/bob/password',
+    );
+    expect(fetchRequest.mock.calls[4][1]?.body).toBe(
+      JSON.stringify({ password: 'new-memory-only' }),
+    );
+    expect(fetchRequest.mock.calls[5][1]?.method).toBe('DELETE');
   });
 
   it('reads and mutates entities and aliases through their documented endpoints', async () => {
@@ -204,6 +261,7 @@ describe('VaultAccessControlAdapter', () => {
         disabled: false,
         policies: ['direct-policy'],
         group_ids: ['group-1'],
+        metadata: { managed_by: 'vault-console', owner: 'platform' },
         aliases: [
           {
             id: 'alias-1',
@@ -230,6 +288,7 @@ describe('VaultAccessControlAdapter', () => {
       disabled: false,
       policies: ['direct-policy'],
       groupIds: ['group-1'],
+      metadata: { managed_by: 'vault-console', owner: 'platform' },
       aliases: [
         {
           id: 'alias-1',
@@ -264,6 +323,94 @@ describe('VaultAccessControlAdapter', () => {
     expect(String(fetchRequest.mock.calls[3][0])).toBe(
       'https://vault.example.test/v1/identity/entity-alias',
     );
+  });
+
+  it('creates, updates, and deletes managed internal groups with complete payloads', async () => {
+    const fetchRequest = vi
+      .fn<VaultFetch>()
+      .mockResolvedValueOnce(jsonResponse({ data: { id: 'group-new' } }))
+      .mockResolvedValueOnce(jsonResponse(null, 204))
+      .mockResolvedValueOnce(jsonResponse(null, 204));
+    const gateway = new VaultAccessControlAdapter(new VaultHttpClient(fetchRequest));
+    const group = {
+      name: 'Platform team',
+      policies: ['vc-role-platform'],
+      memberEntityIds: ['entity-1'],
+      memberGroupIds: ['child-1'],
+      metadata: { managed_by: 'vault-console', owner: 'platform' },
+    };
+
+    await expect(gateway.createGroup(session, group)).resolves.toBe('group-new');
+    await gateway.updateGroup(session, 'group-new', {
+      ...group,
+      name: 'Platform engineering',
+    });
+    await gateway.deleteGroup(session, 'group-new');
+
+    expect(String(fetchRequest.mock.calls[0][0])).toBe(
+      'https://vault.example.test/v1/identity/group',
+    );
+    expect(JSON.parse(String(fetchRequest.mock.calls[0][1]?.body))).toEqual({
+      name: 'Platform team',
+      type: 'internal',
+      policies: ['vc-role-platform'],
+      member_entity_ids: ['entity-1'],
+      member_group_ids: ['child-1'],
+      metadata: { managed_by: 'vault-console', owner: 'platform' },
+    });
+    expect(String(fetchRequest.mock.calls[1][0])).toBe(
+      'https://vault.example.test/v1/identity/group/id/group-new',
+    );
+    expect(JSON.parse(String(fetchRequest.mock.calls[1][1]?.body))).toMatchObject({
+      name: 'Platform engineering',
+      type: 'internal',
+    });
+    expect(fetchRequest.mock.calls[2][1]?.method).toBe('DELETE');
+  });
+
+  it('updates complete entities and queries exact plan capabilities', async () => {
+    const fetchRequest = vi
+      .fn<VaultFetch>()
+      .mockResolvedValueOnce(jsonResponse(null, 204))
+      .mockResolvedValueOnce(jsonResponse({
+        data: {
+          capabilities: {
+            'identity/entity/id/entity-1': ['read', 'update'],
+            'sys/policies/acl/vc-role-reader': ['read'],
+          },
+        },
+      }));
+    const gateway = new VaultAccessControlAdapter(new VaultHttpClient(fetchRequest));
+
+    await gateway.updateEntity(session, 'entity-1', {
+      name: 'Alice Doe',
+      disabled: true,
+      policies: ['external-policy'],
+      metadata: { managed_by: 'vault-console', lifecycle_state: 'active' },
+    });
+    await expect(gateway.getCapabilities(session, [
+      'identity/entity/id/entity-1',
+      'sys/policies/acl/vc-role-reader',
+    ])).resolves.toEqual({
+      'identity/entity/id/entity-1': ['read', 'update'],
+      'sys/policies/acl/vc-role-reader': ['read'],
+    });
+
+    expect(JSON.parse(String(fetchRequest.mock.calls[0][1]?.body))).toEqual({
+      name: 'Alice Doe',
+      disabled: true,
+      policies: ['external-policy'],
+      metadata: { managed_by: 'vault-console', lifecycle_state: 'active' },
+    });
+    expect(String(fetchRequest.mock.calls[1][0])).toBe(
+      'https://vault.example.test/v1/sys/capabilities-self',
+    );
+    expect(fetchRequest.mock.calls[1][1]?.body).toBe(JSON.stringify({
+      paths: [
+        'identity/entity/id/entity-1',
+        'sys/policies/acl/vc-role-reader',
+      ],
+    }));
   });
 
   it('treats a no-content identity alias lookup as not found', async () => {

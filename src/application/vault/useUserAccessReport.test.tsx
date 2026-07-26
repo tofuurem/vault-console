@@ -55,6 +55,9 @@ function gateway(): VaultAccessControlGateway {
       metadata: {},
     }]),
     readGroup: vi.fn(),
+    createGroup: vi.fn(),
+    updateGroup: vi.fn(),
+    deleteGroup: vi.fn(),
     updateGroupMembers: vi.fn(),
     listUserpassAccounts: vi.fn(),
     readUserpassAccount: vi.fn(async (_session, mount, username) => ({
@@ -63,6 +66,8 @@ function gateway(): VaultAccessControlGateway {
       tokenPolicies: ['vc-user-alice'],
     })),
     createUserpassAccount: vi.fn(),
+    updateUserpassPolicies: vi.fn(),
+    resetUserpassPassword: vi.fn(),
     deleteUserpassAccount: vi.fn(),
     readEntityByName: vi.fn(),
     lookupEntityByAlias: vi.fn(async () => ({
@@ -79,9 +84,11 @@ function gateway(): VaultAccessControlGateway {
       }],
     })),
     createEntity: vi.fn(),
+    updateEntity: vi.fn(),
     deleteEntity: vi.fn(),
     createEntityAlias: vi.fn(),
     deleteEntityAlias: vi.fn(),
+    getCapabilities: vi.fn(),
   };
 }
 

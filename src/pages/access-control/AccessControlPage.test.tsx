@@ -97,6 +97,9 @@ function accessGateway(): VaultAccessControlGateway {
     deletePolicy: vi.fn(async () => undefined),
     listGroups: vi.fn(async () => [currentGroup()]),
     readGroup: vi.fn(async () => currentGroup()),
+    createGroup: vi.fn(),
+    updateGroup: vi.fn(),
+    deleteGroup: vi.fn(),
     updateGroupMembers: vi.fn(async (_session, _group, nextMembers) => {
       memberEntityIds = [...nextMembers];
     }),
@@ -111,13 +114,17 @@ function accessGateway(): VaultAccessControlGateway {
         : null
     )),
     createUserpassAccount: vi.fn(async () => undefined),
+    updateUserpassPolicies: vi.fn(),
+    resetUserpassPassword: vi.fn(),
     deleteUserpassAccount: vi.fn(async () => undefined),
     readEntityByName: vi.fn(async () => { throw new VaultError('not-found'); }),
     lookupEntityByAlias: vi.fn(async (_session, name) => name === 'alice' ? aliceEntity : null),
     createEntity: vi.fn(async () => 'entity-bob'),
+    updateEntity: vi.fn(),
     deleteEntity: vi.fn(async () => undefined),
     createEntityAlias: vi.fn(async () => 'alias-bob'),
     deleteEntityAlias: vi.fn(async () => undefined),
+    getCapabilities: vi.fn(),
   };
 }
 

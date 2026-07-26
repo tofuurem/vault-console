@@ -47,7 +47,13 @@ function resource(): UserAccessReportResource {
       mount: 'userpass',
       mountAccessor: 'auth_userpass_123',
       tokenPolicies: [managedPolicy.name],
+      account: {
+        username: 'alice',
+        mount: 'userpass',
+        tokenPolicies: [managedPolicy.name],
+      },
       entity: null,
+      identityOwnership: 'external',
       groups: [],
       directRolePolicyNames: [],
       directPolicyNames: [managedPolicy.name],

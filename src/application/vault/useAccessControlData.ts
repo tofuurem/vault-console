@@ -11,6 +11,15 @@ import {
   parseManagedPolicyHcl,
   type ManagedPolicyKind,
 } from '@/domain/access-control/managed-resources';
+import {
+  assessPolicyOwnership,
+  type ManagedPolicyOwnershipHeader,
+  type PolicyOwnershipState,
+} from '@/domain/access-control/policy-ownership';
+import {
+  assessIdentityOwnership,
+  type IdentityOwnership,
+} from '@/domain/access-control/resource-ownership';
 import type {
   VaultAclPolicy,
   VaultAccessControlGateway,
@@ -28,6 +37,9 @@ import type { VaultQueryState } from './useKvExplorerData';
 export interface AccessPolicyRecord {
   readonly name: string;
   readonly kind: ManagedPolicyKind;
+  readonly ownership: PolicyOwnershipState;
+  readonly ownershipHeader: ManagedPolicyOwnershipHeader | null;
+  readonly editable: boolean;
   readonly hcl?: string;
   readonly rules: readonly AccessPolicyRule[] | null;
   readonly readable: boolean;
@@ -38,6 +50,8 @@ export interface AccessControlRoleRecord {
   readonly name: string;
   readonly policyName: string;
   readonly rules: readonly AccessPolicyRule[] | null;
+  readonly ownership: PolicyOwnershipState;
+  readonly editable: boolean;
 }
 
 export interface AccessControlUserRecord {
@@ -47,7 +61,9 @@ export interface AccessControlUserRecord {
   readonly mount: string;
   readonly mountAccessor: string;
   readonly tokenPolicies: readonly string[];
+  readonly account: VaultUserpassAccount;
   readonly entity: VaultIdentityEntity | null;
+  readonly identityOwnership: IdentityOwnership;
   readonly groups: readonly VaultIdentityGroup[];
   readonly directRolePolicyNames: readonly string[];
   readonly directPolicyNames: readonly string[];
@@ -107,7 +123,9 @@ function userFromAccount(
     mount: account.mount,
     mountAccessor: mount.accessor,
     tokenPolicies: account.tokenPolicies,
+    account,
     entity: null,
+    identityOwnership: 'external',
     groups: [],
     directRolePolicyNames: attachedPolicies.filter((name) => classifyPolicyName(name) === 'role'),
     directPolicyNames: attachedPolicies.filter((name) => classifyPolicyName(name) === 'user-direct'),
@@ -170,6 +188,7 @@ export async function loadUserDetails(
     ...user,
     displayName: entity.name,
     entity,
+    identityOwnership: assessIdentityOwnership(entity.metadata),
     groups: groups.filter((group) => (
       group.memberEntityIds.includes(entity.id) || entity.groupIds.includes(group.id)
     )),
@@ -181,6 +200,22 @@ export async function loadUserDetails(
   };
 }
 
+export function accessPolicyRecord(policy: VaultAclPolicy): AccessPolicyRecord {
+  const { name } = policy;
+  const kind = classifyPolicyName(name);
+  const ownership = assessPolicyOwnership(name, policy.policy);
+  return {
+    name,
+    kind,
+    ownership: ownership.state,
+    ownershipHeader: ownership.header,
+    editable: ownership.editable,
+    hcl: policy.policy,
+    rules: kind === 'external' ? null : parseManagedPolicyHcl(policy.policy),
+    readable: true,
+  };
+}
+
 async function readPolicyRecord(
   read: () => Promise<VaultAclPolicy>,
   name: string,
@@ -188,17 +223,19 @@ async function readPolicyRecord(
   const kind = classifyPolicyName(name);
   try {
     const policy = await read();
-    return {
-      name,
-      kind,
-      hcl: policy.policy,
-      rules: kind === 'external' ? null : parseManagedPolicyHcl(policy.policy),
-      readable: true,
-    };
+    return accessPolicyRecord(policy);
   } catch (cause) {
     const error = normalizeVaultError(cause);
     if (error.code === 'session-expired' || error.code === 'aborted') throw error;
-    return { name, kind, rules: null, readable: false };
+    return {
+      name,
+      kind,
+      ownership: kind === 'external' ? 'external' : 'unverified',
+      ownershipHeader: null,
+      editable: false,
+      rules: null,
+      readable: false,
+    };
   }
 }
 
@@ -210,6 +247,8 @@ export function rolesFromPolicyNames(names: readonly string[]): readonly AccessC
       name: managedRoleName(name),
       policyName: name,
       rules: null,
+      ownership: 'unverified',
+      editable: false,
     }));
 }
 

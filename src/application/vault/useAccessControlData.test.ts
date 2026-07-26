@@ -8,6 +8,7 @@ import type {
 import { vaultToken } from '@/domain/vault/sensitive-value';
 import { VaultError } from '@/domain/vault/errors';
 import {
+  accessPolicyRecord,
   loadUserDetails,
   loadUserpassUsers,
   type AccessControlUserRecord,
@@ -28,6 +29,9 @@ function gateway(): VaultAccessControlGateway {
     deletePolicy: vi.fn(),
     listGroups: vi.fn(),
     readGroup: vi.fn(),
+    createGroup: vi.fn(),
+    updateGroup: vi.fn(),
+    deleteGroup: vi.fn(),
     updateGroupMembers: vi.fn(),
     listUserpassAccounts: vi.fn(async (_session, mount) => [{
       username: `${mount}-alice`,
@@ -36,6 +40,8 @@ function gateway(): VaultAccessControlGateway {
     }]),
     readUserpassAccount: vi.fn(),
     createUserpassAccount: vi.fn(),
+    updateUserpassPolicies: vi.fn(),
+    resetUserpassPassword: vi.fn(),
     deleteUserpassAccount: vi.fn(),
     readEntityByName: vi.fn(),
     lookupEntityByAlias: vi.fn(async () => ({
@@ -52,9 +58,11 @@ function gateway(): VaultAccessControlGateway {
       }],
     })),
     createEntity: vi.fn(),
+    updateEntity: vi.fn(),
     deleteEntity: vi.fn(),
     createEntityAlias: vi.fn(),
     deleteEntityAlias: vi.fn(),
+    getCapabilities: vi.fn(),
   };
 }
 
@@ -75,6 +83,9 @@ describe('access-control resource loading', () => {
       displayName: 'userpass-alice',
       entity: null,
       directRolePolicyNames: ['vc-role-platform-readers'],
+      account: {
+        tokenPolicies: ['default', 'vc-role-platform-readers'],
+      },
     });
     expect(access.listUserpassAccounts).toHaveBeenCalledOnce();
     expect(access.listPolicies).not.toHaveBeenCalled();
@@ -117,7 +128,13 @@ describe('access-control resource loading', () => {
       mount: 'userpass',
       mountAccessor: 'auth_userpass_123',
       tokenPolicies: ['default'],
+      account: {
+        username: 'alice',
+        mount: 'userpass',
+        tokenPolicies: ['default'],
+      },
       entity: null,
+      identityOwnership: 'external',
       groups: [],
       directRolePolicyNames: [],
       directPolicyNames: [],
@@ -138,6 +155,7 @@ describe('access-control resource loading', () => {
       displayName: 'Alice Operator',
       directPolicyNames: ['vc-user-alice'],
       externalPolicyNames: ['legacy-ops'],
+      identityOwnership: 'external',
     });
     expect(result.groups.map((group) => group.name)).toEqual(['platform-team']);
     expect(access.lookupEntityByAlias).toHaveBeenCalledOnce();
@@ -155,7 +173,13 @@ describe('access-control resource loading', () => {
       mount: 'userpass',
       mountAccessor: 'auth_userpass_123',
       tokenPolicies: ['default'],
+      account: {
+        username: 'alice',
+        mount: 'userpass',
+        tokenPolicies: ['default'],
+      },
       entity: null,
+      identityOwnership: 'external',
       groups: [],
       directRolePolicyNames: [],
       directPolicyNames: [],
@@ -166,5 +190,43 @@ describe('access-control resource loading', () => {
 
     expect(result.username).toBe('alice');
     expect(result.detailWarning).toContain('not readable');
+  });
+
+  it('classifies policy ownership independently from reserved naming', () => {
+    const managedHcl = `# vault-console: {"schema":1,"kind":"role","description":"Readers"}
+
+path "applications/data/*" {
+  capabilities = ["read"]
+}`;
+    expect(accessPolicyRecord({
+      name: 'vc-role-readers',
+      policy: managedHcl,
+    })).toMatchObject({
+      kind: 'role',
+      ownership: 'managed',
+      editable: true,
+      readable: true,
+      ownershipHeader: {
+        kind: 'role',
+        description: 'Readers',
+      },
+    });
+
+    expect(accessPolicyRecord({
+      name: 'vc-role-legacy',
+      policy: 'path "applications/data/*" { capabilities = ["read"] }',
+    })).toMatchObject({
+      ownership: 'unverified',
+      editable: true,
+    });
+
+    expect(accessPolicyRecord({
+      name: 'external-reader',
+      policy: managedHcl,
+    })).toMatchObject({
+      kind: 'external',
+      ownership: 'external',
+      editable: false,
+    });
   });
 });

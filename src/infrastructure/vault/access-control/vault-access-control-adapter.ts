@@ -2,9 +2,13 @@ import type {
   CreateVaultEntity,
   CreateVaultEntityAlias,
   CreateVaultUserpassAccount,
+  UpsertVaultIdentityGroup,
+  UpdateVaultEntity,
   VaultAccessControlGateway,
   VaultAclPolicy,
   VaultAuthMount,
+  VaultCapability,
+  VaultCapabilityMap,
   VaultIdentityAlias,
   VaultIdentityEntity,
   VaultIdentityGroup,
@@ -20,6 +24,7 @@ import {
   asString,
   asStringArray,
   optionalBoolean,
+  optionalNumber,
   optionalString,
   optionalStringArray,
   optionalStringRecord,
@@ -51,19 +56,33 @@ function parseEntity(value: unknown): VaultIdentityEntity {
     aliases: entity.aliases === null || entity.aliases === undefined
       ? []
       : asArray(entity.aliases).map((alias) => parseAlias(alias, id)),
+    metadata: optionalStringRecord(entity.metadata),
   };
 }
 
-function parseGroup(value: unknown): VaultIdentityGroup | null {
+function parseGroup(value: unknown): VaultIdentityGroup {
   const group = asObject(value);
-  if (asString(group.type) !== 'internal') return null;
+  const type = asString(group.type);
+  if (type !== 'internal' && type !== 'external') throw new VaultError('invalid-response');
   return {
     id: asString(group.id),
     name: asString(group.name),
+    type,
     policies: optionalStringArray(group.policies),
     memberEntityIds: optionalStringArray(group.member_entity_ids),
     memberGroupIds: optionalStringArray(group.member_group_ids),
     metadata: optionalStringRecord(group.metadata),
+  };
+}
+
+function groupPayload(group: UpsertVaultIdentityGroup): Readonly<Record<string, unknown>> {
+  return {
+    name: group.name,
+    type: 'internal',
+    policies: group.policies,
+    member_entity_ids: group.memberEntityIds,
+    member_group_ids: group.memberGroupIds,
+    metadata: group.metadata,
   };
 }
 
@@ -155,7 +174,7 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
     const groups = await mapWithConcurrency(
       ids,
       4,
-      async (id): Promise<VaultIdentityGroup | null> => {
+      async (id): Promise<VaultIdentityGroup> => {
         const groupResponse = asObject(
           await this.client.request(
             session.serverUrl,
@@ -166,7 +185,7 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
         return parseGroup(groupResponse.data);
       },
     );
-    return groups.filter((group): group is VaultIdentityGroup => group !== null);
+    return groups;
   }
 
   async readGroup(
@@ -181,9 +200,53 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
         sessionRequest(session, signal),
       ),
     );
-    const group = parseGroup(response.data);
-    if (!group) throw new VaultError('invalid-request');
-    return group;
+    return parseGroup(response.data);
+  }
+
+  async createGroup(
+    session: VaultSession,
+    group: UpsertVaultIdentityGroup,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const response = asObject(
+      await this.client.request(session.serverUrl, 'identity/group', {
+        method: 'POST',
+        token: session.token,
+        body: groupPayload(group),
+        signal,
+      }),
+    );
+    return asString(asObject(response.data).id);
+  }
+
+  async updateGroup(
+    session: VaultSession,
+    groupId: string,
+    group: UpsertVaultIdentityGroup,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.client.request(
+      session.serverUrl,
+      `identity/group/id/${encodeURIComponent(groupId)}`,
+      {
+        method: 'POST',
+        token: session.token,
+        body: groupPayload(group),
+        signal,
+      },
+    );
+  }
+
+  async deleteGroup(
+    session: VaultSession,
+    groupId: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.client.request(
+      session.serverUrl,
+      `identity/group/id/${encodeURIComponent(groupId)}`,
+      { method: 'DELETE', token: session.token, signal },
+    );
   }
 
   async updateGroupMembers(
@@ -192,23 +255,13 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
     memberEntityIds: readonly string[],
     signal?: AbortSignal,
   ): Promise<void> {
-    await this.client.request(
-      session.serverUrl,
-      `identity/group/id/${encodeURIComponent(group.id)}`,
-      {
-        method: 'POST',
-        token: session.token,
-        body: {
-          name: group.name,
-          type: 'internal',
-          policies: group.policies,
-          member_entity_ids: memberEntityIds,
-          member_group_ids: group.memberGroupIds,
-          metadata: group.metadata,
-        },
-        signal,
-      },
-    );
+    await this.updateGroup(session, group.id, {
+      name: group.name,
+      policies: group.policies,
+      memberEntityIds,
+      memberGroupIds: group.memberGroupIds,
+      metadata: group.metadata,
+    }, signal);
   }
 
   async listUserpassAccounts(
@@ -254,10 +307,35 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
         ),
       );
       const account = asObject(response.data);
+      const tokenBoundCidrs = account.token_bound_cidrs === undefined
+        ? undefined
+        : optionalStringArray(account.token_bound_cidrs);
       return {
         username,
         mount: encodeVaultPath(mount),
         tokenPolicies: optionalStringArray(account.token_policies ?? account.policies),
+        ...(optionalNumber(account.token_ttl) !== undefined
+          ? { tokenTtlSeconds: optionalNumber(account.token_ttl) }
+          : {}),
+        ...(optionalNumber(account.token_max_ttl) !== undefined
+          ? { tokenMaxTtlSeconds: optionalNumber(account.token_max_ttl) }
+          : {}),
+        ...(optionalNumber(account.token_explicit_max_ttl) !== undefined
+          ? { tokenExplicitMaxTtlSeconds: optionalNumber(account.token_explicit_max_ttl) }
+          : {}),
+        ...(tokenBoundCidrs !== undefined ? { tokenBoundCidrs } : {}),
+        ...(optionalString(account.token_type) !== undefined
+          ? { tokenType: optionalString(account.token_type) }
+          : {}),
+        ...(optionalNumber(account.token_num_uses) !== undefined
+          ? { tokenNumUses: optionalNumber(account.token_num_uses) }
+          : {}),
+        ...(optionalNumber(account.token_period) !== undefined
+          ? { tokenPeriodSeconds: optionalNumber(account.token_period) }
+          : {}),
+        ...(account.token_no_default_policy !== undefined
+          ? { tokenNoDefaultPolicy: optionalBoolean(account.token_no_default_policy) }
+          : {}),
       };
     } catch (error) {
       if (error instanceof VaultError && error.code === 'not-found') return null;
@@ -293,6 +371,44 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
       session.serverUrl,
       `auth/${encodeVaultPath(mount)}/users/${encodeURIComponent(username)}`,
       { method: 'DELETE', token: session.token, signal },
+    );
+  }
+
+  async updateUserpassPolicies(
+    session: VaultSession,
+    mount: string,
+    username: string,
+    policies: readonly string[],
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.client.request(
+      session.serverUrl,
+      `auth/${encodeVaultPath(mount)}/users/${encodeURIComponent(username)}/policies`,
+      {
+        method: 'POST',
+        token: session.token,
+        body: { token_policies: policies },
+        signal,
+      },
+    );
+  }
+
+  async resetUserpassPassword(
+    session: VaultSession,
+    mount: string,
+    username: string,
+    password: import('../../../domain/vault/sensitive-value').VaultPassword,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.client.request(
+      session.serverUrl,
+      `auth/${encodeVaultPath(mount)}/users/${encodeURIComponent(username)}/password`,
+      {
+        method: 'POST',
+        token: session.token,
+        body: { password: password.reveal() },
+        signal,
+      },
     );
   }
 
@@ -349,6 +465,29 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
     return asString(asObject(response.data).id);
   }
 
+  async updateEntity(
+    session: VaultSession,
+    entityId: string,
+    entity: UpdateVaultEntity,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.client.request(
+      session.serverUrl,
+      `identity/entity/id/${encodeURIComponent(entityId)}`,
+      {
+        method: 'POST',
+        token: session.token,
+        body: {
+          name: entity.name,
+          disabled: entity.disabled,
+          policies: entity.policies,
+          metadata: entity.metadata,
+        },
+        signal,
+      },
+    );
+  }
+
   async deleteEntity(session: VaultSession, entityId: string, signal?: AbortSignal): Promise<void> {
     await this.client.request(
       session.serverUrl,
@@ -387,6 +526,38 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
       session.serverUrl,
       `identity/entity-alias/id/${encodeURIComponent(aliasId)}`,
       { method: 'DELETE', token: session.token, signal },
+    );
+  }
+
+  async getCapabilities(
+    session: VaultSession,
+    paths: readonly string[],
+    signal?: AbortSignal,
+  ): Promise<VaultCapabilityMap> {
+    const response = asObject(
+      await this.client.request(session.serverUrl, 'sys/capabilities-self', {
+        method: 'POST',
+        token: session.token,
+        body: { paths },
+        signal,
+      }),
+    );
+    const raw = asObject(asObject(response.data).capabilities);
+    return Object.fromEntries(
+      paths.map((path) => [
+        path,
+        asStringArray(raw[path] ?? []).filter((capability): capability is VaultCapability => (
+          capability === 'create'
+          || capability === 'read'
+          || capability === 'update'
+          || capability === 'patch'
+          || capability === 'delete'
+          || capability === 'list'
+          || capability === 'sudo'
+          || capability === 'deny'
+          || capability === 'root'
+        )),
+      ]),
     );
   }
 }

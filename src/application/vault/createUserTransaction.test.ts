@@ -78,6 +78,9 @@ function gateway(options: {
     deletePolicy: vi.fn(async () => undefined),
     listGroups: vi.fn(),
     readGroup: vi.fn(async () => ({ ...group, memberEntityIds: [...memberEntityIds] })),
+    createGroup: vi.fn(),
+    updateGroup: vi.fn(),
+    deleteGroup: vi.fn(),
     updateGroupMembers: vi.fn(async (_session, _group, nextMembers) => {
       if (!options.dropMembershipWrite) memberEntityIds = [...nextMembers];
     }),
@@ -86,15 +89,19 @@ function gateway(options: {
       ? { username: 'alice', mount: 'userpass', tokenPolicies: ['default'] }
       : null),
     createUserpassAccount: vi.fn(async () => undefined),
+    updateUserpassPolicies: vi.fn(),
+    resetUserpassPassword: vi.fn(),
     deleteUserpassAccount: vi.fn(async () => undefined),
     readEntityByName: vi.fn(async () => {
       throw new VaultError('not-found', { status: 404 });
     }),
     lookupEntityByAlias: vi.fn(async () => null),
     createEntity: vi.fn(async () => 'entity-1'),
+    updateEntity: vi.fn(),
     deleteEntity: vi.fn(async () => undefined),
     createEntityAlias: vi.fn(async () => 'alias-1'),
     deleteEntityAlias: vi.fn(async () => undefined),
+    getCapabilities: vi.fn(),
   };
   return {
     api,
