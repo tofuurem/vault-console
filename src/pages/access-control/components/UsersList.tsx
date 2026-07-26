@@ -10,6 +10,7 @@ interface UsersListProps {
   readonly users: readonly AccessControlUserRecord[];
   readonly warnings: readonly string[];
   readonly onCreateUser: () => void;
+  readonly onShowRemovedIdentities: () => void;
   readonly onViewUser: (user: AccessControlUserRecord) => void;
   readonly onRefresh: () => void;
   readonly search: string;
@@ -22,6 +23,7 @@ export default function UsersList({
   users,
   warnings,
   onCreateUser,
+  onShowRemovedIdentities,
   onViewUser,
   onRefresh,
   search,
@@ -49,6 +51,14 @@ export default function UsersList({
           <div className="flex w-full items-center gap-2 sm:w-auto">
             <label className="relative min-w-0 flex-1 sm:flex-none"><span className="sr-only">Search users</span><i className="ri-search-line absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground-400" aria-hidden="true" /><input type="search" value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search users" className="h-11 w-full rounded-md border border-background-300 bg-background-50 pl-6 pr-2.5 text-xs focus:border-primary-400 focus:outline-none sm:h-7 sm:w-48" /></label>
             <button type="button" aria-label="Refresh users" onClick={onRefresh} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"><i className="ri-refresh-line" aria-hidden="true" /></button>
+            <Button
+              size="sm"
+              aria-label="Removed identities"
+              onClick={onShowRemovedIdentities}
+            >
+              <i className="ri-archive-drawer-line" aria-hidden="true" />
+              <span className="hidden lg:inline">Removed</span>
+            </Button>
             <Button size="sm" variant="primary" onClick={onCreateUser}><i className="ri-user-add-line" aria-hidden="true" /> Create user</Button>
           </div>
         </div>

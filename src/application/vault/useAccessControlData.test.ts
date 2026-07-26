@@ -9,6 +9,7 @@ import { vaultToken } from '@/domain/vault/sensitive-value';
 import { VaultError } from '@/domain/vault/errors';
 import {
   accessPolicyRecord,
+  loadIdentityTombstones,
   loadUserDetails,
   loadUserpassUsers,
   type AccessControlUserRecord,
@@ -230,5 +231,47 @@ path "applications/data/*" {
       ownership: 'external',
       editable: false,
     });
+  });
+
+  it('lists only complete Vault Console removed-identity markers', async () => {
+    const access = gateway();
+    access.listEntities = vi.fn(async () => [
+      {
+        id: 'removed-alice',
+        name: 'Alice',
+        disabled: true,
+        policies: [],
+        groupIds: [],
+        aliases: [],
+        metadata: {
+          managed_by: 'vault-console',
+          lifecycle_state: 'login-removed',
+          username: 'alice',
+          auth_mount: 'team/userpass',
+        },
+      },
+      {
+        id: 'active-bob',
+        name: 'Bob',
+        disabled: false,
+        policies: [],
+        groupIds: [],
+        aliases: [],
+        metadata: {
+          managed_by: 'vault-console',
+          lifecycle_state: 'login-removed',
+          username: 'bob',
+          auth_mount: 'userpass',
+        },
+      },
+    ]);
+
+    await expect(loadIdentityTombstones(access, session)).resolves.toEqual([
+      expect.objectContaining({
+        id: 'removed-alice',
+        username: 'alice',
+        mount: 'team/userpass',
+      }),
+    ]);
   });
 });

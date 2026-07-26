@@ -157,6 +157,7 @@ export interface UserLifecycleSnapshot {
 export interface IdentityTombstoneSnapshot {
   readonly entity: VaultIdentityEntity;
   readonly groups: readonly VaultIdentityGroup[];
+  readonly accountAbsent: boolean;
   readonly visibility: DependencyVisibility;
   readonly fingerprint: string;
 }

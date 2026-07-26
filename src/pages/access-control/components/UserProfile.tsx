@@ -1,6 +1,7 @@
 import {
   useEffect,
   useRef,
+  type ReactNode,
 } from 'react';
 
 import type {
@@ -16,6 +17,8 @@ interface UserProfileProps {
   readonly resource: UserAccessReportResource;
   readonly actions: UserAccessReportActions;
   readonly onBack: () => void;
+  readonly onEdit?: () => void;
+  readonly lifecycleActions?: ReactNode;
 }
 
 function identityStatus(resource: UserAccessReportResource): {
@@ -86,6 +89,8 @@ export default function UserProfile({
   resource,
   actions,
   onBack,
+  onEdit,
+  lifecycleActions,
 }: UserProfileProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const identity = identityStatus(resource);
@@ -138,12 +143,21 @@ export default function UserProfile({
               </p>
             </div>
           </div>
-          <div className="w-full lg:max-w-xl">
-            <ReportCompleteness
-              completeness={resource.report.completeness}
-              refreshing={refreshing}
-              onRetry={actions.retryIncomplete}
-            />
+          <div className="flex w-full flex-wrap items-center gap-2 lg:max-w-2xl lg:justify-end">
+            <div className="min-w-0 flex-[1_1_320px]">
+              <ReportCompleteness
+                completeness={resource.report.completeness}
+                refreshing={refreshing}
+                onRetry={actions.retryIncomplete}
+              />
+            </div>
+            {onEdit && (
+              <Button size="sm" variant="primary" onClick={onEdit}>
+                <i className="ri-edit-line" aria-hidden="true" />
+                Edit access
+              </Button>
+            )}
+            {lifecycleActions}
           </div>
         </div>
       </header>

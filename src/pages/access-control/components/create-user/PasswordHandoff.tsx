@@ -7,6 +7,9 @@ interface PasswordHandoffProps {
   readonly password: string;
   readonly userpassMount: string;
   readonly onFinish: () => void;
+  readonly successTitle?: string;
+  readonly successDescription?: string;
+  readonly passwordLabel?: string;
 }
 
 export default function PasswordHandoff({
@@ -14,6 +17,9 @@ export default function PasswordHandoff({
   password,
   userpassMount,
   onFinish,
+  successTitle = 'User created successfully',
+  successDescription = 'All required Vault operations completed.',
+  passwordLabel = 'Created user password',
 }: PasswordHandoffProps) {
   const [visible, setVisible] = useState(false);
   const [copied, setCopied] = useState<'username' | 'password' | 'both' | null>(null);
@@ -29,8 +35,8 @@ export default function PasswordHandoff({
           <i className="ri-check-line text-lg" aria-hidden="true" />
         </span>
         <div>
-          <h4 className="text-sm font-semibold text-foreground-900">User created successfully</h4>
-          <p className="mt-0.5 text-[11px] text-foreground-500">All required Vault operations completed.</p>
+          <h4 className="text-sm font-semibold text-foreground-900">{successTitle}</h4>
+          <p className="mt-0.5 text-[11px] text-foreground-500">{successDescription}</p>
         </div>
       </div>
 
@@ -51,7 +57,7 @@ export default function PasswordHandoff({
           <dt className="self-center text-foreground-500">Password</dt>
           <dd className="flex min-w-0 items-center gap-1.5">
             <input
-              aria-label="Created user password"
+              aria-label={passwordLabel}
               type={visible ? 'text' : 'password'}
               readOnly
               value={password}

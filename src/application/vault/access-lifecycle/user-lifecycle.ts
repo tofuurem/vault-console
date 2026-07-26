@@ -744,6 +744,7 @@ export function buildPurgeIdentityPlan(
     || entity.aliases.length > 0
     || entity.policies.length > 0
     || hasMembership
+    || !snapshot.accountAbsent
     || !snapshot.visibility.complete
   ) {
     throw new Error('Only a complete empty disabled tombstone can be purged.');
@@ -776,5 +777,47 @@ export function buildPurgeIdentityPlan(
         'Confirm that issued tokens were revoked or have expired.',
       ],
     },
+  };
+}
+
+export async function loadIdentityTombstoneSnapshot(
+  gateway: VaultAccessControlGateway,
+  session: VaultSession,
+  entityId: string,
+  signal?: AbortSignal,
+): Promise<IdentityTombstoneSnapshot> {
+  const entity = await gateway.readEntity(session, entityId, signal);
+  const reasons: string[] = [];
+  const groups = await optionalResource(
+    () => gateway.listGroups(session, signal),
+    'Identity groups could not be fully listed.',
+    reasons,
+    [],
+  );
+  const username = entity.metadata?.username;
+  const mount = entity.metadata?.auth_mount;
+  let accountAbsent = false;
+  if (!username || !mount) {
+    reasons.push('The removed login coordinates are missing from the tombstone.');
+  } else {
+    const account = await optionalResource(
+      () => gateway.readUserpassAccount(session, mount, username, signal),
+      'The removed userpass login could not be verified as absent.',
+      reasons,
+      undefined,
+    );
+    if (account === null) accountAbsent = true;
+    if (account) reasons.push('A userpass login still exists for this Identity tombstone.');
+  }
+  const snapshotVisibility = visibility(reasons.sort());
+  const value = {
+    entity,
+    groups,
+    accountAbsent,
+    visibility: snapshotVisibility,
+  };
+  return {
+    ...value,
+    fingerprint: snapshotFingerprint(value),
   };
 }

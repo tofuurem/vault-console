@@ -15,6 +15,7 @@ import {
   buildToggleEntityPlan,
   buildUserEditPlan,
   buildUserRemovalPlan,
+  loadIdentityTombstoneSnapshot,
   loadUserLifecycleSnapshot,
 } from './user-lifecycle';
 
@@ -375,6 +376,7 @@ describe('user access lifecycle use cases', () => {
     const plan = buildPurgeIdentityPlan({
       entity: tombstone,
       groups: [],
+      accountAbsent: true,
       visibility: { complete: true, reasons: [] },
       fingerprint: 'v1-tombstone',
     });
@@ -389,8 +391,57 @@ describe('user access lifecycle use cases', () => {
     expect(() => buildPurgeIdentityPlan({
       entity: { ...tombstone, disabled: false },
       groups: [],
+      accountAbsent: true,
       visibility: { complete: true, reasons: [] },
       fingerprint: 'v1-active',
     })).toThrow(/disabled tombstone/i);
+  });
+
+  it('verifies that the former login is absent before allowing tombstone purge', async () => {
+    const tombstone = {
+      ...entity,
+      disabled: true,
+      policies: [],
+      aliases: [],
+      groupIds: [],
+      metadata: {
+        managed_by: 'vault-console',
+        lifecycle_state: 'login-removed',
+        username: 'alice',
+        auth_mount: 'userpass',
+      },
+    };
+    const gateway = vaultAccessControlGatewayMock({
+      readEntity: vi.fn(async () => tombstone),
+      listGroups: vi.fn(async () => []),
+      readUserpassAccount: vi.fn(async () => null),
+    });
+
+    const snapshot = await loadIdentityTombstoneSnapshot(
+      gateway,
+      session,
+      tombstone.id,
+    );
+
+    expect(snapshot.accountAbsent).toBe(true);
+    expect(snapshot.visibility).toEqual({ complete: true, reasons: [] });
+    expect(buildPurgeIdentityPlan(snapshot).operations[0]).toMatchObject({
+      kind: 'delete-entity',
+      entityId: tombstone.id,
+    });
+
+    gateway.readUserpassAccount = vi.fn(async () => ({
+      username: 'alice',
+      mount: 'userpass',
+      tokenPolicies: ['default'],
+    }));
+    const unsafe = await loadIdentityTombstoneSnapshot(
+      gateway,
+      session,
+      tombstone.id,
+    );
+    expect(unsafe.accountAbsent).toBe(false);
+    expect(unsafe.visibility.complete).toBe(false);
+    expect(() => buildPurgeIdentityPlan(unsafe)).toThrow(/disabled tombstone/i);
   });
 });

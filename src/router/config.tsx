@@ -42,6 +42,14 @@ const routes: RouteObject[] = [
         path: '/access-control/users/:username',
         element: <RequireSession accessControl><LazyRoute><AccessControlPage /></LazyRoute></RequireSession>,
       },
+      {
+        path: '/access-control/users/:username/:action',
+        element: <RequireSession accessControl><LazyRoute><AccessControlPage /></LazyRoute></RequireSession>,
+      },
+      {
+        path: '/access-control/removed-identities/:entityId',
+        element: <RequireSession accessControl><LazyRoute><AccessControlPage /></LazyRoute></RequireSession>,
+      },
     ],
   },
   {

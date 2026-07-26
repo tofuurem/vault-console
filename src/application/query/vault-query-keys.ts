@@ -96,6 +96,14 @@ export const vaultQueryKeys = {
     ...vaultQueryKeys.userpassUser(mount, username),
     'editor',
   ] as const,
+  identityTombstones: () => [
+    ...vaultQueryKeys.all,
+    'identity-tombstones',
+  ] as const,
+  identityTombstone: (entityId: string) => [
+    ...vaultQueryKeys.identityTombstones(),
+    entityId,
+  ] as const,
   accessPlanCapabilities: (paths: readonly string[]) => [
     ...vaultQueryKeys.all,
     'access-plan-capabilities',

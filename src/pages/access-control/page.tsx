@@ -17,6 +17,7 @@ import {
   rolesFromPolicyNames,
   useAuthMounts,
   useGroups,
+  useIdentityTombstones,
   usePolicyCatalog,
   usePolicyNames,
   usePolicyRecord,
@@ -31,7 +32,6 @@ import {
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import type { VaultQueryState } from '@/application/vault/useKvExplorerData';
 import ContentSkeleton from '@/components/base/ContentSkeleton';
-import { classifyPolicyName } from '@/domain/access-control/managed-resources';
 import type { KvAccessTreeNode } from '@/domain/access-control/effective-access';
 import type { VaultError } from '@/domain/vault/errors';
 import type { CreateUserAccessCatalog } from './components/create-user/access';
@@ -43,8 +43,27 @@ import RolesList from './components/RolesList';
 import UsersList from './components/UsersList';
 
 const UserProfile = lazy(() => import('./components/UserProfile'));
+const UserAccessEditor = lazy(() => import('./components/user-editor/UserAccessEditor'));
+const UserLifecycleActions = lazy(
+  () => import('./components/user-actions/UserLifecycleActions'),
+);
+const TombstonesList = lazy(
+  () => import('./components/user-actions/TombstonesList'),
+);
+const TombstoneDetail = lazy(
+  () => import('./components/user-actions/TombstoneDetail'),
+);
 
-type ViewMode = 'users-list' | 'users-create' | 'users-profile' | 'roles' | 'groups' | 'policies';
+type ViewMode =
+  | 'users-list'
+  | 'users-create'
+  | 'users-profile'
+  | 'users-edit'
+  | 'tombstones-list'
+  | 'tombstone-detail'
+  | 'roles'
+  | 'groups'
+  | 'policies';
 const ACCESS_SECTIONS = new Set(['users', 'groups', 'roles', 'policies']);
 
 function mountRoots(mounts: readonly { readonly path: string }[]): readonly KvAccessTreeNode[] {
@@ -97,7 +116,12 @@ function renderQuery<T>(
 
 export default function AccessControlPage() {
   const navigate = useNavigate();
-  const params = useParams<{ section?: string; username?: string }>();
+  const params = useParams<{
+    section?: string;
+    username?: string;
+    action?: string;
+    entityId?: string;
+  }>();
   const [searchParams] = useSearchParams();
   const { mountsState } = useAuthenticatedShell();
   const vault = useVaultSession();
@@ -113,16 +137,21 @@ export default function AccessControlPage() {
     ? params.section
     : 'users';
   const profileRequested = Boolean(params.username);
+  const editingUser = profileRequested && params.action === 'edit';
+  const removedIdentitiesRequested = params.section === 'removed-identities'
+    || Boolean(params.entityId);
+  const tombstoneDetailRequested = removedIdentitiesRequested && Boolean(params.entityId);
   const profileMount = searchParams.get('mount');
   const usersNeeded = (
-    (activeSection === 'users' && !profileRequested)
+    (activeSection === 'users' && !profileRequested && !removedIdentitiesRequested)
     || creatingUser
     || (profileRequested && !profileMount)
   );
-  const groupsNeeded = activeSection === 'groups' || creatingUser;
+  const groupsNeeded = activeSection === 'groups' || creatingUser || editingUser;
   const policiesNeeded = activeSection === 'roles'
     || activeSection === 'policies'
-    || creatingUser;
+    || creatingUser
+    || editingUser;
 
   const [authMountsState, refreshAuthMounts] = useAuthMounts(
     session,
@@ -135,6 +164,10 @@ export default function AccessControlPage() {
     usersNeeded && authMountsState.status === 'success',
   );
   const [groupsState, refreshGroups] = useGroups(session, groupsNeeded);
+  const [tombstonesState, refreshTombstones] = useIdentityTombstones(
+    session,
+    removedIdentitiesRequested,
+  );
   const [policyNamesState, refreshPolicyNames] = usePolicyNames(session, policiesNeeded);
   const policyCatalogState = usePolicyCatalog(
     session,
@@ -176,27 +209,33 @@ export default function AccessControlPage() {
   }, [baseProfileUser, params.username, profileAuthMount, profileMount]);
   const profileReport = useUserAccessReport(
     session,
-    profileRequested ? profileAccount : undefined,
+    profileRequested && !editingUser ? profileAccount : undefined,
     (mountsState.data ?? []).map((mount) => mount.path),
   );
 
   const viewMode: ViewMode = creatingUser
     ? 'users-create'
-    : params.username
-      ? 'users-profile'
-      : activeSection === 'groups'
-        ? 'groups'
-        : activeSection === 'roles'
-          ? 'roles'
-          : activeSection === 'policies'
-            ? 'policies'
-            : 'users-list';
+    : tombstoneDetailRequested
+      ? 'tombstone-detail'
+      : removedIdentitiesRequested
+        ? 'tombstones-list'
+        : editingUser
+          ? 'users-edit'
+          : params.username
+            ? 'users-profile'
+            : activeSection === 'groups'
+              ? 'groups'
+              : activeSection === 'roles'
+                ? 'roles'
+                : activeSection === 'policies'
+                  ? 'policies'
+                  : 'users-list';
 
   useEffect(() => {
-    if (!params.section && !params.username) {
+    if (!params.section && !params.username && !params.entityId) {
       navigate('/access-control/users', { replace: true });
     }
-  }, [navigate, params.section, params.username]);
+  }, [navigate, params.entityId, params.section, params.username]);
 
   useEffect(() => {
     setSelectedPolicyName(undefined);
@@ -224,6 +263,7 @@ export default function AccessControlPage() {
       policyCatalogState,
       selectedPolicyState,
       profileReport.state,
+      tombstonesState,
     ]);
     if (error?.code === 'session-expired') vault.expireSession();
   }, [
@@ -235,30 +275,43 @@ export default function AccessControlPage() {
     profileReport.state,
     selectedPolicyState,
     usersState,
+    tombstonesState,
     vault,
   ]);
 
   const policies = useMemo(() => policyCatalogState.data ?? [], [policyCatalogState.data]);
   const roles = useMemo(() => rolesFromPolicyNames(policyNamesState.data ?? []), [policyNamesState.data]);
+  const managedRolePolicies = useMemo(
+    () => policies.filter((policy) => (
+      policy.kind === 'role'
+      && policy.ownership === 'managed'
+      && policy.editable
+    )),
+    [policies],
+  );
+  const managedRoleNames = useMemo(
+    () => new Set(managedRolePolicies.map(({ name }) => name)),
+    [managedRolePolicies],
+  );
   const catalog = useMemo<CreateUserAccessCatalog>(() => ({
     groups: (groupsState.data ?? []).map((group) => ({
       id: group.id,
       name: group.name,
-      roleIds: group.policies.filter((policy) => classifyPolicyName(policy) === 'role'),
-      policyNames: group.policies.filter((policy) => classifyPolicyName(policy) !== 'role'),
+      roleIds: group.policies.filter((policy) => managedRoleNames.has(policy)),
+      policyNames: group.policies.filter((policy) => !managedRoleNames.has(policy)),
     })),
-    roles: roles.map((role) => ({
-      id: role.id,
-      name: role.name,
-      policyNames: [role.policyName],
+    roles: managedRolePolicies.map((policy) => ({
+      id: policy.name,
+      name: roles.find((role) => role.policyName === policy.name)?.name ?? policy.name,
+      policyNames: [policy.name],
     })),
     policies: policies.map((policy) => ({
       name: policy.name,
-      managed: policy.kind !== 'external',
+      managed: policy.ownership === 'managed',
       rules: policy.rules,
     })),
     tree: mountRoots(mountsState.data ?? []),
-  }), [groupsState.data, mountsState.data, policies, roles]);
+  }), [groupsState.data, managedRoleNames, managedRolePolicies, mountsState.data, policies, roles]);
   const snapshot = useMemo<AccessControlSnapshot | undefined>(() => {
     if (
       authMountsState.status !== 'success'
@@ -336,6 +389,7 @@ export default function AccessControlPage() {
                   restoreFocusUserId={restoreFocusUserId}
                   onFocusRestored={clearRestoredUserFocus}
                   onCreateUser={() => setCreatingUser(true)}
+                  onShowRemovedIdentities={() => navigate('/access-control/removed-identities')}
                   onViewUser={(user: AccessControlUserRecord) => {
                     setProfileOriginUserId(user.id);
                     navigate({
@@ -426,9 +480,102 @@ export default function AccessControlPage() {
               resource={profileReport.state.data}
               actions={profileReport.actions}
               onBack={() => navigate('/access-control/users')}
+              onEdit={() => navigate({
+                pathname: `/access-control/users/${encodeURIComponent(
+                  profileAccount!.username,
+                )}/edit`,
+                search: new URLSearchParams({
+                  mount: profileAccount!.mount,
+                }).toString(),
+              })}
+              lifecycleActions={profileAccount && (
+                <Suspense fallback={null}>
+                  <UserLifecycleActions
+                    reference={profileAccount}
+                    gateway={accessGateway}
+                    session={session}
+                    onSessionExpired={vault.expireSession}
+                    onChanged={refreshProfileResources}
+                    onRemoved={(entityId) => navigate(
+                      entityId
+                        ? `/access-control/removed-identities/${encodeURIComponent(entityId)}`
+                        : '/access-control/users',
+                    )}
+                  />
+                </Suspense>
+              )}
             />
           </Suspense>
         ) : <ResourceLoading label="Loading the user access report…" />
+      )}
+      {viewMode === 'users-edit' && (
+        !profileAccount ? (
+          <ResourceLoading label="Resolving the userpass account…" />
+        ) : firstQueryError([
+          authMountsState,
+          groupsState,
+          policyNamesState,
+          policyCatalogState,
+        ]) ? (
+          <ResourceError
+            error={firstQueryError([
+              authMountsState,
+              groupsState,
+              policyNamesState,
+              policyCatalogState,
+            ])!}
+            retry={refreshCreateUserResources}
+          />
+        ) : (
+          <Suspense fallback={<ResourceLoading label="Preparing the user access editor…" />}>
+            <UserAccessEditor
+              reference={profileAccount}
+              catalog={catalog}
+              gateway={accessGateway}
+              session={session}
+              onSessionExpired={vault.expireSession}
+              onClose={() => navigate({
+                pathname: `/access-control/users/${encodeURIComponent(profileAccount.username)}`,
+                search: new URLSearchParams({ mount: profileAccount.mount }).toString(),
+              })}
+              onDone={() => navigate({
+                pathname: `/access-control/users/${encodeURIComponent(profileAccount.username)}`,
+                search: new URLSearchParams({ mount: profileAccount.mount }).toString(),
+              })}
+            />
+          </Suspense>
+        )
+      )}
+      {viewMode === 'tombstones-list' && (
+        <Suspense fallback={<ResourceLoading label="Loading removed identities…" />}>
+          {renderQuery(
+            tombstonesState,
+            'Loading removed identities…',
+            refreshTombstones,
+            (tombstones) => (
+              <TombstonesList
+                tombstones={tombstones}
+                onBack={() => navigate('/access-control/users')}
+                onRefresh={refreshTombstones}
+                onView={(entityId) => navigate(
+                  `/access-control/removed-identities/${encodeURIComponent(entityId)}`,
+                )}
+              />
+            ),
+          )}
+        </Suspense>
+      )}
+      {viewMode === 'tombstone-detail' && params.entityId && (
+        <Suspense fallback={<ResourceLoading label="Loading removed Identity…" />}>
+          <TombstoneDetail
+            entityId={params.entityId}
+            gateway={accessGateway}
+            session={session}
+            onSessionExpired={vault.expireSession}
+            onBack={() => navigate('/access-control/removed-identities')}
+            onPurged={() => navigate('/access-control/removed-identities')}
+          />
+        </Suspense>
       )}
       </AccessCenterShell>
     </main>

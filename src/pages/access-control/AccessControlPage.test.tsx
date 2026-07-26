@@ -39,6 +39,7 @@ const aliceEntity: VaultIdentityEntity = {
     canonicalId: 'entity-alice',
     mountAccessor: 'auth_userpass_123',
   }],
+  metadata: { managed_by: 'vault-console' },
 };
 
 function authGateway(): VaultAuthGateway {
@@ -117,16 +118,18 @@ function accessGateway(): VaultAccessControlGateway {
     updateUserpassPolicies: vi.fn(),
     resetUserpassPassword: vi.fn(),
     deleteUserpassAccount: vi.fn(async () => undefined),
-    listEntities: vi.fn(),
+    listEntities: vi.fn(async () => [aliceEntity]),
     readEntityByName: vi.fn(async () => { throw new VaultError('not-found'); }),
-    readEntity: vi.fn(),
+    readEntity: vi.fn(async () => aliceEntity),
     lookupEntityByAlias: vi.fn(async (_session, name) => name === 'alice' ? aliceEntity : null),
     createEntity: vi.fn(async () => 'entity-bob'),
     updateEntity: vi.fn(),
     deleteEntity: vi.fn(async () => undefined),
     createEntityAlias: vi.fn(async () => 'alias-bob'),
     deleteEntityAlias: vi.fn(async () => undefined),
-    getCapabilities: vi.fn(),
+    getCapabilities: vi.fn(async (_session, paths) => Object.fromEntries(
+      paths.map((path) => [path, ['create', 'read', 'update', 'delete'] as const]),
+    )),
   };
 }
 
@@ -233,6 +236,15 @@ describe('AccessControlPage', () => {
     expect(window.location.pathname).toBe('/access-control/users/alice');
     expect(window.location.search).toBe('?mount=userpass');
 
+    await user.click(screen.getByRole('button', { name: 'Edit access' }));
+    expect(await screen.findByRole('heading', { name: 'Login and Identity' })).toBeVisible();
+    expect(window.location.pathname).toBe('/access-control/users/alice/edit');
+    expect(window.location.search).toBe('?mount=userpass');
+
+    await user.click(screen.getByRole('button', { name: 'Close access editor' }));
+    expect((await screen.findAllByRole('heading', { name: 'Alice' }))[0]).toBeVisible();
+    expect(window.location.pathname).toBe('/access-control/users/alice');
+
     await user.click(screen.getByRole('button', { name: 'Back to users' }));
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeVisible();
     expect(screen.getByLabelText('Search users')).toHaveValue('ali');
@@ -328,5 +340,54 @@ describe('AccessControlPage', () => {
       ['entity-alice', 'entity-bob'],
       expect.any(AbortSignal),
     ));
+  });
+
+  it('keeps removed Identity tombstones separate and requires a guarded purge', async () => {
+    const user = userEvent.setup();
+    const access = accessGateway();
+    let deleted = false;
+    const tombstone: VaultIdentityEntity = {
+      ...aliceEntity,
+      disabled: true,
+      policies: [],
+      groupIds: [],
+      aliases: [],
+      metadata: {
+        managed_by: 'vault-console',
+        lifecycle_state: 'login-removed',
+        username: 'alice',
+        auth_mount: 'userpass',
+      },
+    };
+    access.listEntities = vi.fn(async () => deleted ? [] : [tombstone]);
+    access.listGroups = vi.fn(async () => []);
+    access.readEntity = vi.fn(async () => {
+      if (deleted) throw new VaultError('not-found', { status: 404 });
+      return tombstone;
+    });
+    access.readUserpassAccount = vi.fn(async () => null);
+    access.deleteEntity = vi.fn(async () => {
+      deleted = true;
+    });
+
+    await loginAndOpenUsers(user, access);
+    await user.click(screen.getByRole('button', { name: 'Removed identities' }));
+
+    expect(await screen.findByRole('heading', { name: 'Removed identities' })).toBeVisible();
+    expect(window.location.pathname).toBe('/access-control/removed-identities');
+    await user.click(screen.getByRole('button', { name: 'Open removed identity alice' }));
+
+    expect(await screen.findByRole('heading', { name: 'Alice' })).toBeVisible();
+    expect(screen.getByText('Blocked by Identity, not revoked')).toBeVisible();
+    await user.type(screen.getByLabelText(/Type Alice to confirm/), 'Alice');
+    await user.click(screen.getByRole('button', { name: 'Purge Identity permanently' }));
+
+    expect(await screen.findByText('No removed Identity tombstones')).toBeVisible();
+    expect(window.location.pathname).toBe('/access-control/removed-identities');
+    expect(access.deleteEntity).toHaveBeenCalledWith(
+      session,
+      'entity-alice',
+      undefined,
+    );
   });
 });

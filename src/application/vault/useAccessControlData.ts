@@ -86,6 +86,14 @@ export interface UserpassUsersResult {
   readonly warnings: readonly string[];
 }
 
+export interface IdentityTombstoneRecord {
+  readonly id: string;
+  readonly name: string;
+  readonly username: string;
+  readonly mount: string;
+  readonly entity: VaultIdentityEntity;
+}
+
 function unique(values: readonly string[]): readonly string[] {
   return [...new Set(values)];
 }
@@ -157,6 +165,33 @@ export async function loadUserpassUsers(
     users: batches.flat().sort((left, right) => left.username.localeCompare(right.username)),
     warnings,
   };
+}
+
+export async function loadIdentityTombstones(
+  gateway: VaultAccessControlGateway,
+  session: VaultSession,
+  signal?: AbortSignal,
+): Promise<readonly IdentityTombstoneRecord[]> {
+  const entities = await gateway.listEntities(session, signal);
+  return entities
+    .filter((entity) => (
+      entity.disabled
+      && entity.metadata?.managed_by === 'vault-console'
+      && entity.metadata.lifecycle_state === 'login-removed'
+      && Boolean(entity.metadata.username)
+      && Boolean(entity.metadata.auth_mount)
+    ))
+    .map((entity) => ({
+      id: entity.id,
+      name: entity.name,
+      username: entity.metadata!.username,
+      mount: entity.metadata!.auth_mount,
+      entity,
+    }))
+    .sort((left, right) => (
+      left.username.localeCompare(right.username)
+      || left.mount.localeCompare(right.mount)
+    ));
 }
 
 export async function loadUserDetails(
@@ -292,6 +327,19 @@ export function useGroups(
   const query = useQuery({
     queryKey: vaultQueryKeys.groups(),
     queryFn: ({ signal }) => gateway.listGroups(session, signal),
+    enabled,
+  });
+  return [toQueryState(query, !enabled), () => { void query.refetch(); }];
+}
+
+export function useIdentityTombstones(
+  session: VaultSession,
+  enabled = true,
+): readonly [VaultQueryState<readonly IdentityTombstoneRecord[]>, () => void] {
+  const gateway = useAccessControlGateway();
+  const query = useQuery({
+    queryKey: vaultQueryKeys.identityTombstones(),
+    queryFn: ({ signal }) => loadIdentityTombstones(gateway, session, signal),
     enabled,
   });
   return [toQueryState(query, !enabled), () => { void query.refetch(); }];
