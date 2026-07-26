@@ -181,7 +181,6 @@ describe('KV explorer queries', () => {
       canReadData: true,
       canReadMetadata: false,
       canEdit: false,
-      canDeleteLatest: false,
       canDeleteVersions: false,
       canUndelete: false,
       canDestroy: false,

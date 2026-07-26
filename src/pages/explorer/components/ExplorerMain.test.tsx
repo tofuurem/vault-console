@@ -22,6 +22,8 @@ describe('ExplorerMain search', () => {
   it('filters locally, debounces mount scans, and makes copy feedback visible', async () => {
     vi.useFakeTimers();
     const start = vi.fn();
+    const cancel = vi.fn();
+    let mountStatus: 'idle' | 'scanning' = 'idle';
     const onClipboardFeedback = vi.fn();
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(navigator, 'clipboard', {
@@ -37,7 +39,7 @@ describe('ExplorerMain search', () => {
     const search: KvSearchContextValue = {
       stateFor: (mount) => ({
         mount,
-        status: 'idle',
+        status: mountStatus,
         entries,
         pendingPrefixes: [],
         visitedPrefixes: [],
@@ -49,13 +51,13 @@ describe('ExplorerMain search', () => {
       start,
       continueScan: vi.fn(),
       restart: vi.fn(),
-      cancel: vi.fn(),
+      cancel,
       activateMount: vi.fn(),
       matches: (_mount, query) => rankKvPathMatches(entries, query),
       clear: vi.fn(),
     };
 
-    render(
+    const view = render(
       <KvSearchContext.Provider value={search}>
         <ExplorerMain
           mount="applications"
@@ -91,6 +93,35 @@ describe('ExplorerMain search', () => {
     expect(start).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(1));
     expect(start).toHaveBeenCalledWith('applications');
+
+    mountStatus = 'scanning';
+    view.rerender(
+      <KvSearchContext.Provider value={{ ...search }}>
+        <ExplorerMain
+          mount="applications"
+          currentPath=""
+          mounts={[{
+            path: 'applications',
+            accessor: 'kv-apps',
+            description: 'Application secrets',
+            version: 2,
+          }]}
+          directory={{ status: 'success', data: ['api-token', 'folder/'] }}
+          selectedPath={null}
+          details={{ status: 'idle' }}
+          onSelectSecret={vi.fn()}
+          onNavigateToFolder={vi.fn()}
+          onNavigateToBreadcrumb={vi.fn()}
+          onRefresh={vi.fn()}
+          onRetrySecret={vi.fn()}
+          onClipboardFeedback={onClipboardFeedback}
+        />
+      </KvSearchContext.Provider>,
+    );
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search secret paths' }), {
+      target: { value: '' },
+    });
+    expect(cancel).toHaveBeenCalledWith('applications');
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Copy logical path' }));

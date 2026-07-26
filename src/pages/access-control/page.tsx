@@ -4,7 +4,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { useAuthenticatedShell } from '@/app/authenticated-shell';
 import { useAccessControlGateway } from '@/application/vault/AccessControlGatewayContext';
@@ -89,6 +89,7 @@ function renderQuery<T>(
 export default function AccessControlPage() {
   const navigate = useNavigate();
   const params = useParams<{ section?: string; username?: string }>();
+  const [searchParams] = useSearchParams();
   const { mountsState } = useAuthenticatedShell();
   const vault = useVaultSession();
   const session = vault.session!;
@@ -126,8 +127,12 @@ export default function AccessControlPage() {
       ? selectedPolicyName
       : undefined,
   );
+  const profileMount = searchParams.get('mount');
   const baseProfileUser = params.username
-    ? usersState.data?.users.find((user) => user.username === params.username)
+    ? usersState.data?.users.find((user) => (
+      user.username === params.username
+      && (!profileMount || user.mount === profileMount)
+    ))
     : undefined;
   const profileState = useUserDetails(
     session,
@@ -270,7 +275,10 @@ export default function AccessControlPage() {
                   users={result.users}
                   warnings={result.warnings}
                   onCreateUser={() => setCreatingUser(true)}
-                  onViewUser={(user: AccessControlUserRecord) => navigate(`/access-control/users/${encodeURIComponent(user.username)}`)}
+                  onViewUser={(user: AccessControlUserRecord) => navigate({
+                    pathname: `/access-control/users/${encodeURIComponent(user.username)}`,
+                    search: new URLSearchParams({ mount: user.mount }).toString(),
+                  })}
                   onRefresh={refreshUsers}
                 />
               ),

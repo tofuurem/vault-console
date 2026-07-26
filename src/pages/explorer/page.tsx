@@ -274,7 +274,7 @@ export default function ExplorerPage() {
     const targetMount = activeMount;
     const targetPath = selectedPath;
     try {
-      if (action.kind === 'delete-latest') await kvGateway.deleteLatestVersion(session, targetMount, targetPath);
+      if (action.kind === 'delete-latest') await kvGateway.deleteVersions(session, targetMount, targetPath, [action.version]);
       if (action.kind === 'delete-version') await kvGateway.deleteVersions(session, targetMount, targetPath, [action.version]);
       if (action.kind === 'destroy-version') await kvGateway.destroyVersions(session, targetMount, targetPath, [action.version]);
       if (action.kind === 'delete-metadata') await kvGateway.deleteMetadata(session, targetMount, targetPath);

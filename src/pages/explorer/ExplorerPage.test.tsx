@@ -314,11 +314,13 @@ describe('ExplorerPage', () => {
     expect(screen.queryByLabelText('Type applications/shared to confirm')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Delete current version' }));
 
-    await waitFor(() => expect(gateway.deleteLatestVersion).toHaveBeenCalledWith(
+    await waitFor(() => expect(gateway.deleteVersions).toHaveBeenCalledWith(
       session,
       'applications',
       'shared',
+      [2],
     ));
+    expect(gateway.deleteLatestVersion).not.toHaveBeenCalled();
     expect(await screen.findByText(
       'Version 2 of applications/shared was soft-deleted.',
     )).toBeVisible();
@@ -359,19 +361,22 @@ describe('ExplorerPage', () => {
     expect(screen.getAllByText('Undo available')).toHaveLength(2);
     await user.click(confirm);
 
-    await waitFor(() => expect(gateway.deleteLatestVersion).toHaveBeenCalledTimes(2));
-    expect(gateway.deleteLatestVersion).toHaveBeenCalledWith(
+    await waitFor(() => expect(gateway.deleteVersions).toHaveBeenCalledTimes(2));
+    expect(gateway.deleteVersions).toHaveBeenCalledWith(
       session,
       'applications',
       'nested',
+      [2],
       undefined,
     );
-    expect(gateway.deleteLatestVersion).toHaveBeenCalledWith(
+    expect(gateway.deleteVersions).toHaveBeenCalledWith(
       session,
       'applications',
       'shared',
+      [2],
       undefined,
     );
+    expect(gateway.deleteLatestVersion).not.toHaveBeenCalled();
     expect(await screen.findByText(
       '2 current versions were soft-deleted.',
     )).toBeVisible();

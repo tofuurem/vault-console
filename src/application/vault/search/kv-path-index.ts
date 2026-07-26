@@ -146,9 +146,16 @@ export async function scanKvPathIndex(
       if ('error' in result) {
         if (result.error.code === 'aborted' || signal.aborted) throw abortError();
         if (result.error.code === 'session-expired') throw result.error;
-        if (result.error.code === 'authorization' || result.error.code === 'not-found') {
+        if (result.error.code === 'authorization') {
           visited.add(result.prefix);
           inaccessible.add(result.prefix);
+          failures.delete(result.prefix);
+          scannedPrefixes += 1;
+          continue;
+        }
+        if (result.error.code === 'not-found') {
+          visited.add(result.prefix);
+          inaccessible.delete(result.prefix);
           failures.delete(result.prefix);
           scannedPrefixes += 1;
           continue;

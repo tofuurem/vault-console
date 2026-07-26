@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
+import { postLoginDestination } from './post-login-destination';
 
 function RestoringSession() {
   return (
@@ -27,8 +28,11 @@ export function HomeRoute() {
 
 export function LoginRoute({ children }: { readonly children: ReactNode }) {
   const { status } = useVaultSession();
+  const location = useLocation();
   if (status === 'restoring') return <RestoringSession />;
-  if (status === 'authenticated') return <Navigate to="/explorer" replace />;
+  if (status === 'authenticated') {
+    return <Navigate to={postLoginDestination(location.state)} replace />;
+  }
   return children;
 }
 
@@ -47,7 +51,10 @@ export function RequireSession({ children, accessControl = false }: RequireSessi
       <Navigate
         to="/login"
         replace
-        state={{ reason: status === 'expired' ? 'expired' : 'required', from: location.pathname }}
+        state={{
+          reason: status === 'expired' ? 'expired' : 'required',
+          from: `${location.pathname}${location.search}${location.hash}`,
+        }}
       />
     );
   }

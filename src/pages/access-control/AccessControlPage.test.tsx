@@ -1,4 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -200,6 +205,58 @@ describe('AccessControlPage', () => {
     expect((await screen.findAllByRole('heading', { name: 'Alice' }))[0]).toBeVisible();
     expect(access.lookupEntityByAlias).toHaveBeenCalledOnce();
     expect(window.location.pathname).toBe('/access-control/users/alice');
+    expect(window.location.search).toBe('?mount=userpass');
+  });
+
+  it('routes duplicate usernames with a reload-stable userpass mount identity', async () => {
+    const user = userEvent.setup();
+    const access = accessGateway();
+    access.listAuthMounts = vi.fn(async () => [
+      {
+        path: 'userpass',
+        accessor: 'auth_userpass_123',
+        type: 'userpass',
+        description: 'People',
+      },
+      {
+        path: 'team/userpass',
+        accessor: 'auth_team_userpass_456',
+        type: 'userpass',
+        description: 'Team people',
+      },
+    ]);
+    access.listUserpassAccounts = vi.fn(async (_session, mount) => [{
+      username: 'alice',
+      mount,
+      tokenPolicies: ['default'],
+    }]);
+    access.lookupEntityByAlias = vi.fn(async (_session, _name, mountAccessor) => ({
+      ...aliceEntity,
+      id: mountAccessor,
+      name: mountAccessor === 'auth_team_userpass_456' ? 'Team Alice' : 'Default Alice',
+      aliases: [{
+        ...aliceEntity.aliases[0],
+        id: `alias-${mountAccessor}`,
+        canonicalId: mountAccessor,
+        mountAccessor,
+      }],
+    }));
+
+    await loginAndOpenUsers(user, access);
+    const teamMountCell = await screen.findByText('team/userpass/');
+    const teamRow = teamMountCell.closest('tr');
+    expect(teamRow).not.toBeNull();
+    await user.click(within(teamRow!).getByRole('button', { name: 'Open user alice' }));
+
+    expect((await screen.findAllByRole('heading', { name: 'Team Alice' }))[0]).toBeVisible();
+    expect(window.location.pathname).toBe('/access-control/users/alice');
+    expect(window.location.search).toBe('?mount=team%2Fuserpass');
+    expect(access.lookupEntityByAlias).toHaveBeenCalledWith(
+      session,
+      'alice',
+      'auth_team_userpass_456',
+      expect.any(AbortSignal),
+    );
   });
 
   it('creates a userpass account, identity alias, and selected group membership from the UI', async () => {

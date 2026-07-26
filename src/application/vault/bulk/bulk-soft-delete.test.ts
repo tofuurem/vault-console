@@ -40,10 +40,10 @@ function gateway(): KvV2Gateway {
         }],
       };
     }),
-    deleteLatestVersion: vi.fn(async (_session, _mount, path) => {
+    deleteLatestVersion: vi.fn(),
+    deleteVersions: vi.fn(async (_session, _mount, path) => {
       if (path === 'runtime-denied') throw new VaultError('authorization');
     }),
-    deleteVersions: vi.fn(),
     undeleteVersions: vi.fn(async (_session, _mount, path) => {
       if (path === 'undo-fails') throw new VaultError('unavailable');
     }),
@@ -54,10 +54,10 @@ function gateway(): KvV2Gateway {
 
 function capabilityMap(paths: readonly string[]): VaultCapabilityMap {
   return Object.fromEntries(paths.map((path) => {
-    if (path.includes('/data/denied')) return [path, ['read']];
+    if (path.includes('/delete/denied')) return [path, ['read']];
     if (path.includes('/undelete/no-undo')) return [path, ['deny']];
     if (path.includes('/metadata/')) return [path, ['read']];
-    if (path.includes('/data/')) return [path, ['delete']];
+    if (path.includes('/delete/')) return [path, ['update']];
     return [path, ['update']];
   })) as VaultCapabilityMap;
 }
@@ -125,6 +125,14 @@ describe('bulk soft delete', () => {
       { path: 'no-undo', version: 7, status: 'succeeded' },
       { path: 'undo-fails', version: 9, status: 'succeeded' },
     ]);
+    expect(kv.deleteVersions).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'ready',
+      [3],
+      undefined,
+    );
+    expect(kv.deleteLatestVersion).not.toHaveBeenCalled();
 
     const undo = await undoBulkSoftDelete({
       gateway: kv,

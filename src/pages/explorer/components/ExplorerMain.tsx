@@ -187,10 +187,13 @@ export default function ExplorerMain({
   }, []);
 
   useEffect(() => {
-    if (searchScope !== 'mount' || searchQuery.trim().length < 2) return;
+    if (searchScope !== 'mount' || searchQuery.trim().length < 2) {
+      if (indexState.status === 'scanning') search.cancel(mount);
+      return;
+    }
     const timer = setTimeout(() => search.start(mount), 250);
     return () => clearTimeout(timer);
-  }, [mount, search, searchQuery, searchScope]);
+  }, [indexState.status, mount, search, searchQuery, searchScope]);
 
   const copy = async (value: string, target: 'path' | 'cli') => {
     try {

@@ -36,7 +36,6 @@ const permissions: KvActionPermissions = {
   canReadData: true,
   canReadMetadata: false,
   canEdit: true,
-  canDeleteLatest: false,
   canDeleteVersions: false,
   canUndelete: false,
   canDestroy: false,
@@ -101,7 +100,6 @@ describe('Inspector partial KV access', () => {
       permissions: {
         ...permissions,
         canReadMetadata: true,
-        canDeleteLatest: true,
         canDeleteVersions: true,
         canDestroy: true,
       },

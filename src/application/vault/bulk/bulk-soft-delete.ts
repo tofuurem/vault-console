@@ -65,7 +65,7 @@ export async function prepareBulkSoftDelete({
   );
   const capabilities = await queryCapabilities(
     [...actionPaths.values()].flatMap((pathsForSecret) => [
-      pathsForSecret.data,
+      pathsForSecret.deleteVersions,
       pathsForSecret.metadata,
       pathsForSecret.undelete,
     ]),
@@ -76,8 +76,8 @@ export async function prepareBulkSoftDelete({
   const inspectable = requestedPaths.filter((path) => {
     const pathsForSecret = actionPaths.get(path)!;
     const canDelete = allowsVaultCapability(
-      capabilities[pathsForSecret.data],
-      'delete',
+      capabilities[pathsForSecret.deleteVersions],
+      'update',
     );
     const canReadMetadata = allowsVaultCapability(
       capabilities[pathsForSecret.metadata],
@@ -170,7 +170,7 @@ export async function executeBulkSoftDelete({
     BULK_SOFT_DELETE_CONCURRENCY,
     async ({ path, version }) => {
       try {
-        await gateway.deleteLatestVersion(session, mount, path, signal);
+        await gateway.deleteVersions(session, mount, path, [version], signal);
         return { path, version, status: 'succeeded' as const };
       } catch (cause) {
         return bulkOutcomeForError(path, cause, version);

@@ -14,6 +14,7 @@ import Button from '@/components/base/Button';
 import { Input } from '@/components/base/Input';
 import type { VaultHealth } from '@/domain/vault/contracts';
 import { normalizeVaultError, type VaultError } from '@/domain/vault/errors';
+import { postLoginDestination } from '@/router/post-login-destination';
 
 type AuthTab = 'token' | 'userpass';
 type ConnectionStatus = 'idle' | 'checking' | 'ready' | 'sealed' | 'uninitialized' | 'unavailable';
@@ -61,6 +62,7 @@ export default function LoginPage() {
   const [userpassPath, setUserpassPath] = useState(runtimeConfig.userpassMount);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const destination = postLoginDestination(location.state);
 
   const beginRequest = useCallback(() => {
     requestRef.current?.abort();
@@ -119,7 +121,7 @@ export default function LoginPage() {
     try {
       await session.signInWithToken(normalized, token.trim(), controller.signal);
       setToken('');
-      navigate('/explorer', { replace: true });
+      navigate(destination, { replace: true });
     } catch (cause) {
       const error = normalizeVaultError(cause);
       if (error.code !== 'aborted') setErrorMessage(serverErrorMessage(error));
@@ -147,7 +149,7 @@ export default function LoginPage() {
         password,
       }, controller.signal);
       setPassword('');
-      navigate('/explorer', { replace: true });
+      navigate(destination, { replace: true });
     } catch (cause) {
       const error = normalizeVaultError(cause);
       if (error.code !== 'aborted') setErrorMessage(serverErrorMessage(error));
@@ -187,7 +189,7 @@ export default function LoginPage() {
               <h1 id="login-heading" className="text-lg font-semibold tracking-tight text-foreground-900">Vault Console</h1>
             </div>
           </div>
-          <p className="text-xs leading-5 text-foreground-500">Sign in to the Vault server configured for this console. Credentials stay in this tab's memory.</p>
+          <p className="text-xs leading-5 text-foreground-500">Sign in directly to the Vault server configured for this console. The session token stays scoped to this tab; passwords are never stored.</p>
         </header>
 
         {(runtimeConfig.allowCustomVaultAddress || runtimeConfig.allowCustomUserpassMount) && (

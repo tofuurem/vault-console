@@ -71,6 +71,20 @@ describe('scanKvPathIndex', () => {
     expect(result.entries.some((entry) => entry.path === 'visible/api-token')).toBe(true);
   });
 
+  it('treats a missing prefix as absent instead of policy-inaccessible', async () => {
+    const list = vi.fn(async (path: string) => {
+      if (path === '') return ['removed/'];
+      throw new VaultError('not-found', { status: 404 });
+    });
+
+    const result = await scanKvPathIndex({ mount: 'applications', list });
+
+    expect(result.status).toBe('complete');
+    expect(result.visitedPrefixes).toContain('removed/');
+    expect(result.inaccessiblePrefixes).toEqual([]);
+    expect(result.failedPrefixes).toEqual([]);
+  });
+
   it('preserves discovered entries and queues transient failures for retry', async () => {
     const list = vi.fn(async (path: string) => {
       if (path === '') return ['ok/', 'later/'];

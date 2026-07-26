@@ -19,7 +19,6 @@ export interface KvActionPermissions {
   readonly canReadData: boolean;
   readonly canReadMetadata: boolean;
   readonly canEdit: boolean;
-  readonly canDeleteLatest: boolean;
   readonly canDeleteVersions: boolean;
   readonly canUndelete: boolean;
   readonly canDestroy: boolean;
@@ -53,7 +52,6 @@ export function resolveKvActionPermissions(
     canReadData: allows(capabilities[paths.data], 'read'),
     canReadMetadata: allows(capabilities[paths.metadata], 'read'),
     canEdit: allows(capabilities[paths.data], 'update'),
-    canDeleteLatest: allows(capabilities[paths.data], 'delete'),
     canDeleteVersions: allows(capabilities[paths.deleteVersions], 'update'),
     canUndelete: allows(capabilities[paths.undelete], 'update'),
     canDestroy: allows(capabilities[paths.destroy], 'update'),
@@ -66,7 +64,6 @@ const NO_PERMISSIONS: KvActionPermissions = {
   canReadData: false,
   canReadMetadata: false,
   canEdit: false,
-  canDeleteLatest: false,
   canDeleteVersions: false,
   canUndelete: false,
   canDestroy: false,

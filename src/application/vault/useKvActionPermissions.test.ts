@@ -18,7 +18,6 @@ describe('KV action capabilities', () => {
       canReadData: true,
       canReadMetadata: true,
       canEdit: true,
-      canDeleteLatest: true,
       canDeleteVersions: true,
       canUndelete: true,
       canDestroy: false,

@@ -162,10 +162,7 @@ function VersionActionsMenu({
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const canSoftDelete = !deleted && (
-    (current && permissions?.canDeleteLatest)
-    || (!current && permissions?.canDeleteVersions)
-  );
+  const canSoftDelete = !deleted && permissions?.canDeleteVersions;
   const canUndelete = deleted && permissions?.canUndelete;
   const canDestroy = !deleted && permissions?.canDestroy;
   const hasActions = canSoftDelete || canUndelete || canDestroy;

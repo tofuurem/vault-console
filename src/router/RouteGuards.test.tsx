@@ -1,5 +1,10 @@
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -32,12 +37,30 @@ function context(overrides: Partial<VaultSessionContextValue> = {}): VaultSessio
   };
 }
 
-function GuardHarness({ value, accessControl = false }: { value: VaultSessionContextValue; accessControl?: boolean }) {
+function LoginProbe() {
+  const location = useLocation();
+  return (
+    <>
+      <h1>Login route</h1>
+      <output>{JSON.stringify(location.state)}</output>
+    </>
+  );
+}
+
+function GuardHarness({
+  value,
+  accessControl = false,
+  initialEntry = '/protected',
+}: {
+  value: VaultSessionContextValue;
+  accessControl?: boolean;
+  initialEntry?: string;
+}) {
   return (
     <VaultSessionContext.Provider value={value}>
-      <MemoryRouter initialEntries={['/protected']}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
-          <Route path="/login" element={<h1>Login route</h1>} />
+          <Route path="/login" element={<LoginProbe />} />
           <Route path="/explorer" element={<h1>Explorer route</h1>} />
           <Route
             path="/protected"
@@ -57,8 +80,14 @@ describe('RouteGuards', () => {
   });
 
   it('redirects anonymous sessions to login', () => {
-    render(<GuardHarness value={context()} />);
+    render(
+      <GuardHarness
+        value={context()}
+        initialEntry="/protected?secret=team%2Fapi#versions"
+      />,
+    );
     expect(screen.getByRole('heading', { name: 'Login route' })).toBeVisible();
+    expect(screen.getByText(/protected.*secret=team%2Fapi.*versions/)).toBeVisible();
   });
 
   it('keeps non-admin sessions out of access control', () => {

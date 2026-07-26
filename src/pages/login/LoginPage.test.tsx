@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import App from '@/App';
 import type {
+  KvV2Gateway,
   UserpassLogin,
   VaultAuthGateway,
   VaultCapabilityMap,
@@ -34,6 +35,27 @@ class LoginGateway implements VaultAuthGateway {
   getCapabilities = vi.fn(async (): Promise<VaultCapabilityMap> => this.capabilities);
 }
 
+function kvGateway(): KvV2Gateway {
+  return {
+    listMounts: vi.fn(async () => [{
+      path: 'applications',
+      accessor: 'kv_apps',
+      description: 'Applications',
+      version: 2 as const,
+    }]),
+    createKvV2Mount: vi.fn(),
+    listPaths: vi.fn(async () => []),
+    readSecret: vi.fn(),
+    writeSecret: vi.fn(),
+    readSecretHistory: vi.fn(),
+    deleteLatestVersion: vi.fn(),
+    deleteVersions: vi.fn(),
+    undeleteVersions: vi.fn(),
+    destroyVersions: vi.fn(),
+    deleteMetadata: vi.fn(),
+  };
+}
+
 describe('LoginPage', () => {
   it('uses the fixed same-origin Vault proxy without asking for deployment details', async () => {
     const gateway = new LoginGateway();
@@ -51,7 +73,13 @@ describe('LoginPage', () => {
     const gateway = new LoginGateway();
     gateway.health = { ...gateway.health, sealed: true };
     window.history.replaceState({}, '', '/login');
-    render(<App authGateway={gateway} runtimeConfig={{ allowCustomVaultAddress: true }} />);
+    render(
+      <App
+        authGateway={gateway}
+        kvV2Gateway={kvGateway()}
+        runtimeConfig={{ allowCustomVaultAddress: true }}
+      />,
+    );
 
     await user.click(screen.getByText('Advanced connection settings'));
     await user.clear(screen.getByLabelText('Vault server'));
@@ -66,7 +94,13 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     const gateway = new LoginGateway();
     window.history.replaceState({}, '', '/login');
-    render(<App authGateway={gateway} runtimeConfig={{ allowCustomVaultAddress: true }} />);
+    render(
+      <App
+        authGateway={gateway}
+        kvV2Gateway={kvGateway()}
+        runtimeConfig={{ allowCustomVaultAddress: true }}
+      />,
+    );
 
     await user.click(screen.getByText('Advanced connection settings'));
     await user.clear(screen.getByLabelText('Vault server'));
@@ -77,6 +111,36 @@ describe('LoginPage', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/explorer'));
     expect(gateway.validateToken.mock.calls[0][1].reveal()).toBe('hvs.operator');
     expect(screen.queryByDisplayValue('hvs.operator')).not.toBeInTheDocument();
+  });
+
+  it('returns to the complete guarded deep link after authentication', async () => {
+    const user = userEvent.setup();
+    const gateway = new LoginGateway();
+    window.history.replaceState({
+      usr: {
+        reason: 'required',
+        from: '/explorer/applications?secret=team%2Fapi#versions',
+      },
+    }, '', '/login');
+    render(
+      <App
+        authGateway={gateway}
+        kvV2Gateway={kvGateway()}
+        runtimeConfig={{ allowCustomVaultAddress: true }}
+      />,
+    );
+
+    await user.click(screen.getByText('Advanced connection settings'));
+    await user.clear(screen.getByLabelText('Vault server'));
+    await user.type(screen.getByLabelText('Vault server'), 'https://vault.example.test:8200');
+    await user.type(screen.getByLabelText('Vault token'), 'hvs.operator');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/explorer/applications');
+      expect(window.location.search).toBe('?secret=team%2Fapi');
+      expect(window.location.hash).toBe('#versions');
+    });
   });
 
   it('supports userpass at a custom mount and removes the password after use', async () => {
