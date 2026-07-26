@@ -82,12 +82,12 @@ export default function LoginPage() {
     }
   }, [serverUrl]);
 
-  const checkConnection = useCallback(async () => {
+  const checkConnection = useCallback(async (clearExistingError = true) => {
     const normalized = validatedServerUrl();
     if (!normalized) return;
     const controller = beginRequest();
     setConnectionStatus('checking');
-    setErrorMessage('');
+    if (clearExistingError) setErrorMessage('');
     setHealth(undefined);
     try {
       const result = await checkHealth(normalized, controller.signal);
@@ -104,7 +104,7 @@ export default function LoginPage() {
   }, [beginRequest, checkHealth, validatedServerUrl]);
 
   useEffect(() => {
-    if (!runtimeConfig.allowCustomVaultAddress) void checkConnection();
+    if (!runtimeConfig.allowCustomVaultAddress) void checkConnection(false);
     return () => requestRef.current?.abort();
   }, [checkConnection, runtimeConfig.allowCustomVaultAddress]);
 

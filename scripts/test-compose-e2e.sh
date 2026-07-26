@@ -324,6 +324,8 @@ path "applications/metadata/*" {
 HCL
 
 limited_token="$(vault_exec token create -no-default-policy -policy=e2e-data-only -ttl=10m -field=token)"
+revocable_token="$(vault_exec token create -policy=e2e-userpass -ttl=10m -field=token)"
+restored_revocable_token="$(vault_exec token create -policy=e2e-userpass -ttl=10m -field=token)"
 
 docker exec \
   --interactive \
@@ -412,6 +414,8 @@ E2E_VAULT_TOKEN="${root_token}" \
 E2E_LIMITED_VAULT_TOKEN="${limited_token}" \
 E2E_PARTIAL_LIST_VAULT_TOKEN="${partial_list_token}" \
 E2E_RESTRICTED_ACCESS_TOKEN="${restricted_access_token}" \
+E2E_REVOCABLE_VAULT_TOKEN="${revocable_token}" \
+E2E_RESTORED_REVOCABLE_VAULT_TOKEN="${restored_revocable_token}" \
 npm run test:e2e:playwright
 
 api_log_marker="vault-console-api-log-marker-${test_id}"

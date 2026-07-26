@@ -4,6 +4,8 @@ const vaultToken = process.env.E2E_VAULT_TOKEN;
 const limitedVaultToken = process.env.E2E_LIMITED_VAULT_TOKEN;
 const partialListVaultToken = process.env.E2E_PARTIAL_LIST_VAULT_TOKEN;
 const restrictedAccessToken = process.env.E2E_RESTRICTED_ACCESS_TOKEN;
+const revocableVaultToken = process.env.E2E_REVOCABLE_VAULT_TOKEN;
+const restoredRevocableVaultToken = process.env.E2E_RESTORED_REVOCABLE_VAULT_TOKEN;
 
 test.skip(!vaultToken, 'E2E_VAULT_TOKEN is supplied by the disposable real-Vault harness.');
 
@@ -15,6 +17,47 @@ async function login(page: import('@playwright/test').Page, token = vaultToken) 
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();
 }
+
+async function revokeToken(page: import('@playwright/test').Page, token: string) {
+  const response = await page.request.post('/v1/auth/token/revoke', {
+    headers: { 'X-Vault-Token': vaultToken! },
+    data: { token },
+  });
+  expect(response.ok()).toBe(true);
+}
+
+test('rejects invalid tokens and expires active or restored revoked sessions', async ({ page }) => {
+  test.skip(
+    !revocableVaultToken || !restoredRevocableVaultToken,
+    'Revocable tokens are supplied by the disposable real-Vault harness.',
+  );
+
+  await page.goto('/login');
+  await page.getByLabel('Vault token').fill('invalid-e2e-vault-token');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('alert')).toContainText(
+    'Your Vault session has expired. Sign in again.',
+  );
+  await expect(page.getByRole('heading', { name: 'Application secrets' })).toHaveCount(0);
+
+  await login(page, revocableVaultToken);
+  await revokeToken(page, revocableVaultToken!);
+  await page.getByRole('button', { name: 'Refresh directory' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('alert')).toContainText(
+    'Your Vault session expired. Sign in again.',
+  );
+
+  await login(page, restoredRevocableVaultToken);
+  await revokeToken(page, restoredRevocableVaultToken!);
+  await page.reload();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('alert')).toContainText(
+    'Your Vault session expired. Sign in again.',
+  );
+  expect(await page.evaluate(() => sessionStorage.getItem('vault-console.session.v1'))).toBeNull();
+});
 
 test('restores the authenticated route after a full page reload', async ({ page }) => {
   await login(page);

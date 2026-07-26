@@ -67,6 +67,17 @@ describe('LoginPage', () => {
     expect(gateway.getHealth).toHaveBeenCalledWith(window.location.origin, expect.any(AbortSignal));
   });
 
+  it('preserves the expiry explanation while checking the fixed Vault proxy', async () => {
+    const gateway = new LoginGateway();
+    window.history.replaceState({ usr: { reason: 'expired' } }, '', '/login');
+    render(<App authGateway={gateway} />);
+
+    expect(await screen.findByText('Vault is ready')).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Your Vault session expired. Sign in again.',
+    );
+  });
+
   it('checks a custom Vault address and renders sealed state from Advanced', async () => {
     const user = userEvent.setup();
     const gateway = new LoginGateway();
