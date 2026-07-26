@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { useKvDirectory } from '@/application/vault/useKvExplorerData';
+import ContentSkeleton from '@/components/base/ContentSkeleton';
 import {
   resolveEffectiveKvTree,
   type EffectiveKvAccessTreeNode,
@@ -128,8 +129,11 @@ function LazyPermissionNode({
       {expanded && node.target === 'folder' && (
         <div>
           {directory.status === 'loading' && (
-            <div role="status" className="border-b border-background-200 py-2 text-[11px] text-foreground-400" style={{ paddingLeft: `${50 + depth * 16}px` }}>
-              <i className="ri-loader-4-line mr-1 animate-spin" aria-hidden="true" /> Loading this prefix…
+            <div
+              className="border-b border-background-200"
+              style={{ paddingLeft: `${38 + depth * 16}px` }}
+            >
+              <ContentSkeleton label="Loading this prefix" compact />
             </div>
           )}
           {directory.status === 'error' && (

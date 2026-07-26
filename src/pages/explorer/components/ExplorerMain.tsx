@@ -6,6 +6,7 @@ import { rankKvPathMatches } from '@/application/vault/search/search-ranking';
 import type { KvSecretDetails, VaultQueryState } from '@/application/vault/useKvExplorerData';
 import type { KvActionPermissions } from '@/application/vault/useKvActionPermissions';
 import Button from '@/components/base/Button';
+import ContentSkeleton from '@/components/base/ContentSkeleton';
 import Tooltip from '@/components/base/Tooltip';
 import type { KvV2Mount } from '@/domain/vault/contracts';
 import type { KvPathEntry } from '@/domain/vault/search';
@@ -13,6 +14,7 @@ import BulkToolbar from './BulkToolbar';
 import ExplorerSearch, { type ExplorerSearchScope } from './ExplorerSearch';
 import Inspector from './Inspector';
 import InspectorDock from './InspectorDock';
+import PathBreadcrumbs from './PathBreadcrumbs';
 import SearchResults from './SearchResults';
 import SecretTable, { type KvDirectoryEntry } from './SecretTable';
 import {
@@ -149,10 +151,6 @@ export default function ExplorerMain({
     selectedPaths,
     visibleSecretPaths,
   );
-  const breadcrumbs = currentPath.split('/').filter(Boolean).map((part, index, parts) => ({
-    label: part,
-    path: `${parts.slice(0, index + 1).join('/')}/`,
-  }));
   const currentMount = mounts.find((candidate) => candidate.path === mount);
 
   useEffect(() => {
@@ -269,15 +267,11 @@ export default function ExplorerMain({
     >
       <section aria-labelledby="directory-heading" className="flex min-w-0 flex-1 flex-col">
         <header className="shrink-0 border-b border-background-200 px-4 py-3">
-          <nav aria-label="Secret path" className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
-            <button type="button" onClick={() => onNavigateToBreadcrumb('')} className="font-mono text-foreground-500 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">{mount}/</button>
-            {breadcrumbs.map((crumb, index) => (
-              <span key={crumb.path} className="flex items-center gap-1.5">
-                <span className="text-foreground-300">/</span>
-                <button type="button" onClick={() => onNavigateToBreadcrumb(crumb.path)} className={`font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${index === breadcrumbs.length - 1 ? 'font-medium text-foreground-900' : 'text-foreground-500 hover:text-primary-600'}`}>{crumb.label}/</button>
-              </span>
-            ))}
-          </nav>
+          <PathBreadcrumbs
+            mount={mount}
+            currentPath={currentPath}
+            onNavigate={onNavigateToBreadcrumb}
+          />
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -333,7 +327,7 @@ export default function ExplorerMain({
 
         <div className="flex-1 overflow-y-auto">
           {directory.status === 'loading' && !directory.data && (
-            <div aria-label="Loading directory" className="space-y-px p-3"><div className="h-10 animate-pulse rounded bg-background-100" /><div className="h-10 animate-pulse rounded bg-background-100" /><div className="h-10 animate-pulse rounded bg-background-100" /></div>
+            <ContentSkeleton label="Loading directory" variant="list" />
           )}
           {directory.status === 'error' && !directory.data && (
             <div role="alert" className="m-4 rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">

@@ -23,6 +23,7 @@ import CreateKvMountDialog from '@/components/feature/CreateKvMountDialog';
 import SessionExpiryBanner from '@/components/feature/SessionExpiryBanner';
 import Sidebar from '@/components/feature/Sidebar';
 import TopBar from '@/components/feature/TopBar';
+import Drawer from '@/components/base/Drawer';
 import type { AuthenticatedShellContextValue } from './authenticated-shell';
 import { directoryPathForSecret, explorerRoute } from '@/router/explorer-route';
 import { normalizeVaultError } from '@/domain/vault/errors';
@@ -90,6 +91,7 @@ function AuthenticatedWorkspace() {
   }, [toast, vault]);
   const [mountsState, refreshMounts] = useKvMounts(session);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [createMountOpen, setCreateMountOpen] = useState(false);
   const mounts = mountsState.data ?? NO_MOUNTS;
   const explorer = matchPath('/explorer/:mount/*', location.pathname);
@@ -104,6 +106,10 @@ function AuthenticatedWorkspace() {
       vault.expireSession();
     }
   }, [mountsState, vault]);
+
+  useEffect(() => {
+    setMobileNavigationOpen(false);
+  }, [location.pathname, location.search]);
 
   const signOut = () => {
     vault.signOut();
@@ -214,6 +220,7 @@ function AuthenticatedWorkspace() {
         remainingLabel={sessionClock.remainingLabel}
         renewal={vault.renewal}
         onRenewSession={renewSession}
+        onOpenNavigation={() => setMobileNavigationOpen(true)}
       />
       <SessionExpiryBanner
         session={session}
@@ -245,6 +252,44 @@ function AuthenticatedWorkspace() {
           recents={navigationHistory.recents}
           onPathSelect={openNavigationPath}
         />
+        <Drawer
+          open={mobileNavigationOpen}
+          onClose={() => setMobileNavigationOpen(false)}
+          title="Vault navigation"
+          width="320px"
+          side="left"
+        >
+          <Sidebar
+            mobile
+            collapsed={false}
+            onToggleCollapse={() => {}}
+            mounts={mounts}
+            vaultHealth={vault.health}
+            serverUrl={session.serverUrl}
+            activeMount={activeMount}
+            activePath={activePath}
+            onMountSelect={(mount) => {
+              setMobileNavigationOpen(false);
+              navigate(`/explorer/${encodeURIComponent(mount)}`);
+            }}
+            onCreateMount={() => {
+              setMobileNavigationOpen(false);
+              setCreateMountOpen(true);
+            }}
+            showAccessControl={showAccessControl}
+            activeAccessSection={activeAccessSection}
+            onAccessSectionSelect={(section) => {
+              setMobileNavigationOpen(false);
+              navigate(`/access-control/${section}`);
+            }}
+            favorites={navigationHistory.favorites}
+            recents={navigationHistory.recents}
+            onPathSelect={(target) => {
+              setMobileNavigationOpen(false);
+              openNavigationPath(target);
+            }}
+          />
+        </Drawer>
         <Outlet context={context} />
         <CreateKvMountDialog
           open={createMountOpen}

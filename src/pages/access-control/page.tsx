@@ -23,6 +23,7 @@ import {
 } from '@/application/vault/useAccessControlData';
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import type { VaultQueryState } from '@/application/vault/useKvExplorerData';
+import ContentSkeleton from '@/components/base/ContentSkeleton';
 import { classifyPolicyName } from '@/domain/access-control/managed-resources';
 import type { KvAccessTreeNode } from '@/domain/access-control/effective-access';
 import type { VaultError } from '@/domain/vault/errors';
@@ -49,14 +50,7 @@ function mountRoots(mounts: readonly { readonly path: string }[]): readonly KvAc
 }
 
 function ResourceLoading({ label }: { readonly label: string }) {
-  return (
-    <div role="status" className="flex h-full items-center justify-center">
-      <div className="text-center">
-        <i className="ri-loader-4-line animate-spin text-xl text-primary-500" aria-hidden="true" />
-        <p className="mt-2 text-xs text-foreground-500">{label}</p>
-      </div>
-    </div>
-  );
+  return <ContentSkeleton label={label} variant="workspace" />;
 }
 
 function ResourceError({

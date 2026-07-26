@@ -54,4 +54,33 @@ describe('Sidebar', () => {
       path: 'platform/database',
     }));
   });
+
+  it('renders full labels and touch-sized destinations in the mobile drawer', () => {
+    render(
+      <Sidebar
+        mobile
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        mounts={[{
+          path: 'applications',
+          accessor: 'kv_apps',
+          description: '',
+          version: 2,
+        }]}
+        activeMount="applications"
+        activePath=""
+        onMountSelect={vi.fn()}
+        showAccessControl
+        activeAccessSection="users"
+        onAccessSectionSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('applications/')).toBeVisible();
+    expect(screen.getByText('Users')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Open applications mount' }))
+      .toHaveClass('min-h-11');
+    expect(screen.queryByRole('button', { name: 'Collapse sidebar' }))
+      .not.toBeInTheDocument();
+  });
 });

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { AccessPolicyRecord } from '@/application/vault/useAccessControlData';
 import type { VaultQueryState } from '@/application/vault/useKvExplorerData';
 import Badge from '@/components/base/Badge';
+import ContentSkeleton from '@/components/base/ContentSkeleton';
 import { classifyPolicyName } from '@/domain/access-control/managed-resources';
 
 function PolicyBadge({ kind }: { readonly kind: AccessPolicyRecord['kind'] }) {
@@ -79,9 +80,7 @@ export default function PolicyExplorer({
             </div>
           )}
           {selectedName && selectedPolicy.status === 'loading' && (
-            <div role="status" className="flex h-full items-center justify-center text-xs text-foreground-500">
-              <i className="ri-loader-4-line mr-1 animate-spin" aria-hidden="true" /> Loading policy…
-            </div>
+            <ContentSkeleton label="Loading policy" variant="detail" />
           )}
           {selectedName && selectedPolicy.status === 'error' && (
             <div role="alert" className="m-5 rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">

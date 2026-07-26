@@ -3,6 +3,7 @@ import type {
   AccessPolicyRecord,
 } from '@/application/vault/useAccessControlData';
 import type { VaultQueryState } from '@/application/vault/useKvExplorerData';
+import ContentSkeleton from '@/components/base/ContentSkeleton';
 
 interface RolesListProps {
   readonly roles: readonly AccessControlRoleRecord[];
@@ -54,9 +55,7 @@ export default function RolesList({
             </div>
           )}
           {selectedName && selectedPolicy.status === 'loading' && (
-            <div role="status" className="m-auto text-xs text-foreground-500">
-              <i className="ri-loader-4-line mr-1 animate-spin" aria-hidden="true" /> Loading role policy…
-            </div>
+            <ContentSkeleton label="Loading role policy" variant="detail" />
           )}
           {selectedName && selectedPolicy.status === 'error' && (
             <div role="alert" className="m-5 rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">

@@ -8,9 +8,17 @@ interface DrawerProps {
   title?: string;
   children: ReactNode;
   width?: string;
+  side?: 'left' | 'right';
 }
 
-export default function Drawer({ open, onClose, title, children, width = '640px' }: DrawerProps) {
+export default function Drawer({
+  open,
+  onClose,
+  title,
+  children,
+  width = '640px',
+  side = 'right',
+}: DrawerProps) {
   const [visible, setVisible] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -41,13 +49,21 @@ export default function Drawer({ open, onClose, title, children, width = '640px'
         aria-labelledby={title ? titleId : undefined}
         aria-label={title ? undefined : 'Drawer'}
         tabIndex={-1}
-        className={`absolute top-0 right-0 h-full bg-background-50 border-l border-background-300 shadow-sm flex flex-col ${open ? 'drawer-enter' : 'drawer-exit'}`}
-        style={{ width: `min(${width}, 100vw)` }}
+        className={`absolute inset-y-0 flex h-[100dvh] flex-col bg-background-50 shadow-sm ${
+          side === 'left'
+            ? `left-0 border-r border-background-300 ${open ? 'drawer-enter-left' : 'drawer-exit-left'}`
+            : `right-0 border-l border-background-300 ${open ? 'drawer-enter' : 'drawer-exit'}`
+        }`}
+        style={{
+          width: `min(${width}, 100vw)`,
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        }}
       >
         {title && (
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-background-200 shrink-0">
+          <div className="flex min-h-12 shrink-0 items-center justify-between border-b border-background-200 px-4 py-2">
             <h3 id={titleId} className="text-sm font-semibold text-foreground-900">{title}</h3>
-            <button type="button" aria-label="Close drawer" onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-md text-foreground-400 hover:text-foreground-700 hover:bg-background-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+            <button type="button" aria-label="Close drawer" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
               <i className="ri-close-line" aria-hidden="true" />
             </button>
           </div>

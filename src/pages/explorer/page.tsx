@@ -27,6 +27,7 @@ import { useKvDirectory, useKvSecretDetails } from '@/application/vault/useKvExp
 import type { VaultCapability } from '@/domain/vault/contracts';
 import { summarizeBulkOutcomes } from '@/domain/vault/bulk-operation';
 import { normalizeVaultError, VaultError } from '@/domain/vault/errors';
+import ContentSkeleton from '@/components/base/ContentSkeleton';
 import {
   directoryPathForSecret,
   directoryPathFromWildcard,
@@ -565,11 +566,8 @@ export default function ExplorerPage() {
   };
 
   const content = mountsState.status === 'loading' && !mountsState.data ? (
-    <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center" aria-label="Loading KV v2 mounts">
-      <div className="text-center">
-        <i className="ri-loader-4-line animate-spin text-xl text-primary-500" aria-hidden="true" />
-        <p className="mt-2 text-xs text-foreground-500">Discovering visible KV v2 mounts…</p>
-      </div>
+    <main id="main-content" tabIndex={-1} className="flex min-w-0 flex-1">
+      <ContentSkeleton label="Discovering visible KV v2 mounts" />
     </main>
   ) : mountsState.status === 'error' && !mountsState.data ? (
     <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center p-6">

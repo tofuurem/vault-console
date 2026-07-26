@@ -22,6 +22,7 @@ interface SidebarProps {
   readonly favorites?: readonly FavoriteNavigationPath[];
   readonly recents?: readonly RecentNavigationPath[];
   readonly onPathSelect?: (path: NavigationPath) => void;
+  readonly mobile?: boolean;
 }
 
 const accessSections = [
@@ -36,16 +37,18 @@ function PathSection({
   icon,
   paths,
   onPathSelect,
+  mobile = false,
 }: {
   readonly title: string;
   readonly icon: string;
   readonly paths: readonly NavigationPath[];
   readonly onPathSelect: (path: NavigationPath) => void;
+  readonly mobile?: boolean;
 }) {
   if (paths.length === 0) return null;
   return (
     <div className="mt-3 border-t border-background-200 pt-2">
-      <div className="hidden h-6 items-center px-3 sm:flex">
+      <div className={`${mobile ? 'flex' : 'hidden sm:flex'} h-6 items-center px-3`}>
         <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground-400">
           {title}
         </span>
@@ -58,10 +61,14 @@ function PathSection({
             type="button"
             aria-label={`Open ${title.toLowerCase()} path ${logicalPath}`}
             onClick={() => onPathSelect(path)}
-            className="flex min-h-9 w-full items-center justify-center gap-2 px-2 text-left text-xs text-foreground-600 transition-colors hover:bg-background-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 sm:min-h-8 sm:justify-start sm:px-3"
+            className={`flex w-full items-center gap-2 text-left text-xs text-foreground-600 transition-colors hover:bg-background-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 ${
+              mobile
+                ? 'min-h-11 justify-start px-4'
+                : 'min-h-9 justify-center px-2 sm:min-h-8 sm:justify-start sm:px-3'
+            }`}
           >
             <i className={`${icon} shrink-0 text-xs`} aria-hidden="true" />
-            <span className="hidden min-w-0 flex-1 truncate font-mono text-[10px] sm:inline">
+            <span className={`${mobile ? 'inline' : 'hidden sm:inline'} min-w-0 flex-1 truncate font-mono text-[10px]`}>
               {logicalPath}
             </span>
           </button>
@@ -86,10 +93,11 @@ export default function Sidebar({
   favorites = [],
   recents = [],
   onPathSelect,
+  mobile = false,
 }: SidebarProps) {
-  if (collapsed) {
+  if (collapsed && !mobile) {
     return (
-      <aside aria-label="Vault navigation" className="flex w-11 shrink-0 flex-col items-center gap-1 border-r border-background-200 bg-background-100 py-3">
+      <aside aria-label="Vault navigation" className="hidden w-11 shrink-0 flex-col items-center gap-1 border-r border-background-200 bg-background-100 py-3 sm:flex">
         <Tooltip content="Expand sidebar" position="right">
           <button type="button" aria-label="Expand sidebar" onClick={onToggleCollapse} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-200 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
             <i className="ri-layout-right-2-line text-sm" aria-hidden="true" />
@@ -136,22 +144,33 @@ export default function Sidebar({
   }
 
   return (
-    <aside aria-label="Vault navigation" className="flex w-11 shrink-0 flex-col border-r border-background-200 bg-background-100 sm:w-[240px]">
-      <div className="flex h-9 items-center justify-center border-b border-background-200 px-2 sm:justify-between sm:px-3">
-        <span className="hidden text-[11px] font-semibold uppercase tracking-wider text-foreground-500 sm:inline">KV v2 mounts</span>
+    <aside
+      aria-label="Vault navigation"
+      className={`${mobile
+        ? 'flex h-full w-full'
+        : 'hidden w-11 shrink-0 sm:flex sm:w-[240px]'} flex-col border-r border-background-200 bg-background-100`}
+    >
+      <div className={`flex items-center border-b border-background-200 ${
+        mobile
+          ? 'min-h-11 justify-between px-4'
+          : 'h-9 justify-center px-2 sm:justify-between sm:px-3'
+      }`}>
+        <span className={`${mobile ? 'inline' : 'hidden sm:inline'} text-[11px] font-semibold uppercase tracking-wider text-foreground-500`}>KV v2 mounts</span>
         <div className="flex items-center gap-1">
           {onCreateMount && (
             <Tooltip content="Create KV v2 mount" position="right">
-              <button type="button" aria-label="Create KV v2 mount" onClick={onCreateMount} className="flex h-6 w-6 items-center justify-center rounded text-primary-600 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+              <button type="button" aria-label="Create KV v2 mount" onClick={onCreateMount} className={`flex items-center justify-center rounded text-primary-600 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${mobile ? 'h-11 w-11' : 'h-6 w-6'}`}>
                 <i className="ri-add-line text-sm" aria-hidden="true" />
               </button>
             </Tooltip>
           )}
-          <Tooltip content="Collapse sidebar" position="right">
-            <button type="button" aria-label="Collapse sidebar" onClick={onToggleCollapse} className="hidden h-5 w-5 items-center justify-center rounded text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:flex">
-              <i className="ri-layout-left-2-line text-xs" aria-hidden="true" />
-            </button>
-          </Tooltip>
+          {!mobile && (
+            <Tooltip content="Collapse sidebar" position="right">
+              <button type="button" aria-label="Collapse sidebar" onClick={onToggleCollapse} className="hidden h-5 w-5 items-center justify-center rounded text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:flex">
+                <i className="ri-layout-left-2-line text-xs" aria-hidden="true" />
+              </button>
+            </Tooltip>
+          )}
         </div>
       </div>
 
@@ -165,11 +184,15 @@ export default function Sidebar({
             type="button"
             aria-label={`Open ${mount.path} mount`}
             onClick={() => onMountSelect(mount.path)}
-            className={`flex min-h-9 w-full items-center justify-center gap-2 px-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 sm:min-h-8 sm:justify-start sm:px-3 ${activeMount === mount.path ? 'bg-primary-100 font-medium text-primary-700' : 'text-foreground-700 hover:bg-background-200'}`}
+            className={`flex w-full items-center gap-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 ${
+              mobile
+                ? 'min-h-11 justify-start px-4'
+                : 'min-h-9 justify-center px-2 sm:min-h-8 sm:justify-start sm:px-3'
+            } ${activeMount === mount.path ? 'bg-primary-100 font-medium text-primary-700' : 'text-foreground-700 hover:bg-background-200'}`}
           >
             <i className="ri-folder-keyhole-line shrink-0 text-sm text-primary-500" aria-hidden="true" />
-            <span className="hidden min-w-0 flex-1 truncate font-mono sm:inline">{mount.path}/</span>
-            <span className="hidden rounded bg-background-200 px-1 py-0.5 font-mono text-[9px] text-foreground-400 sm:inline">v2</span>
+            <span className={`${mobile ? 'inline' : 'hidden sm:inline'} min-w-0 flex-1 truncate font-mono`}>{mount.path}/</span>
+            <span className={`${mobile ? 'inline' : 'hidden sm:inline'} rounded bg-background-200 px-1 py-0.5 font-mono text-[9px] text-foreground-400`}>v2</span>
           </button>
         ))}
 
@@ -180,19 +203,21 @@ export default function Sidebar({
               icon="ri-star-fill text-warning-500"
               paths={favorites}
               onPathSelect={onPathSelect}
+              mobile={mobile}
             />
             <PathSection
               title="Recent"
               icon="ri-history-line"
               paths={recents}
               onPathSelect={onPathSelect}
+              mobile={mobile}
             />
           </>
         )}
 
         {showAccessControl && (
           <div className="mt-3 border-t border-background-200 pt-3">
-            <div className="hidden h-6 items-center px-3 sm:flex">
+            <div className={`${mobile ? 'flex' : 'hidden sm:flex'} h-6 items-center px-3`}>
               <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-500">Access control</span>
             </div>
             {accessSections.map((section) => (
@@ -201,17 +226,21 @@ export default function Sidebar({
                 type="button"
                 aria-label={section.label}
                 onClick={() => onAccessSectionSelect?.(section.key)}
-                className={`flex h-9 w-full items-center justify-center gap-2 px-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 sm:h-8 sm:justify-start sm:px-3 ${activeAccessSection === section.key ? 'bg-primary-100 font-medium text-primary-700' : 'text-foreground-700 hover:bg-background-200'}`}
+                className={`flex w-full items-center gap-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 ${
+                  mobile
+                    ? 'h-11 justify-start px-4'
+                    : 'h-9 justify-center px-2 sm:h-8 sm:justify-start sm:px-3'
+                } ${activeAccessSection === section.key ? 'bg-primary-100 font-medium text-primary-700' : 'text-foreground-700 hover:bg-background-200'}`}
               >
                 <i className={`${section.icon} shrink-0 text-xs`} aria-hidden="true" />
-                <span className="hidden truncate sm:inline">{section.label}</span>
+                <span className={`${mobile ? 'inline' : 'hidden sm:inline'} truncate`}>{section.label}</span>
               </button>
             ))}
           </div>
         )}
       </nav>
 
-      <div className="hidden space-y-0.5 border-t border-background-200 px-3 py-2 text-[10px] text-foreground-400 sm:block">
+      <div className={`${mobile ? 'block' : 'hidden sm:block'} space-y-0.5 border-t border-background-200 px-3 py-2 text-[10px] text-foreground-400`}>
         <div className="flex items-center gap-1.5">
           <span className={`h-1.5 w-1.5 rounded-full ${vaultHealth?.sealed ? 'bg-danger-500' : 'bg-success-500'}`} />
           <span>{vaultHealth?.sealed ? 'Sealed' : 'Unsealed'}</span>

@@ -235,6 +235,12 @@ html, body, #root {
   overflow: hidden;
 }
 
+@supports (height: 100dvh) {
+  html, body, #root {
+    height: 100dvh;
+  }
+}
+
 body {
   font-family: var(--font-body);
   background-color: oklch(var(--background-50));
@@ -325,12 +331,30 @@ button,
   to { transform: translateX(100%); }
 }
 
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideOutLeft {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
 .drawer-enter {
   animation: slideInRight 0.2s ease-out forwards;
 }
 
 .drawer-exit {
   animation: slideOutRight 0.15s ease-in forwards;
+}
+
+.drawer-enter-left {
+  animation: slideInLeft 0.2s ease-out forwards;
+}
+
+.drawer-exit-left {
+  animation: slideOutLeft 0.15s ease-in forwards;
 }
 
 /* Modal animation */

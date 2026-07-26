@@ -127,4 +127,28 @@ describe('TopBar', () => {
     await user.click(screen.getByRole('button', { name: 'Renew session' }));
     expect(onRenewSession).toHaveBeenCalledOnce();
   });
+
+  it('opens the touch-sized mobile navigation control', async () => {
+    const user = userEvent.setup();
+    const onOpenNavigation = vi.fn();
+    render(
+      <ThemeProvider storage={null} colorSchemeQuery={lightQuery}>
+        <TopBar
+          session={{
+            serverUrl: 'https://vault.example.test',
+            token: vaultToken('hvs.test'),
+            authMethod: 'token',
+            displayName: 'Alice',
+          }}
+          onSignOut={vi.fn()}
+          onOpenNavigation={onOpenNavigation}
+        />
+      </ThemeProvider>,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Open navigation' });
+    expect(trigger).toHaveClass('h-11', 'w-11');
+    await user.click(trigger);
+    expect(onOpenNavigation).toHaveBeenCalledOnce();
+  });
 });
