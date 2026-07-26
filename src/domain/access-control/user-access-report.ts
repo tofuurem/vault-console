@@ -47,6 +47,7 @@ export interface UserAccessPolicy {
   readonly name: string;
   readonly kind: ManagedPolicyKind;
   readonly status: UserAccessPolicyStatus;
+  readonly hcl?: string;
   readonly rules?: readonly AccessPolicyRule[];
 }
 

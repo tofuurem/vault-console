@@ -101,7 +101,15 @@ function accessGateway(): VaultAccessControlGateway {
       memberEntityIds = [...nextMembers];
     }),
     listUserpassAccounts: vi.fn(async () => [{ username: 'alice', mount: 'userpass', tokenPolicies: ['default'] }]),
-    readUserpassAccount: vi.fn(async () => null),
+    readUserpassAccount: vi.fn(async (_session, mount, username) => (
+      username === 'alice'
+        ? {
+            username,
+            mount,
+            tokenPolicies: ['default'],
+          }
+        : null
+    )),
     createUserpassAccount: vi.fn(async () => undefined),
     deleteUserpassAccount: vi.fn(async () => undefined),
     readEntityByName: vi.fn(async () => { throw new VaultError('not-found'); }),
@@ -201,6 +209,14 @@ describe('AccessControlPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Users' }));
     await user.click(await screen.findByText('alice', { exact: true }));
+    await waitFor(() => expect(access.readUserpassAccount).toHaveBeenCalled());
+    await waitFor(() => expect(access.lookupEntityByAlias).toHaveBeenCalled());
+    await waitFor(() => expect(access.listGroups).toHaveBeenCalled());
+    await waitFor(() => expect(access.readPolicy).toHaveBeenCalledWith(
+      session,
+      'default',
+      expect.any(AbortSignal),
+    ));
     expect((await screen.findAllByRole('heading', { name: 'Alice' }))[0]).toBeVisible();
     expect(access.lookupEntityByAlias).toHaveBeenCalledOnce();
     expect(window.location.pathname).toBe('/access-control/users/alice');

@@ -16,11 +16,14 @@ import {
   usePolicyCatalog,
   usePolicyNames,
   usePolicyRecord,
-  useUserDetails,
   useUserpassUsers,
   type AccessControlSnapshot,
   type AccessControlUserRecord,
 } from '@/application/vault/useAccessControlData';
+import {
+  useUserAccessReport,
+  type UserAccessAccountRef,
+} from '@/application/vault/useUserAccessReport';
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import type { VaultQueryState } from '@/application/vault/useKvExplorerData';
 import ContentSkeleton from '@/components/base/ContentSkeleton';
@@ -101,14 +104,21 @@ export default function AccessControlPage() {
     ? params.section
     : 'users';
   const profileRequested = Boolean(params.username);
-  const usersNeeded = activeSection === 'users' || creatingUser || profileRequested;
-  const groupsNeeded = activeSection === 'groups' || creatingUser || profileRequested;
+  const profileMount = searchParams.get('mount');
+  const usersNeeded = (
+    (activeSection === 'users' && !profileRequested)
+    || creatingUser
+    || (profileRequested && !profileMount)
+  );
+  const groupsNeeded = activeSection === 'groups' || creatingUser;
   const policiesNeeded = activeSection === 'roles'
     || activeSection === 'policies'
-    || creatingUser
-    || profileRequested;
+    || creatingUser;
 
-  const [authMountsState, refreshAuthMounts] = useAuthMounts(session, usersNeeded);
+  const [authMountsState, refreshAuthMounts] = useAuthMounts(
+    session,
+    usersNeeded || profileRequested,
+  );
   const userpassMounts = (authMountsState.data ?? []).filter((mount) => mount.type === 'userpass');
   const [usersState, refreshUsers] = useUserpassUsers(
     session,
@@ -128,17 +138,37 @@ export default function AccessControlPage() {
       ? selectedPolicyName
       : undefined,
   );
-  const profileMount = searchParams.get('mount');
   const baseProfileUser = params.username
     ? usersState.data?.users.find((user) => (
       user.username === params.username
       && (!profileMount || user.mount === profileMount)
     ))
     : undefined;
-  const profileState = useUserDetails(
+  const profileAuthMount = profileMount
+    ? userpassMounts.find((mount) => mount.path === profileMount)
+    : undefined;
+  const profileAccount = useMemo<UserAccessAccountRef | undefined>(() => {
+    if (!params.username) return undefined;
+    if (profileMount && profileAuthMount) {
+      return {
+        username: params.username,
+        mount: profileAuthMount.path,
+        mountAccessor: profileAuthMount.accessor,
+      };
+    }
+    if (!profileMount && baseProfileUser) {
+      return {
+        username: baseProfileUser.username,
+        mount: baseProfileUser.mount,
+        mountAccessor: baseProfileUser.mountAccessor,
+      };
+    }
+    return undefined;
+  }, [baseProfileUser, params.username, profileAuthMount, profileMount]);
+  const profileReport = useUserAccessReport(
     session,
-    groupsState.status === 'success' ? baseProfileUser : undefined,
-    groupsState.data ?? [],
+    profileRequested ? profileAccount : undefined,
+    (mountsState.data ?? []).map((mount) => mount.path),
   );
 
   const viewMode: ViewMode = creatingUser
@@ -172,7 +202,7 @@ export default function AccessControlPage() {
       policyNamesState,
       policyCatalogState,
       selectedPolicyState,
-      profileState,
+      profileReport.state,
     ]);
     if (error?.code === 'session-expired') vault.expireSession();
   }, [
@@ -181,7 +211,7 @@ export default function AccessControlPage() {
     mountsState,
     policyCatalogState,
     policyNamesState,
-    profileState,
+    profileReport.state,
     selectedPolicyState,
     usersState,
     vault,
@@ -239,6 +269,32 @@ export default function AccessControlPage() {
     userpassMounts,
     usersState,
   ]);
+  const profileCatalog = useMemo<CreateUserAccessCatalog | undefined>(() => {
+    const resource = profileReport.state.data;
+    if (resource?.kind !== 'report') return undefined;
+    const reportPolicies = resource.policies.map((policy) => ({
+      name: policy.name,
+      managed: policy.kind !== 'external',
+      rules: policy.rules ?? null,
+    }));
+    return {
+      groups: resource.user.groups.map((group) => ({
+        id: group.id,
+        name: group.name,
+        roleIds: group.policies.filter((policy) => classifyPolicyName(policy) === 'role'),
+        policyNames: group.policies.filter((policy) => classifyPolicyName(policy) !== 'role'),
+      })),
+      roles: resource.policies
+        .filter((policy) => policy.kind === 'role')
+        .map((policy) => ({
+          id: policy.name,
+          name: rolesFromPolicyNames([policy.name])[0]?.name ?? policy.name,
+          policyNames: [policy.name],
+        })),
+      policies: reportPolicies,
+      tree: mountRoots(mountsState.data ?? []),
+    };
+  }, [mountsState.data, profileReport.state.data]);
 
   const refreshCreateUserResources = () => {
     refreshAuthMounts();
@@ -249,17 +305,14 @@ export default function AccessControlPage() {
   const usersResourceError = firstQueryError([authMountsState, usersState]);
   const profileResourceError = firstQueryError([
     authMountsState,
-    usersState,
-    groupsState,
-    policyNamesState,
-    policyCatalogState,
-    profileState,
+    ...(profileMount ? [] : [usersState]),
+    profileReport.state,
   ]);
   const refreshProfileResources = () => {
     refreshAuthMounts();
-    refreshUsers();
-    refreshGroups();
-    refreshPolicyNames();
+    if (!profileMount) refreshUsers();
+    profileReport.actions.retryAccount();
+    profileReport.actions.retryIncomplete();
   };
 
   return (
@@ -349,22 +402,25 @@ export default function AccessControlPage() {
       {viewMode === 'users-profile' && (
         profileResourceError ? (
           <ResourceError error={profileResourceError} retry={refreshProfileResources} />
-        ) : usersState.status === 'success' && !baseProfileUser ? (
+        ) : (
+          (
+            (profileMount && authMountsState.status === 'success' && !profileAuthMount)
+            || (!profileMount && usersState.status === 'success' && !baseProfileUser)
+            || profileReport.state.data?.kind === 'not-found'
+          )
+        ) ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <i className="ri-user-unfollow-line text-2xl text-foreground-300" aria-hidden="true" />
             <p className="mt-2 text-sm text-foreground-700">User not found</p>
             <button type="button" onClick={() => navigate('/access-control/users')} className="mt-2 text-xs font-medium text-primary-600">Back to users</button>
           </div>
-        ) : (
-          renderQuery(
-            profileState,
-            'Loading identity details…',
-            refreshProfileResources,
-            (profileUser) => policyCatalogState.status === 'success'
-              ? <UserProfile user={profileUser} catalog={catalog} onBack={() => navigate('/access-control/users')} />
-              : <ResourceLoading label="Loading effective access policies…" />,
-          )
-        )
+        ) : profileReport.state.data?.kind === 'report' && profileCatalog ? (
+          <UserProfile
+            user={profileReport.state.data.user}
+            catalog={profileCatalog}
+            onBack={() => navigate('/access-control/users')}
+          />
+        ) : <ResourceLoading label="Loading the user access report…" />
       )}
       </AccessCenterShell>
     </main>
