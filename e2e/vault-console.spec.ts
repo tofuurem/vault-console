@@ -37,6 +37,25 @@ test('restores the authenticated route after a full page reload', async ({ page 
   await expect(page.getByRole('heading', { name: 'Vault Console' })).toHaveCount(0);
 });
 
+test('persists dark appearance and finds a nested logical path across the mount', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('button', { name: /^Session menu/ }).click();
+  await page.getByRole('radio', { name: 'Dark' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+  await page.getByRole('radio', { name: 'Entire mount' }).click();
+  await page.getByRole('searchbox', { name: 'Search secret paths' }).fill('api');
+  await expect(page.getByRole('button', {
+    name: 'Open secret platform/api',
+  })).toBeVisible();
+  await page.getByRole('button', { name: 'Open secret platform/api' }).click();
+  await expect(page).toHaveURL(/secret=platform%2Fapi/);
+  await expect(page.getByText('URL', { exact: true })).toBeVisible();
+});
+
 test('signs in with userpass without persisting the password and signs out cleanly', async ({ page }) => {
   await page.goto('/login');
   await page.getByRole('tab', { name: 'Username & password' }).click();
@@ -172,14 +191,17 @@ test('compares, deletes, undeletes, and permanently destroys real KV versions', 
   await inspector.getByRole('button', { name: 'Version actions for version 3' }).click();
   await inspector.getByRole('menuitem', { name: 'Delete current version 3' }).click();
   const softDelete = page.getByRole('dialog', { name: 'Soft-delete current version' });
-  await softDelete.getByLabel('Type applications/lifecycle to confirm').fill('applications/lifecycle');
+  await expect(softDelete.getByLabel('Type applications/lifecycle to confirm')).toHaveCount(0);
   await softDelete.getByRole('button', { name: 'Delete current version' }).click();
-  await expect(page.getByRole('status')).toContainText('Applied delete-latest to version 3.');
+  await expect(page.getByText(
+    'Version 3 of applications/lifecycle was soft-deleted.',
+  )).toBeVisible();
   await expect(inspector.getByText('Deleted', { exact: true })).toBeVisible();
 
-  await inspector.getByRole('button', { name: 'Version actions for version 3' }).click();
-  await inspector.getByRole('menuitem', { name: 'Undelete version 3' }).click();
-  await expect(page.getByRole('status')).toContainText('Undeleted version 3.');
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByText(
+    'Restored version 3 of applications/lifecycle.',
+  )).toBeVisible();
   await expect(inspector.getByText('Current', { exact: true })).toBeVisible();
 
   await inspector.getByRole('button', { name: 'Version actions for version 1' }).click();
@@ -187,7 +209,9 @@ test('compares, deletes, undeletes, and permanently destroys real KV versions', 
   const destroy = page.getByRole('dialog', { name: 'Permanently destroy version' });
   await destroy.getByLabel('Type applications/lifecycle to confirm').fill('applications/lifecycle');
   await destroy.getByRole('button', { name: 'Destroy version permanently' }).click();
-  await expect(page.getByRole('status')).toContainText('Applied destroy-version to version 1.');
+  await expect(page.getByText(
+    'Permanently destroyed version 1 of applications/lifecycle.',
+  )).toBeVisible();
   await expect(inspector.getByText('Destroyed', { exact: true })).toBeVisible();
 
   const metadata = await page.request.get('/v1/applications/metadata/lifecycle', {
@@ -199,12 +223,64 @@ test('compares, deletes, undeletes, and permanently destroys real KV versions', 
   expect(body.data.versions['1'].destroyed).toBe(true);
 });
 
+test('soft-deletes, undoes, and explicitly destroys selected real Vault versions', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('checkbox', { name: 'Select secret bulk-one' }).click();
+  await page.getByRole('checkbox', { name: 'Select secret bulk-two' }).click();
+  await page.getByRole('button', { name: 'Soft-delete latest' }).click();
+  await page.getByRole('button', {
+    name: 'Soft-delete 2 current versions',
+  }).click();
+  await expect(page.getByText('2 current versions were soft-deleted.')).toBeVisible();
+  await page.getByRole('button', { name: 'Undo 2' }).click();
+  await expect(page.getByText(
+    'Restored 2 soft-deleted current versions.',
+  )).toBeVisible();
+
+  await page.getByRole('checkbox', { name: 'Select secret bulk-one' }).click();
+  await page.getByRole('checkbox', { name: 'Select secret bulk-two' }).click();
+  await page.getByRole('button', { name: 'Destroy versions…' }).click();
+  const destroy = page.getByRole('dialog', {
+    name: 'Permanently destroy versions',
+  });
+  await destroy.getByRole('checkbox', {
+    name: 'Destroy bulk-one version 1',
+  }).click();
+  await destroy.getByRole('checkbox', {
+    name: 'Destroy bulk-two version 1',
+  }).click();
+  await destroy.getByLabel('Type applications to confirm').fill('applications');
+  await destroy.getByRole('button', {
+    name: 'Destroy 2 versions permanently',
+  }).click();
+  await expect(page.getByText(
+    'Permanently destroyed 2 versions across 2 secrets.',
+  )).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Undo/ })).toHaveCount(0);
+
+  for (const path of ['bulk-one', 'bulk-two']) {
+    const metadata = await page.request.get(`/v1/applications/metadata/${path}`, {
+      headers: { 'X-Vault-Token': vaultToken! },
+    });
+    expect(metadata.ok()).toBe(true);
+    const body = await metadata.json();
+    expect(body.data.versions['1'].destroyed).toBe(true);
+    expect(body.data.versions['2'].deletion_time).toBe('');
+  }
+});
+
 test('keeps navigation and the secret inspector usable across the responsive matrix', async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 600, height: 800 });
   await login(page);
 
-  await expect(page.getByRole('complementary', { name: 'Vault navigation' })).toHaveCSS('width', '44px');
+  await expect(page.getByRole('complementary', { name: 'Vault navigation' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  const mobileNavigation = page.getByRole('dialog', { name: 'Vault navigation' });
+  await expect(mobileNavigation).toBeVisible();
+  await expect(mobileNavigation.getByText('applications/')).toBeVisible();
+  await mobileNavigation.getByRole('button', { name: 'Close drawer' }).click();
   await page.getByText('nested', { exact: true }).first().click();
   const inspector = page.getByRole('dialog', { name: 'applications/nested' });
   await expect(inspector).toBeVisible();
@@ -215,7 +291,9 @@ test('keeps navigation and the secret inspector usable across the responsive mat
   await expect(inspector.getByText('Logical path')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await inspector.getByRole('button', { name: 'Close inspector' }).click();
-  await page.getByRole('button', { name: 'Users' }).click();
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await page.getByRole('dialog', { name: 'Vault navigation' })
+    .getByRole('button', { name: 'Users' }).click();
   await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 900 });
   const createUser = page.getByRole('button', { name: 'Create user' });
@@ -224,7 +302,9 @@ test('keeps navigation and the secret inspector usable across the responsive mat
   expect(createUserBounds).not.toBeNull();
   expect(createUserBounds!.x + createUserBounds!.width).toBeLessThanOrEqual(320);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-  await page.getByRole('button', { name: 'Open applications mount' }).click();
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await page.getByRole('dialog', { name: 'Vault navigation' })
+    .getByRole('button', { name: 'Open applications mount' }).click();
   await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 

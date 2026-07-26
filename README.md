@@ -15,6 +15,8 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community, орие
   JSON-документов с точной строкой и колонкой ошибки;
 - восстановление, soft delete с 10-секундным Undo, undelete, destroy и
   удаление metadata;
+- компактный стек уведомлений без сдвига layout: успешные операции
+  закрываются автоматически, ошибки остаются до явного закрытия;
 - массовое выделение секретов в текущей папке с Shift-диапазоном,
   копированием путей, управлением избранным, проверяемым soft delete и
   явным выбором версий для permanent destroy;
@@ -37,7 +39,8 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community, орие
 
 ## Запуск
 
-Готовый multi-architecture образ:
+Текущий исходный код подготовлен как версия `0.4.0`. До публикации её
+контейнера последним готовым multi-architecture образом остаётся `0.3.0`:
 
 ```text
 zero-noise-registry.registry.twcstorage.ru/vault-console:0.3.0
@@ -50,7 +53,10 @@ zero-noise-registry.registry.twcstorage.ru/vault-console:0.3.0
 zero-noise-registry.registry.twcstorage.ru/vault-console:0.3.0@sha256:e538518e7f9844b9e21c08d0361f7b298f4c6c5c02a88ec5cd140d031486030b
 ```
 
-Подробные инструкции по Docker Compose, подключению к существующему Vault, Caddy, TLS, настройке policy, локальной разработке и обновлению находятся в [USAGE.md](USAGE.md).
+Чтобы проверить все возможности `0.4.0` до публикации образа, соберите
+контейнер из текущего checkout. Подробные инструкции по Docker Compose,
+подключению к существующему Vault, Caddy, TLS, настройке policy, локальной
+разработке и обновлению находятся в [USAGE.md](USAGE.md).
 
 ## Безопасность
 
@@ -69,5 +75,6 @@ unseal keys или recovery keys через `.env`, Git и reverse-proxy headers
 Датированные решения по dependency advisories находятся в
 [SECURITY.md](SECURITY.md).
 
-Проект ориентирован на self-hosted Vault Community, проверен с Vault `1.21.3`
-и сейчас находится на версии `0.3.0`.
+Проект ориентирован на self-hosted Vault Community, проверен с Vault `1.21.3`.
+Текущий исходный код имеет версию `0.4.0`; последний опубликованный образ —
+`0.3.0`.

@@ -72,6 +72,10 @@ vault_exec kv put applications/platform/api URL=https://api.example.test >/dev/n
 vault_exec kv put applications/lifecycle STATE=first >/dev/null
 vault_exec kv put applications/lifecycle STATE=second >/dev/null
 vault_exec kv put applications/lifecycle STATE=third >/dev/null
+vault_exec kv put applications/bulk-one STATE=first >/dev/null
+vault_exec kv put applications/bulk-one STATE=second >/dev/null
+vault_exec kv put applications/bulk-two STATE=first >/dev/null
+vault_exec kv put applications/bulk-two STATE=second >/dev/null
 
 docker exec \
   --interactive \
