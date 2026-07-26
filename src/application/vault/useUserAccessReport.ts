@@ -59,6 +59,7 @@ export interface UserAccessReportResource {
   readonly kind: 'report';
   readonly user: AccessControlUserRecord;
   readonly report: UserAccessReport;
+  readonly mounts: readonly string[];
   readonly policies: readonly UserAccessPolicy[];
   readonly identity: UserAccessIdentitySource;
   readonly groups: UserAccessGroupsSource;
@@ -427,6 +428,7 @@ export function useUserAccessReport(
       kind: 'report',
       user: profileUser(account, accountRef, identity, membershipGroups),
       report,
+      mounts,
       policies,
       identity,
       groups: {

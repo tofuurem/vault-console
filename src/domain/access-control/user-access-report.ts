@@ -122,6 +122,7 @@ export interface UserAccessReport {
   readonly sources: readonly UserAccessReportSource[];
   readonly unresolvedSources: readonly UserAccessUnresolvedSource[];
   readonly policyTargetIssues: readonly UserAccessPolicyTargetIssue[];
+  readonly rules: readonly PolicyRule[];
   readonly targets: readonly UserAccessReportTarget[];
   readonly completeness: {
     readonly state: UserAccessCompletenessState;
@@ -387,6 +388,7 @@ export function buildUserAccessReport(
       || left.pattern.localeCompare(right.pattern)
       || left.reason.localeCompare(right.reason)
     )),
+    rules: endpointRules,
     targets,
     completeness: {
       state: completenessState(reasons),

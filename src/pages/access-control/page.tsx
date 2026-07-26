@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useMemo,
   useState,
@@ -36,8 +38,9 @@ import CreateUserWizard from './components/CreateUserWizard';
 import GroupsList from './components/GroupsList';
 import PolicyExplorer from './components/PolicyExplorer';
 import RolesList from './components/RolesList';
-import UserProfile from './components/UserProfile';
 import UsersList from './components/UsersList';
+
+const UserProfile = lazy(() => import('./components/UserProfile'));
 
 type ViewMode = 'users-list' | 'users-create' | 'users-profile' | 'roles' | 'groups' | 'policies';
 const ACCESS_SECTIONS = new Set(['users', 'groups', 'roles', 'policies']);
@@ -388,11 +391,13 @@ export default function AccessControlPage() {
             <button type="button" onClick={() => navigate('/access-control/users')} className="mt-2 text-xs font-medium text-primary-600">Back to users</button>
           </div>
         ) : profileReport.state.data?.kind === 'report' ? (
-          <UserProfile
-            resource={profileReport.state.data}
-            actions={profileReport.actions}
-            onBack={() => navigate('/access-control/users')}
-          />
+          <Suspense fallback={<ResourceLoading label="Preparing the access matrix…" />}>
+            <UserProfile
+              resource={profileReport.state.data}
+              actions={profileReport.actions}
+              onBack={() => navigate('/access-control/users')}
+            />
+          </Suspense>
         ) : <ResourceLoading label="Loading the user access report…" />
       )}
       </AccessCenterShell>

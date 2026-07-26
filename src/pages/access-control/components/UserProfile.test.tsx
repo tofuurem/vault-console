@@ -6,6 +6,10 @@ import type {
   UserAccessReportActions,
   UserAccessReportResource,
 } from '@/application/vault/useUserAccessReport';
+import {
+  KvSearchContext,
+  type KvSearchContextValue,
+} from '@/application/vault/search/KvSearchContext';
 import { buildUserAccessReport } from '@/domain/access-control/user-access-report';
 import UserProfile from './UserProfile';
 
@@ -101,6 +105,7 @@ function resource(): UserAccessReportResource {
       externalPolicyNames: ['legacy-root'],
     },
     report,
+    mounts: ['applications'],
     policies,
     identity: {
       state: {
@@ -149,9 +154,48 @@ function actions(): UserAccessReportActions {
   };
 }
 
+function searchContext(): KvSearchContextValue {
+  return {
+    stateFor: (mount) => ({
+      mount,
+      status: 'idle',
+      entries: [],
+      pendingPrefixes: [],
+      visitedPrefixes: [],
+      inaccessiblePrefixes: [],
+      failedPrefixes: [],
+      totalListRequests: 0,
+      totalScannedPrefixes: 0,
+    }),
+    start: vi.fn(),
+    continueScan: vi.fn(),
+    restart: vi.fn(),
+    cancel: vi.fn(),
+    activateMount: vi.fn(),
+    matches: vi.fn(() => []),
+    clear: vi.fn(),
+  };
+}
+
+function renderProfile(
+  reportResource: UserAccessReportResource,
+  reportActions: UserAccessReportActions,
+  onBack = vi.fn(),
+) {
+  return render(
+    <KvSearchContext.Provider value={searchContext()}>
+      <UserProfile
+        resource={reportResource}
+        actions={reportActions}
+        onBack={onBack}
+      />
+    </KvSearchContext.Provider>,
+  );
+}
+
 describe('UserProfile', () => {
   it('focuses the identity heading and explains report completeness without color alone', () => {
-    render(<UserProfile resource={resource()} actions={actions()} onBack={vi.fn()} />);
+    renderProfile(resource(), actions());
 
     expect(screen.getByRole('heading', { name: 'Alice Operator' })).toHaveFocus();
     expect(screen.getByText('Limited by policy')).toBeVisible();
@@ -163,9 +207,7 @@ describe('UserProfile', () => {
   it('shows provenance, retries one failed policy, and keeps external HCL inert', async () => {
     const user = userEvent.setup();
     const reportActions = actions();
-    const view = render(
-      <UserProfile resource={resource()} actions={reportActions} onBack={vi.fn()} />,
-    );
+    const view = renderProfile(resource(), reportActions);
 
     expect(screen.getByText(
       'platform-team → Platform Readers → vc-role-platform-readers',
@@ -185,7 +227,7 @@ describe('UserProfile', () => {
   it('keeps back navigation and technical identity details keyboard reachable', async () => {
     const user = userEvent.setup();
     const onBack = vi.fn();
-    render(<UserProfile resource={resource()} actions={actions()} onBack={onBack} />);
+    renderProfile(resource(), actions(), onBack);
 
     await user.click(screen.getByRole('button', { name: 'Back to users' }));
     expect(onBack).toHaveBeenCalledOnce();

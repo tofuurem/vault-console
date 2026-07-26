@@ -9,6 +9,7 @@ import type {
 } from '@/application/vault/useUserAccessReport';
 import Button from '@/components/base/Button';
 import AccessSourceSummary from './AccessSourceSummary';
+import EffectiveAccessMatrix from './EffectiveAccessMatrix';
 import ReportCompleteness from './ReportCompleteness';
 
 interface UserProfileProps {
@@ -205,6 +206,8 @@ export default function UserProfile({
               </div>
             </section>
           )}
+
+          <EffectiveAccessMatrix resource={resource} />
 
           <AccessSourceSummary
             resource={resource}
