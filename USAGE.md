@@ -96,6 +96,13 @@ proxy и состояние Vault: кроме `200` active-сервер може
 Vault. Token удаляется при logout или окончании известного lease; пароль
 `userpass` не сохраняется.
 
+По умолчанию Nginx не пишет access log для `/v1/*`, чтобы mount names,
+логические пути секретов и usernames не попадали в Docker logs. Логи shell и
+статических assets могут оставаться включёнными для диагностики контейнера.
+Для security-аудита операций настройте
+[Vault audit device](https://developer.hashicorp.com/vault/docs/audit);
+reverse proxy интерфейса не заменяет аудит Vault.
+
 Если защищённый deep link открылся без активной сессии, после входа UI
 возвращает пользователя на тот же route вместе с query и fragment, например
 на выбранный secret. Профиль `userpass`-пользователя включает auth mount в

@@ -413,3 +413,16 @@ E2E_LIMITED_VAULT_TOKEN="${limited_token}" \
 E2E_PARTIAL_LIST_VAULT_TOKEN="${partial_list_token}" \
 E2E_RESTRICTED_ACCESS_TOKEN="${restricted_access_token}" \
 npm run test:e2e:playwright
+
+api_log_marker="vault-console-api-log-marker-${test_id}"
+curl --silent --show-error --output /dev/null \
+  "${console_origin}/v1/${api_log_marker}" || true
+proxy_logs="$(docker compose logs --no-color vault-console 2>&1)"
+if printf '%s' "${proxy_logs}" | grep -F "${api_log_marker}" >/dev/null; then
+  echo "Vault API marker unexpectedly appeared in the default proxy log." >&2
+  exit 1
+fi
+if printf '%s' "${proxy_logs}" | grep -E '"(GET|POST|PUT|DELETE|PATCH) /v1/' >/dev/null; then
+  echo "A Vault API request path unexpectedly appeared in the default proxy log." >&2
+  exit 1
+fi

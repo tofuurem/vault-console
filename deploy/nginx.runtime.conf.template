@@ -19,6 +19,7 @@ server {
     }
 
     location /v1/ {
+        access_log off;
         include /etc/nginx/security-headers.conf;
         proxy_pass ${VAULT_UPSTREAM};
         proxy_http_version 1.1;
