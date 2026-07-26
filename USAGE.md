@@ -12,16 +12,14 @@ Vault Console не запускает, не перезапускает и не �
 
 ## Запуск готового образа рядом с Vault
 
-Текущий стабильный опубликованный контейнер имеет версию `0.4.0`. Исходный код
-в этой ветке уже имеет версию `0.5.0`; до отдельной публикации не подставляйте
-несуществующий tag `0.5.0` в Compose.
+Текущий стабильный опубликованный контейнер имеет версию `0.5.0`.
 
 Добавьте сервис в Compose-файл существующего Vault:
 
 ```yaml
 services:
   vault-console:
-    image: zero-noise-registry.registry.twcstorage.ru/vault-console:0.4.0
+    image: zero-noise-registry.registry.twcstorage.ru/vault-console:0.5.0
     container_name: vault-console
     restart: unless-stopped
     environment:
@@ -56,7 +54,7 @@ docker login zero-noise-registry.registry.twcstorage.ru
 развёртывания вместо tag можно указать опубликованный digest:
 
 ```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.4.0@sha256:9e9e64f36e35d1b1e817ce62115b9001e70260e12e6ed86eb7ca37bf39bb6faf
+zero-noise-registry.registry.twcstorage.ru/vault-console:0.5.0@sha256:7bb36489b864094c6cf21e006c22232be530f8dabaf4c1269b964814eb3af41c
 ```
 
 Адрес Vault и стандартный auth mount скрыты на форме входа: их уже задаёт
@@ -161,7 +159,7 @@ VAULT_UI_USERPASS_MOUNT=userpass
 VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT=false
 VAULT_CONSOLE_BIND=127.0.0.1
 VAULT_CONSOLE_PORT=8080
-VAULT_CONSOLE_IMAGE=zero-noise-registry.registry.twcstorage.ru/vault-console:0.4.0
+VAULT_CONSOLE_IMAGE=zero-noise-registry.registry.twcstorage.ru/vault-console:0.5.0
 ```
 
 Для готового образа:

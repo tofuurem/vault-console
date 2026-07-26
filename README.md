@@ -49,14 +49,14 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community, орие
 Текущий стабильный multi-architecture образ:
 
 ```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.4.0
+zero-noise-registry.registry.twcstorage.ru/vault-console:0.5.0
 ```
 
 Он опубликован для `linux/amd64` и `linux/arm64`. Для развёртывания с
 неизменяемой привязкой используйте digest:
 
 ```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.4.0@sha256:9e9e64f36e35d1b1e817ce62115b9001e70260e12e6ed86eb7ca37bf39bb6faf
+zero-noise-registry.registry.twcstorage.ru/vault-console:0.5.0@sha256:7bb36489b864094c6cf21e006c22232be530f8dabaf4c1269b964814eb3af41c
 ```
 
 Подробные инструкции по Docker Compose, подключению к существующему Vault,
@@ -81,6 +81,4 @@ unseal keys или recovery keys через `.env`, Git и reverse-proxy headers
 [SECURITY.md](SECURITY.md).
 
 Проект ориентирован на self-hosted Vault Community, проверен с Vault `1.21.3`.
-Текущий исходный код имеет версию `0.5.0`. Последний опубликованный образ пока
-остаётся `0.4.0`; tag `0.5.0` появится только после отдельной сборки и
-публикации.
+Текущий исходный код и опубликованный образ имеют версию `0.5.0`.

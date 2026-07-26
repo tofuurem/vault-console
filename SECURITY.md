@@ -36,3 +36,19 @@ production dependency version that removes the advisory; it only pruned
 development dependencies for the omitted install. Do not treat that command as
 a remediation. Track the upstream range and upgrade once a fixed declarative
 router release is available.
+
+### GHSA-mh99-v99m-4gvg — build tooling only
+
+Reviewed: 2026-07-26
+
+The full development-tree audit reports the `brace-expansion` denial-of-service
+advisory through ESLint and TypeScript ESLint glob matching. It is absent from
+`npm audit --omit=dev` and from the final Nginx image, which contains only the
+compiled static application. The repository invokes ESLint with the fixed
+trusted path `src`; no Vault response or browser input can control its glob
+patterns.
+
+`npm audit fix --force` currently proposes the breaking ESLint 10 upgrade.
+Keep this advisory visible and upgrade the lint toolchain in a separately
+validated maintenance change rather than forcing a major dependency rewrite
+inside a release build.
