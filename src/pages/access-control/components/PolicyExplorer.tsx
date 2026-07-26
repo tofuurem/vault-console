@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { AccessPolicyRecord } from '@/application/vault/useAccessControlData';
 import type { VaultQueryState } from '@/application/vault/useKvExplorerData';
 import Badge from '@/components/base/Badge';
+import Button from '@/components/base/Button';
 import ContentSkeleton from '@/components/base/ContentSkeleton';
 import { classifyPolicyName } from '@/domain/access-control/managed-resources';
 
@@ -17,6 +18,7 @@ interface PolicyExplorerProps {
   readonly selectedName?: string;
   readonly selectedPolicy: VaultQueryState<AccessPolicyRecord>;
   readonly onSelect: (name: string | undefined) => void;
+  readonly onRefresh: () => void;
 }
 
 export default function PolicyExplorer({
@@ -24,6 +26,7 @@ export default function PolicyExplorer({
   selectedName,
   selectedPolicy,
   onSelect,
+  onRefresh,
 }: PolicyExplorerProps) {
   const [search, setSearch] = useState('');
   const [showHcl, setShowHcl] = useState(false);
@@ -41,11 +44,16 @@ export default function PolicyExplorer({
               <span className="text-xs text-foreground-400">{policyNames.length}</span>
             </div>
           </div>
-          <label className="relative w-full sm:w-auto">
-            <span className="sr-only">Search policies</span>
-            <i className="ri-search-line absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground-400" aria-hidden="true" />
-            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search policy names" className="h-11 w-full rounded-md border border-background-300 bg-background-50 pl-6 pr-2.5 text-xs focus:border-primary-400 focus:outline-none sm:h-7 sm:w-56" />
-          </label>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <Button type="button" size="sm" onClick={onRefresh} aria-label="Refresh policies">
+              <i className="ri-refresh-line" aria-hidden="true" />
+            </Button>
+            <label className="relative min-w-0 flex-1 sm:w-auto">
+              <span className="sr-only">Search policies</span>
+              <i className="ri-search-line absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground-400" aria-hidden="true" />
+              <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search policy names" className="h-11 w-full rounded-md border border-background-300 bg-background-50 pl-6 pr-2.5 text-xs focus:border-primary-400 focus:outline-none sm:h-7 sm:w-56" />
+            </label>
+          </div>
         </div>
       </header>
       <div className="flex min-h-0 flex-1">

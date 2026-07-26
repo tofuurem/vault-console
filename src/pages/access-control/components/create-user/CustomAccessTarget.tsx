@@ -152,7 +152,7 @@ export default function CustomAccessTarget({
 
         {directRules.length > 0 && (
           <div>
-            <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-foreground-400">Current per-user targets</p>
+            <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-foreground-400">Current direct targets</p>
             <div className="space-y-1.5">
               {directRules.map((rule) => {
                 const node: KvAccessTreeNode = {

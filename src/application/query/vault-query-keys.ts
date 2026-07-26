@@ -87,7 +87,9 @@ export const vaultQueryKeys = {
     'editor',
   ] as const,
   policies: () => [...vaultQueryKeys.all, 'policies'] as const,
-  policy: (name: string) => [...vaultQueryKeys.all, 'policy', name] as const,
+  policyRecords: () => [...vaultQueryKeys.all, 'policy'] as const,
+  policy: (name: string) => [...vaultQueryKeys.policyRecords(), name] as const,
+  policyCatalogs: () => [...vaultQueryKeys.all, 'policy-catalog'] as const,
   roleEditor: (name: string) => [
     ...vaultQueryKeys.policy(name),
     'editor',
@@ -110,8 +112,7 @@ export const vaultQueryKeys = {
     ...paths,
   ] as const,
   policyCatalog: (names: readonly string[]) => [
-    ...vaultQueryKeys.all,
-    'policy-catalog',
+    ...vaultQueryKeys.policyCatalogs(),
     ...names,
   ] as const,
 };

@@ -1,6 +1,9 @@
-import { BrowserRouter } from 'react-router-dom';
+import { useState } from 'react';
+import {
+  createBrowserRouter,
+  RouterProvider,
+} from 'react-router-dom';
 import { RuntimeConfigProvider } from './application/config/RuntimeConfigProvider';
-import ApplicationErrorBoundary from './application/diagnostics/ApplicationErrorBoundary';
 import { ToastProvider } from './application/notifications/ToastProvider';
 import { VaultQueryProvider } from './application/query/VaultQueryProvider';
 import { ThemeProvider } from './application/theme/ThemeProvider';
@@ -8,7 +11,7 @@ import type { KvV2Gateway, VaultAccessControlGateway, VaultAuthGateway } from '.
 import { AccessControlGatewayProvider } from './application/vault/AccessControlGatewayProvider';
 import { KvV2GatewayProvider } from './application/vault/KvV2GatewayProvider';
 import { VaultSessionProvider } from './application/vault/VaultSessionProvider';
-import { AppRoutes } from './router';
+import routes from './router/config';
 
 interface AppProps {
   readonly authGateway?: VaultAuthGateway;
@@ -18,6 +21,9 @@ interface AppProps {
 }
 
 function App({ authGateway, kvV2Gateway, accessControlGateway, runtimeConfig }: AppProps) {
+  const [router] = useState(() => createBrowserRouter(routes, {
+    basename: import.meta.env.BASE_URL,
+  }));
   return (
     <ThemeProvider>
       <ToastProvider>
@@ -26,12 +32,7 @@ function App({ authGateway, kvV2Gateway, accessControlGateway, runtimeConfig }: 
             <KvV2GatewayProvider gateway={kvV2Gateway}>
               <VaultSessionProvider gateway={authGateway}>
                 <VaultQueryProvider>
-                  <BrowserRouter basename={import.meta.env.BASE_URL}>
-                    <a href="#main-content" className="skip-link">Skip to main content</a>
-                    <ApplicationErrorBoundary>
-                      <AppRoutes />
-                    </ApplicationErrorBoundary>
-                  </BrowserRouter>
+                  <RouterProvider router={router} />
                 </VaultQueryProvider>
               </VaultSessionProvider>
             </KvV2GatewayProvider>

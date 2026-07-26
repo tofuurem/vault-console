@@ -9,6 +9,10 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import {
+  createMemoryRouter,
+  RouterProvider,
+} from 'react-router-dom';
 
 import type {
   VaultIdentityEntity,
@@ -133,22 +137,26 @@ function renderEditor(access = gateway(), onDone = vi.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  render(
-    <QueryClientProvider client={queryClient}>
-      <UserAccessEditor
-        reference={{
-          username: 'alice',
-          mount: 'userpass',
-          mountAccessor: 'auth_userpass_123',
-        }}
-        catalog={catalog}
-        gateway={access}
-        session={session}
-        onClose={vi.fn()}
-        onDone={onDone}
-      />
-    </QueryClientProvider>,
-  );
+  const router = createMemoryRouter([{
+    path: '/',
+    element: (
+      <QueryClientProvider client={queryClient}>
+        <UserAccessEditor
+          reference={{
+            username: 'alice',
+            mount: 'userpass',
+            mountAccessor: 'auth_userpass_123',
+          }}
+          catalog={catalog}
+          gateway={access}
+          session={session}
+          onClose={vi.fn()}
+          onDone={onDone}
+        />
+      </QueryClientProvider>
+    ),
+  }]);
+  render(<RouterProvider router={router} />);
   return { access, onDone };
 }
 

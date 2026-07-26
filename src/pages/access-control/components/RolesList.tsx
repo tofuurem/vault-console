@@ -1,91 +1,162 @@
-import type {
-  AccessControlRoleRecord,
-  AccessPolicyRecord,
-} from '@/application/vault/useAccessControlData';
-import type { VaultQueryState } from '@/application/vault/useKvExplorerData';
-import ContentSkeleton from '@/components/base/ContentSkeleton';
+import {
+  useEffect,
+  useRef,
+} from 'react';
+
+import type { AccessPolicyRecord } from '@/application/vault/useAccessControlData';
+import Button from '@/components/base/Button';
+import { managedRoleName } from '@/domain/access-control/managed-resources';
 
 interface RolesListProps {
-  readonly roles: readonly AccessControlRoleRecord[];
-  readonly selectedName?: string;
-  readonly selectedPolicy: VaultQueryState<AccessPolicyRecord>;
-  readonly onSelect: (policyName: string) => void;
+  readonly roles: readonly AccessPolicyRecord[];
+  readonly onCreate: () => void;
+  readonly onView: (policyName: string) => void;
+  readonly onRefresh: () => void;
+  readonly restoreFocusRoleName?: string;
+  readonly onFocusRestored?: () => void;
+}
+
+function ownershipBadge(role: AccessPolicyRecord): {
+  readonly label: string;
+  readonly classes: string;
+} {
+  if (!role.readable) {
+    return {
+      label: 'Unreadable',
+      classes: 'bg-danger-100 text-danger-800',
+    };
+  }
+  if (role.ownership === 'managed') {
+    return {
+      label: 'Managed',
+      classes: 'bg-success-100 text-success-800',
+    };
+  }
+  return {
+    label: 'Unverified',
+    classes: 'bg-warning-100 text-warning-800',
+  };
 }
 
 export default function RolesList({
   roles,
-  selectedName,
-  selectedPolicy,
-  onSelect,
+  onCreate,
+  onView,
+  onRefresh,
+  restoreFocusRoleName,
+  onFocusRestored,
 }: RolesListProps) {
+  const buttons = useRef(new Map<string, HTMLButtonElement>());
+
+  useEffect(() => {
+    if (!restoreFocusRoleName) return;
+    const button = buttons.current.get(restoreFocusRoleName);
+    if (!button) return;
+    button.focus();
+    onFocusRestored?.();
+  }, [onFocusRestored, restoreFocusRoleName, roles]);
+
   return (
     <section aria-labelledby="roles-heading" className="flex min-h-0 flex-1 flex-col">
-      <header className="border-b border-background-200 px-5 py-3">
-        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">Managed ACL policies</p>
-        <div className="flex items-center gap-2">
-          <h1 id="roles-heading" className="text-sm font-semibold text-foreground-900">Roles</h1>
-          <span className="text-xs text-foreground-400">{roles.length}</span>
+      <header className="shrink-0 border-b border-background-200 px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+              Reserved ACL policies
+            </p>
+            <div className="flex items-center gap-2">
+              <h1 id="roles-heading" className="text-sm font-semibold text-foreground-900">
+                Roles
+              </h1>
+              <span className="text-xs text-foreground-400">{roles.length}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button type="button" size="sm" onClick={onRefresh} aria-label="Refresh roles">
+              <i className="ri-refresh-line" aria-hidden="true" />
+            </Button>
+            <Button type="button" size="sm" variant="primary" onClick={onCreate}>
+              <i className="ri-shield-keyhole-line" aria-hidden="true" /> Create role
+            </Button>
+          </div>
         </div>
       </header>
-      <div className="flex min-h-0 flex-1">
-        <div className={`${selectedName ? 'hidden sm:block' : 'w-full'} shrink-0 overflow-y-auto border-r border-background-200 sm:w-[360px]`}>
-          {roles.map((role) => (
-            <button
-              key={role.id}
-              type="button"
-              onClick={() => onSelect(role.policyName)}
-              className={`w-full border-b border-background-100 px-4 py-3 text-left ${selectedName === role.policyName ? 'border-l-2 border-l-primary-500 bg-primary-50' : 'hover:bg-background-100'}`}
-            >
-              <span className="block text-sm font-medium text-foreground-800">{role.name}</span>
-              <span className="mt-1 block font-mono text-[10px] text-foreground-400">{role.policyName}</span>
-            </button>
-          ))}
-          {roles.length === 0 && (
-            <div className="py-16 text-center text-sm text-foreground-500">
-              No policies with the <span className="font-mono">vc-role-</span> prefix.
-            </div>
-          )}
-        </div>
-        <div className={`${selectedName ? 'flex-1' : 'hidden sm:flex'} min-w-0 overflow-y-auto`}>
-          {!selectedName && (
-            <div className="m-auto text-center">
-              <i className="ri-shield-keyhole-line text-2xl text-foreground-300" aria-hidden="true" />
-              <p className="mt-2 text-sm text-foreground-600">Select a role</p>
-              <p className="mt-1 text-xs text-foreground-400">The policy body loads only after selection.</p>
-            </div>
-          )}
-          {selectedName && selectedPolicy.status === 'loading' && (
-            <ContentSkeleton label="Loading role policy" variant="detail" />
-          )}
-          {selectedName && selectedPolicy.status === 'error' && (
-            <div role="alert" className="m-5 rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
-              This role policy could not be loaded: {selectedPolicy.error.message}
-            </div>
-          )}
-          {selectedName && selectedPolicy.status === 'success' && (
-            <div className="w-full space-y-4 p-5">
-              <h2 className="break-all font-mono text-sm font-semibold text-foreground-900">{selectedPolicy.data.name}</h2>
-              {selectedPolicy.data.rules ? (
-                selectedPolicy.data.rules.map((rule) => (
-                  <div key={rule.pattern} className="rounded-md border border-background-200 p-3">
-                    <p className="break-all font-mono text-xs text-foreground-800">{rule.pattern}</p>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {rule.capabilities.map((capability) => (
-                        <span key={capability} className="rounded bg-success-100 px-1.5 py-0.5 text-[10px] text-success-700">
-                          {capability}
+
+      <div className="min-h-0 flex-1 overflow-auto">
+        {roles.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-background-200 text-foreground-400">
+              <i className="ri-shield-keyhole-line text-xl" aria-hidden="true" />
+            </span>
+            <p className="mt-3 text-sm font-medium text-foreground-700">No role policies</p>
+            <p className="mt-1 text-xs text-foreground-400">
+              Roles use an immutable <span className="font-mono">vc-role-*</span> policy name.
+            </p>
+          </div>
+        ) : (
+          <table className="w-full min-w-[720px]">
+            <thead className="sticky top-0 bg-background-50">
+              <tr className="border-b border-background-200">
+                <th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">
+                  Role
+                </th>
+                <th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">
+                  Ownership
+                </th>
+                <th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">
+                  Visual rules
+                </th>
+                <th className="px-4 py-2.5 text-left text-[11px] font-medium text-foreground-500">
+                  Description
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {roles.map((role) => {
+                const badge = ownershipBadge(role);
+                return (
+                  <tr
+                    key={role.name}
+                    className="border-b border-background-100 hover:bg-background-100 focus-within:bg-background-100"
+                  >
+                    <td className="px-4 py-1.5">
+                      <button
+                        ref={(node) => {
+                          if (node) buttons.current.set(role.name, node);
+                          else buttons.current.delete(role.name);
+                        }}
+                        type="button"
+                        aria-label={`Open role ${role.name}`}
+                        onClick={() => onView(role.name)}
+                        className="min-h-11 w-full rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-8"
+                      >
+                        <span className="block text-sm font-semibold text-foreground-800">
+                          {managedRoleName(role.name)}
                         </span>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
-                  This policy is not readable or cannot be represented safely in the visual model.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
+                        <span className="mt-0.5 block font-mono text-[9px] text-foreground-400">
+                          {role.name}
+                        </span>
+                      </button>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${badge.classes}`}>
+                        {badge.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-foreground-600">
+                      {role.rules?.length ?? '—'}
+                    </td>
+                    <td className="max-w-[360px] truncate px-4 py-2.5 text-xs text-foreground-500">
+                      {role.ownershipHeader?.kind === 'role'
+                        ? role.ownershipHeader.description || 'No description'
+                        : 'Ownership header required'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </section>
   );

@@ -230,6 +230,7 @@ export function buildDeleteGroupPlan(
   const group = snapshot.group;
   if (
     !group
+    || (group.type ?? 'internal') !== 'internal'
     || assessIdentityOwnership(group.metadata) !== 'managed'
   ) throw new VaultError('invalid-request');
   if (!snapshot.visibility.complete) {

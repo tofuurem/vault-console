@@ -1,5 +1,7 @@
 import {
+  forwardRef,
   useEffect,
+  useImperativeHandle,
   useRef,
   type ReactNode,
 } from 'react';
@@ -28,7 +30,12 @@ interface AccessWorkspaceShellProps {
   readonly footer?: ReactNode;
 }
 
-export default function AccessWorkspaceShell({
+export interface AccessWorkspaceShellHandle {
+  readonly allowNextNavigation: () => void;
+}
+
+const AccessWorkspaceShell = forwardRef<AccessWorkspaceShellHandle, AccessWorkspaceShellProps>(
+function AccessWorkspaceShell({
   eyebrow,
   title,
   subtitle,
@@ -40,9 +47,13 @@ export default function AccessWorkspaceShell({
   dirty,
   children,
   footer,
-}: AccessWorkspaceShellProps) {
+}: AccessWorkspaceShellProps, ref) {
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const guarded = useDirtyWorkspaceGuard(dirty);
+  const navigation = useDirtyWorkspaceGuard(dirty);
+
+  useImperativeHandle(ref, () => ({
+    allowNextNavigation: navigation.allowNextNavigation,
+  }), [navigation.allowNextNavigation]);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -65,7 +76,7 @@ export default function AccessWorkspaceShell({
             <button
               type="button"
               aria-label="Close access editor"
-              onClick={() => guarded(onClose)}
+              onClick={() => navigation.guard(onClose)}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-background-300 bg-background-50 text-foreground-500 transition-colors hover:border-background-400 hover:bg-background-100 hover:text-foreground-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-8 sm:w-8"
             >
               <i className="ri-arrow-left-line" aria-hidden="true" />
@@ -173,4 +184,6 @@ export default function AccessWorkspaceShell({
       )}
     </section>
   );
-}
+});
+
+export default AccessWorkspaceShell;

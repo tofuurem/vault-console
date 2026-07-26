@@ -8,6 +8,8 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import App from '@/App';
+import { compileKvV2Policy } from '@/domain/access-control/kv-v2-policy-compiler';
+import { renderManagedPolicy } from '@/domain/access-control/policy-ownership';
 import type {
   KvV2Gateway,
   UserpassLogin,
@@ -16,6 +18,7 @@ import type {
   VaultCapabilityMap,
   VaultHealth,
   VaultIdentityEntity,
+  VaultIdentityGroup,
   VaultSession,
 } from '@/domain/vault/contracts';
 import { VaultError } from '@/domain/vault/errors';
@@ -41,6 +44,27 @@ const aliceEntity: VaultIdentityEntity = {
   }],
   metadata: { managed_by: 'vault-console' },
 };
+
+function rolePolicyBody(
+  path: string,
+  description: string,
+  managed = true,
+): string {
+  const hcl = compileKvV2Policy([{
+    mount: 'applications',
+    path,
+    target: 'folder',
+    level: 'view',
+    source: {
+      kind: 'role',
+      id: `vc-role-${path}`,
+      label: description,
+    },
+  }]).hcl;
+  return managed
+    ? renderManagedPolicy({ kind: 'role', description }, hcl)
+    : hcl;
+}
 
 function authGateway(): VaultAuthGateway {
   return {
@@ -74,33 +98,80 @@ function kvGateway(): KvV2Gateway {
 
 function accessGateway(): VaultAccessControlGateway {
   let memberEntityIds = ['entity-alice'];
+  let currentGroupName = 'platform-team';
+  let createdGroup: VaultIdentityGroup | undefined;
+  const rolePolicies = new Map<string, string>([
+    [
+      'vc-role-platform-readers',
+      rolePolicyBody('platform', 'Platform readers'),
+    ],
+    [
+      'vc-role-legacy-readers',
+      rolePolicyBody('legacy', 'Legacy readers', false),
+    ],
+  ]);
   const currentGroup = () => ({
     id: 'platform-team',
-    name: 'platform-team',
+    name: currentGroupName,
+    type: 'internal' as const,
     policies: ['vc-role-platform-readers'],
     memberEntityIds: [...memberEntityIds],
     memberGroupIds: [],
-    metadata: {},
+    metadata: {
+      managed_by: 'vault-console',
+      schema: '1',
+      description: 'Platform team',
+    },
   });
   return {
     listAuthMounts: vi.fn(async () => [{ path: 'userpass', accessor: 'auth_userpass_123', type: 'userpass', description: 'People' }]),
-    listPolicies: vi.fn(async () => ['default', 'vc-role-platform-readers', 'legacy-operator']),
+    listPolicies: vi.fn(async () => [
+      'default',
+      ...rolePolicies.keys(),
+      'legacy-operator',
+    ]),
     readPolicy: vi.fn(async (_session, name) => {
-      if (name.startsWith('vc-user-')) throw new VaultError('not-found', { status: 404 });
+      const rolePolicy = rolePolicies.get(name);
+      if (rolePolicy !== undefined) return { name, policy: rolePolicy };
+      if (name.startsWith('vc-user-') || name.startsWith('vc-role-')) {
+        throw new VaultError('not-found', { status: 404 });
+      }
       return {
         name,
-        policy: name === 'vc-role-platform-readers'
-          ? 'path "applications/metadata/*" { capabilities = ["read", "list"] }'
-          : 'path "sys/health" { capabilities = ["read"] }',
+        policy: 'path "sys/health" { capabilities = ["read"] }',
       };
     }),
-    writePolicy: vi.fn(async () => undefined),
-    deletePolicy: vi.fn(async () => undefined),
-    listGroups: vi.fn(async () => [currentGroup()]),
-    readGroup: vi.fn(async () => currentGroup()),
-    createGroup: vi.fn(),
-    updateGroup: vi.fn(),
-    deleteGroup: vi.fn(),
+    writePolicy: vi.fn(async (_session, policy) => {
+      rolePolicies.set(policy.name, policy.policy);
+    }),
+    deletePolicy: vi.fn(async (_session, name) => {
+      rolePolicies.delete(name);
+    }),
+    listGroups: vi.fn(async () => [
+      currentGroup(),
+      ...(createdGroup ? [createdGroup] : []),
+    ]),
+    readGroup: vi.fn(async (_session, groupId) => (
+      groupId === 'created-group' && createdGroup ? createdGroup : currentGroup()
+    )),
+    createGroup: vi.fn(async (_session, group) => {
+      createdGroup = {
+        id: 'created-group',
+        type: 'internal',
+        ...group,
+      };
+      return 'created-group';
+    }),
+    updateGroup: vi.fn(async (_session, groupId, group) => {
+      if (groupId === 'platform-team') {
+        currentGroupName = group.name;
+        memberEntityIds = [...group.memberEntityIds];
+      }
+      if (groupId === 'created-group' && createdGroup) {
+        createdGroup = { ...createdGroup, ...group };
+      }
+    }),
+    deleteGroup: vi.fn(async () => undefined),
     updateGroupMembers: vi.fn(async (_session, _group, nextMembers) => {
       memberEntityIds = [...nextMembers];
     }),
@@ -205,13 +276,32 @@ describe('AccessControlPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Groups' }));
     expect(await screen.findByRole('heading', { name: 'Internal groups' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'platform-team' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Open group platform-team' }));
+    expect(await screen.findByRole('heading', { name: 'platform-team' })).toBeVisible();
+    expect(screen.getByText(/Delete blocked: Remove every direct member first/)).toBeVisible();
+    expect(window.location.pathname).toBe('/access-control/groups/platform-team');
+    await user.click(screen.getByRole('button', { name: 'Back to groups' }));
+    expect(await screen.findByRole('heading', { name: 'Internal groups' })).toBeVisible();
     expect(window.location.pathname).toBe('/access-control/groups');
+    await waitFor(() => expect(
+      screen.getByRole('button', { name: 'Open group platform-team' }),
+    ).toHaveFocus());
 
     await user.click(screen.getByRole('button', { name: 'Roles' }));
     expect(await screen.findByRole('heading', { name: 'Roles' })).toBeVisible();
     expect(screen.getByText('Platform Readers')).toBeVisible();
     expect(window.location.pathname).toBe('/access-control/roles');
+    await user.click(screen.getByRole('button', {
+      name: 'Open role vc-role-platform-readers',
+    }));
+    expect(await screen.findByRole('heading', { name: 'Platform Readers' })).toBeVisible();
+    expect(screen.getByText(/Delete blocked: Detach this role/)).toBeVisible();
+    expect(window.location.pathname).toBe('/access-control/roles/vc-role-platform-readers');
+    await user.click(screen.getByRole('button', { name: 'Back to roles' }));
+    expect(await screen.findByRole('heading', { name: 'Roles' })).toBeVisible();
+    await waitFor(() => expect(
+      screen.getByRole('button', { name: 'Open role vc-role-platform-readers' }),
+    ).toHaveFocus());
 
     await user.click(screen.getByRole('button', { name: 'Policies' }));
     expect(await screen.findByRole('heading', { name: 'Policy explorer' })).toBeVisible();
@@ -340,6 +430,237 @@ describe('AccessControlPage', () => {
       ['entity-alice', 'entity-bob'],
       expect.any(AbortSignal),
     ));
+  });
+
+  it('creates a managed internal group through a reviewed full-screen workspace', async () => {
+    const user = userEvent.setup();
+    const access = accessGateway();
+    await loginAndOpenUsers(user, access);
+    await user.click(screen.getByRole('button', { name: 'Groups' }));
+    await user.click(await screen.findByRole('button', { name: 'Create group' }));
+
+    expect(await screen.findByRole('heading', { name: 'Overview' })).toBeVisible();
+    await user.type(screen.getByLabelText('Group name'), 'Billing operators');
+    await user.type(screen.getByLabelText('Description'), 'Billing production access');
+    await user.click(screen.getByRole('button', { name: /Review/ }));
+    await user.click(screen.getByRole('button', { name: 'Create group' }));
+
+    await waitFor(() => expect(access.createGroup).toHaveBeenCalled());
+    await waitFor(() => expect(window.location.pathname).toBe(
+      '/access-control/groups/created-group',
+    ));
+    expect(await screen.findByRole('heading', { name: 'Billing operators' })).toHaveFocus();
+    expect(access.createGroup).toHaveBeenCalledWith(
+      session,
+      expect.objectContaining({
+        name: 'Billing operators',
+        metadata: expect.objectContaining({
+          managed_by: 'vault-console',
+          description: 'Billing production access',
+        }),
+      }),
+      undefined,
+    );
+  });
+
+  it('edits a managed group without replacing its preserved relationships', async () => {
+    const user = userEvent.setup();
+    const access = accessGateway();
+    await loginAndOpenUsers(user, access);
+    await user.click(screen.getByRole('button', { name: 'Groups' }));
+    await user.click(await screen.findByRole('button', { name: 'Open group platform-team' }));
+    await user.click(await screen.findByRole('button', { name: 'Edit group' }));
+
+    const name = await screen.findByLabelText('Group name');
+    await user.clear(name);
+    await user.type(name, 'Platform operators');
+    await user.click(screen.getByRole('button', { name: /Review/ }));
+    await user.click(screen.getByRole('button', { name: 'Apply group change' }));
+
+    await waitFor(() => expect(
+      screen.getByRole('heading', { name: 'Platform operators' }),
+    ).toBeVisible());
+    expect(window.location.pathname).toBe('/access-control/groups/platform-team');
+    expect(access.updateGroup).toHaveBeenCalledWith(
+      session,
+      'platform-team',
+      expect.objectContaining({
+        name: 'Platform operators',
+        policies: ['vc-role-platform-readers'],
+        memberEntityIds: ['entity-alice'],
+        memberGroupIds: [],
+      }),
+      undefined,
+    );
+  });
+
+  it('creates a canonical managed role through the reviewed visual workspace', async () => {
+    const user = userEvent.setup();
+    const access = accessGateway();
+    await loginAndOpenUsers(user, access);
+    await user.click(screen.getByRole('button', { name: 'Roles' }));
+    await user.click(await screen.findByRole('button', { name: 'Create role' }));
+
+    expect(await screen.findByRole('heading', { name: 'Overview' })).toBeVisible();
+    await user.type(screen.getByLabelText('Role identifier'), 'billing-reader');
+    await user.type(screen.getByLabelText('Description'), 'Billing read access');
+    await user.click(screen.getByRole('button', { name: /Continue/ }));
+    await user.type(screen.getByLabelText('Logical path'), 'billing');
+    await user.click(screen.getByRole('button', { name: 'Add target' }));
+    await user.click(screen.getByRole('button', { name: /Review/ }));
+    await user.click(screen.getByRole('button', { name: 'Create role' }));
+
+    await waitFor(() => expect(access.writePolicy).toHaveBeenCalledWith(
+      session,
+      expect.objectContaining({
+        name: 'vc-role-billing-reader',
+        policy: expect.stringContaining(
+          '# vault-console: {"schema":1,"kind":"role","description":"Billing read access"}',
+        ),
+      }),
+      undefined,
+    ));
+    await waitFor(() => expect(window.location.pathname).toBe(
+      '/access-control/roles/vc-role-billing-reader',
+    ));
+    expect(await screen.findByRole('heading', { name: 'Billing Reader' })).toHaveFocus();
+  });
+
+  it('refreshes cached role bodies as well as the policy-name list', async () => {
+    const user = userEvent.setup();
+    const access = accessGateway();
+    await loginAndOpenUsers(user, access);
+    await user.click(screen.getByRole('button', { name: 'Roles' }));
+
+    expect(await screen.findByText('Platform readers')).toBeVisible();
+    await access.writePolicy(
+      session,
+      {
+        name: 'vc-role-platform-readers',
+        policy: rolePolicyBody('platform', 'Updated outside Vault Console'),
+      },
+      undefined,
+    );
+    await user.click(screen.getByRole('button', { name: 'Refresh roles' }));
+
+    await waitFor(() => expect(
+      screen.getByText('Updated outside Vault Console'),
+    ).toBeVisible());
+  });
+
+  it('guards every route change from a dirty access workspace', async () => {
+    const user = userEvent.setup();
+    const access = accessGateway();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await loginAndOpenUsers(user, access);
+    await user.click(screen.getByRole('button', { name: 'Roles' }));
+    await user.click(await screen.findByRole('button', { name: 'Create role' }));
+    await user.type(await screen.findByLabelText('Role identifier'), 'draft-role');
+
+    await user.click(screen.getByRole('button', { name: 'Groups' }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(
+      'Discard unsaved access changes?',
+    ));
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(window.location.pathname).toBe('/access-control/roles/new');
+    expect(screen.getByLabelText('Role identifier')).toHaveValue('draft-role');
+
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole('button', { name: 'Groups' }));
+    expect(await screen.findByRole('heading', { name: 'Internal groups' })).toBeVisible();
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(window.location.pathname).toBe('/access-control/groups');
+  });
+
+  it('edits a managed role and preserves its canonical policy identity', async () => {
+    const user = userEvent.setup();
+    const access = accessGateway();
+    await loginAndOpenUsers(user, access);
+    await user.click(screen.getByRole('button', { name: 'Roles' }));
+    await user.click(await screen.findByRole('button', {
+      name: 'Open role vc-role-platform-readers',
+    }));
+    await user.click(await screen.findByRole('button', { name: 'Edit role' }));
+
+    const description = await screen.findByLabelText('Description');
+    await user.clear(description);
+    await user.type(description, 'Platform production readers');
+    await user.click(screen.getByRole('button', { name: /Review/ }));
+    await user.click(screen.getByRole('button', { name: 'Apply role change' }));
+
+    await waitFor(() => expect(access.writePolicy).toHaveBeenCalledWith(
+      session,
+      expect.objectContaining({
+        name: 'vc-role-platform-readers',
+        policy: expect.stringContaining(
+          '"description":"Platform production readers"',
+        ),
+      }),
+      undefined,
+    ));
+    expect(await screen.findByRole('heading', { name: 'Platform Readers' })).toBeVisible();
+    expect(window.location.pathname).toBe('/access-control/roles/vc-role-platform-readers');
+  });
+
+  it('adopts a canonical unverified role without changing its capabilities', async () => {
+    const user = userEvent.setup();
+    const access = accessGateway();
+    const original = rolePolicyBody('legacy', 'Legacy readers', false);
+    await loginAndOpenUsers(user, access);
+    await user.click(screen.getByRole('button', { name: 'Roles' }));
+    await user.click(await screen.findByRole('button', {
+      name: 'Open role vc-role-legacy-readers',
+    }));
+    await user.click(await screen.findByRole('button', { name: 'Adopt role' }));
+
+    await user.type(await screen.findByLabelText('Description'), 'Adopted legacy readers');
+    await user.click(screen.getByRole('button', { name: /Review/ }));
+    await user.click(screen.getByRole('button', { name: 'Adopt role' }));
+
+    await waitFor(() => expect(access.writePolicy).toHaveBeenCalledWith(
+      session,
+      {
+        name: 'vc-role-legacy-readers',
+        policy: [
+          '# vault-console: {"schema":1,"kind":"role","description":"Adopted legacy readers"}',
+          '',
+          original,
+        ].join('\n'),
+      },
+      undefined,
+    ));
+    expect(await screen.findByRole('heading', { name: 'Legacy Readers' })).toBeVisible();
+    expect(window.location.pathname).toBe('/access-control/roles/vc-role-legacy-readers');
+  });
+
+  it('deletes an unreferenced managed role only after exact typed confirmation', async () => {
+    const user = userEvent.setup();
+    const access = accessGateway();
+    access.listGroups = vi.fn(async () => []);
+    access.listEntities = vi.fn(async () => []);
+    await loginAndOpenUsers(user, access);
+    await user.click(screen.getByRole('button', { name: 'Roles' }));
+    await user.click(await screen.findByRole('button', {
+      name: 'Open role vc-role-platform-readers',
+    }));
+
+    const deleteButton = await screen.findByRole('button', { name: 'Delete' });
+    await waitFor(() => expect(deleteButton).toBeEnabled());
+    await user.click(deleteButton);
+    await user.type(
+      screen.getByLabelText(/Type vc-role-platform-readers to confirm/),
+      'vc-role-platform-readers',
+    );
+    await user.click(screen.getByRole('button', { name: 'Delete role permanently' }));
+
+    await waitFor(() => expect(access.deletePolicy).toHaveBeenCalledWith(
+      session,
+      'vc-role-platform-readers',
+      undefined,
+    ));
+    expect(await screen.findByRole('heading', { name: 'Roles' })).toBeVisible();
+    expect(screen.queryByText('Platform Readers')).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe('/access-control/roles');
   });
 
   it('keeps removed Identity tombstones separate and requires a guarded purge', async () => {

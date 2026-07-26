@@ -4,13 +4,14 @@ import type { RouteObject } from "react-router-dom";
 import AuthenticatedAppShell from '@/app/AuthenticatedAppShell';
 import NotFound from "../pages/NotFound";
 import LoginPage from "../pages/login/page";
+import ApplicationRouteBoundary from './ApplicationRouteBoundary';
 import { HomeRoute, LoginRoute, RequireSession } from './RouteGuards';
 import LazyRoute from './LazyRoute';
 
 const ExplorerPage = lazy(() => import('../pages/explorer/page'));
 const AccessControlPage = lazy(() => import('../pages/access-control/page'));
 
-const routes: RouteObject[] = [
+const applicationRoutes: RouteObject[] = [
   {
     path: "/",
     element: <HomeRoute />,
@@ -47,6 +48,22 @@ const routes: RouteObject[] = [
         element: <RequireSession accessControl><LazyRoute><AccessControlPage /></LazyRoute></RequireSession>,
       },
       {
+        path: '/access-control/groups/:groupId',
+        element: <RequireSession accessControl><LazyRoute><AccessControlPage /></LazyRoute></RequireSession>,
+      },
+      {
+        path: '/access-control/groups/:groupId/:action',
+        element: <RequireSession accessControl><LazyRoute><AccessControlPage /></LazyRoute></RequireSession>,
+      },
+      {
+        path: '/access-control/roles/:roleName',
+        element: <RequireSession accessControl><LazyRoute><AccessControlPage /></LazyRoute></RequireSession>,
+      },
+      {
+        path: '/access-control/roles/:roleName/:action',
+        element: <RequireSession accessControl><LazyRoute><AccessControlPage /></LazyRoute></RequireSession>,
+      },
+      {
         path: '/access-control/removed-identities/:entityId',
         element: <RequireSession accessControl><LazyRoute><AccessControlPage /></LazyRoute></RequireSession>,
       },
@@ -57,5 +74,10 @@ const routes: RouteObject[] = [
     element: <NotFound />,
   },
 ];
+
+const routes: RouteObject[] = [{
+  element: <ApplicationRouteBoundary />,
+  children: applicationRoutes,
+}];
 
 export default routes;

@@ -32,6 +32,7 @@ import { normalizeVaultError } from '@/domain/vault/errors';
 import type { CreateUserAccessCatalog } from '../create-user/access';
 import AccessReview from '../workspace/AccessReview';
 import AccessWorkspaceShell, {
+  type AccessWorkspaceShellHandle,
   type WorkspaceStep,
 } from '../workspace/AccessWorkspaceShell';
 import WorkspaceErrorSummary, {
@@ -192,6 +193,7 @@ function UserAccessEditorForm({
   readonly onSessionExpired?: () => void;
 }) {
   const queryClient = useQueryClient();
+  const workspace = useRef<AccessWorkspaceShellHandle>(null);
   const initial = useMemo(
     () => createUserEditorInitialState(snapshot, catalog),
     [catalog, snapshot],
@@ -324,6 +326,12 @@ function UserAccessEditorForm({
           queryClient.invalidateQueries({ queryKey: vaultQueryKeys.groups() }),
           queryClient.invalidateQueries({ queryKey: vaultQueryKeys.policies() }),
           queryClient.invalidateQueries({
+            queryKey: vaultQueryKeys.policyRecords(),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: vaultQueryKeys.policyCatalogs(),
+          }),
+          queryClient.invalidateQueries({
             queryKey: vaultQueryKeys.userAccessAccount(reference.mount, reference.username),
           }),
           queryClient.invalidateQueries({
@@ -333,11 +341,15 @@ function UserAccessEditorForm({
             queryKey: vaultQueryKeys.userAccessGroups(reference.mount, reference.username),
           }),
         ]);
+        workspace.current?.allowNextNavigation();
         onDone();
       }
     } catch (cause) {
       const error = normalizeVaultError(cause);
-      if (error.code === 'session-expired') onSessionExpired?.();
+      if (error.code === 'session-expired') {
+        workspace.current?.allowNextNavigation();
+        onSessionExpired?.();
+      }
       setResult({
         status: 'partial',
         operations: [],
@@ -351,6 +363,7 @@ function UserAccessEditorForm({
 
   return (
     <AccessWorkspaceShell
+      ref={workspace}
       eyebrow="User access change"
       title={snapshot.entity?.name ?? snapshot.account.username}
       subtitle={`auth/${snapshot.account.mount}/users/${snapshot.account.username}`}
@@ -358,7 +371,7 @@ function UserAccessEditorForm({
       activeStep={step}
       onStepChange={goTo}
       onClose={onClose}
-      dirty={dirty}
+      dirty={dirty && result?.status !== 'completed'}
       stateLabel={applying ? 'Applying' : 'Draft'}
       footer={(
         <>

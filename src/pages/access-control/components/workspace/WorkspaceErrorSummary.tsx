@@ -20,10 +20,13 @@ export default function WorkspaceErrorSummary({
   onNavigate,
 }: WorkspaceErrorSummaryProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const hadErrors = useRef(false);
 
   useEffect(() => {
-    if (errors.length > 0) ref.current?.focus();
-  }, [errors]);
+    const hasErrors = errors.length > 0;
+    if (hasErrors && !hadErrors.current) ref.current?.focus();
+    hadErrors.current = hasErrors;
+  }, [errors.length]);
 
   if (errors.length === 0) return null;
   return (

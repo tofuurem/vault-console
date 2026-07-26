@@ -83,11 +83,13 @@ function snapshotValue(snapshot: Omit<RoleLifecycleSnapshot, 'fingerprint'>): un
 export async function loadRoleLifecycleSnapshot(
   gateway: VaultAccessControlGateway,
   session: VaultSession,
-  policyName: string,
+  policyName?: string,
   signal?: AbortSignal,
 ): Promise<RoleLifecycleSnapshot> {
   const reasons: string[] = [];
-  const policy = await readOptionalPolicy(gateway, session, policyName, signal);
+  const policy = policyName
+    ? await readOptionalPolicy(gateway, session, policyName, signal)
+    : null;
   const groups = await optionalList(
     () => gateway.listGroups(session, signal),
     'Identity groups could not be fully listed.',
@@ -116,7 +118,7 @@ export async function loadRoleLifecycleSnapshot(
   ).flat();
   const dependencies = uniqueDependencies([
     ...accounts.flatMap((account): readonly RoleDependency[] => (
-      account.tokenPolicies.includes(policyName)
+      policyName && account.tokenPolicies.includes(policyName)
         ? [{
             kind: 'user',
             id: `${account.mount}:${account.username}`,
@@ -125,12 +127,12 @@ export async function loadRoleLifecycleSnapshot(
         : []
     )),
     ...groups.flatMap((group): readonly RoleDependency[] => (
-      group.policies.includes(policyName)
+      policyName && group.policies.includes(policyName)
         ? [{ kind: 'group', id: group.id, name: group.name }]
         : []
     )),
     ...entities.flatMap((entity): readonly RoleDependency[] => (
-      entity.policies.includes(policyName)
+      policyName && entity.policies.includes(policyName)
         ? [{ kind: 'user', id: entity.id, name: entity.name }]
         : []
     )),

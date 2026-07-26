@@ -5,6 +5,11 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import {
+  createMemoryRouter,
+  RouterProvider,
+} from 'react-router-dom';
+import type { ReactNode } from 'react';
 
 import AccessWorkspaceShell from './AccessWorkspaceShell';
 
@@ -14,11 +19,19 @@ const steps = [
   { id: 'review', label: 'Review', description: 'Apply plan' },
 ];
 
+function renderInRouter(element: ReactNode) {
+  const router = createMemoryRouter([{
+    path: '/',
+    element,
+  }]);
+  return render(<RouterProvider router={router} />);
+}
+
 describe('AccessWorkspaceShell', () => {
   it('exposes keyboard-operable steps and focuses the workspace heading', async () => {
     const user = userEvent.setup();
     const onStepChange = vi.fn();
-    render(
+    renderInRouter(
       <AccessWorkspaceShell
         eyebrow="Role change"
         title="Platform readers"
@@ -47,7 +60,7 @@ describe('AccessWorkspaceShell', () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const { rerender } = render(
+    const first = renderInRouter(
       <AccessWorkspaceShell
         eyebrow="User change"
         title="Alice"
@@ -69,7 +82,8 @@ describe('AccessWorkspaceShell', () => {
     fireEvent(window, event);
     expect(event.defaultPrevented).toBe(true);
 
-    rerender(
+    first.unmount();
+    renderInRouter(
       <AccessWorkspaceShell
         eyebrow="User change"
         title="Alice"

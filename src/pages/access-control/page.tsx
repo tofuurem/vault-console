@@ -8,9 +8,11 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { useAuthenticatedShell } from '@/app/authenticated-shell';
+import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import { useAccessControlGateway } from '@/application/vault/AccessControlGatewayContext';
 import {
   firstQueryError,
@@ -53,6 +55,18 @@ const TombstonesList = lazy(
 const TombstoneDetail = lazy(
   () => import('./components/user-actions/TombstoneDetail'),
 );
+const GroupDetail = lazy(
+  () => import('./components/group-editor/GroupDetail'),
+);
+const GroupEditor = lazy(
+  () => import('./components/group-editor/GroupEditor'),
+);
+const RoleDetail = lazy(
+  () => import('./components/role-editor/RoleDetail'),
+);
+const RoleEditor = lazy(
+  () => import('./components/role-editor/RoleEditor'),
+);
 
 type ViewMode =
   | 'users-list'
@@ -61,8 +75,12 @@ type ViewMode =
   | 'users-edit'
   | 'tombstones-list'
   | 'tombstone-detail'
-  | 'roles'
-  | 'groups'
+  | 'groups-list'
+  | 'group-detail'
+  | 'group-edit'
+  | 'roles-list'
+  | 'role-detail'
+  | 'role-edit'
   | 'policies';
 const ACCESS_SECTIONS = new Set(['users', 'groups', 'roles', 'policies']);
 
@@ -121,26 +139,44 @@ export default function AccessControlPage() {
     username?: string;
     action?: string;
     entityId?: string;
+    groupId?: string;
+    roleName?: string;
   }>();
   const [searchParams] = useSearchParams();
   const { mountsState } = useAuthenticatedShell();
   const vault = useVaultSession();
   const session = vault.session!;
   const accessGateway = useAccessControlGateway();
+  const queryClient = useQueryClient();
   const [creatingUser, setCreatingUser] = useState(false);
   const [selectedPolicyName, setSelectedPolicyName] = useState<string>();
   const [userSearch, setUserSearch] = useState('');
   const [profileOriginUserId, setProfileOriginUserId] = useState<string>();
   const [restoreFocusUserId, setRestoreFocusUserId] = useState<string>();
+  const [restoreFocusGroupId, setRestoreFocusGroupId] = useState<string>();
+  const [restoreFocusRoleName, setRestoreFocusRoleName] = useState<string>();
   const previousProfileRequested = useRef(false);
-  const activeSection = params.section && ACCESS_SECTIONS.has(params.section)
-    ? params.section
-    : 'users';
+  const activeSection = params.groupId
+    ? 'groups'
+    : params.roleName
+      ? 'roles'
+      : params.section && ACCESS_SECTIONS.has(params.section)
+        ? params.section
+        : 'users';
   const profileRequested = Boolean(params.username);
   const editingUser = profileRequested && params.action === 'edit';
   const removedIdentitiesRequested = params.section === 'removed-identities'
     || Boolean(params.entityId);
   const tombstoneDetailRequested = removedIdentitiesRequested && Boolean(params.entityId);
+  const groupRequested = Boolean(params.groupId);
+  const creatingGroup = params.groupId === 'new';
+  const editingGroup = groupRequested && !creatingGroup && params.action === 'edit';
+  const roleRequested = Boolean(params.roleName);
+  const creatingRole = params.roleName === 'new';
+  const roleMode = params.action === 'adopt' ? 'adopt' : 'edit';
+  const editingRole = roleRequested && !creatingRole && (
+    params.action === 'edit' || params.action === 'adopt'
+  );
   const profileMount = searchParams.get('mount');
   const usersNeeded = (
     (activeSection === 'users' && !profileRequested && !removedIdentitiesRequested)
@@ -151,7 +187,8 @@ export default function AccessControlPage() {
   const policiesNeeded = activeSection === 'roles'
     || activeSection === 'policies'
     || creatingUser
-    || editingUser;
+    || editingUser
+    || groupRequested;
 
   const [authMountsState, refreshAuthMounts] = useAuthMounts(
     session,
@@ -168,15 +205,20 @@ export default function AccessControlPage() {
     session,
     removedIdentitiesRequested,
   );
-  const [policyNamesState, refreshPolicyNames] = usePolicyNames(session, policiesNeeded);
+  const [policyNamesState] = usePolicyNames(session, policiesNeeded);
   const policyCatalogState = usePolicyCatalog(
     session,
     policyNamesState.data ?? [],
-    (creatingUser || profileRequested) && policyNamesState.status === 'success',
+    (creatingUser
+      || profileRequested
+      || groupRequested
+      || roleRequested
+      || activeSection === 'roles')
+      && policyNamesState.status === 'success',
   );
   const selectedPolicyState = usePolicyRecord(
     session,
-    activeSection === 'roles' || activeSection === 'policies'
+    activeSection === 'policies'
       ? selectedPolicyName
       : undefined,
   );
@@ -219,23 +261,44 @@ export default function AccessControlPage() {
       ? 'tombstone-detail'
       : removedIdentitiesRequested
         ? 'tombstones-list'
-        : editingUser
-          ? 'users-edit'
-          : params.username
-            ? 'users-profile'
-            : activeSection === 'groups'
-              ? 'groups'
-              : activeSection === 'roles'
-                ? 'roles'
-                : activeSection === 'policies'
-                  ? 'policies'
-                  : 'users-list';
+        : creatingGroup || editingGroup
+          ? 'group-edit'
+          : groupRequested
+            ? 'group-detail'
+            : creatingRole || editingRole
+              ? 'role-edit'
+              : roleRequested
+                ? 'role-detail'
+                : editingUser
+                  ? 'users-edit'
+                  : params.username
+                    ? 'users-profile'
+                    : activeSection === 'groups'
+                      ? 'groups-list'
+                      : activeSection === 'roles'
+                        ? 'roles-list'
+                        : activeSection === 'policies'
+                          ? 'policies'
+                          : 'users-list';
 
   useEffect(() => {
-    if (!params.section && !params.username && !params.entityId) {
+    if (
+      !params.section
+      && !params.username
+      && !params.entityId
+      && !params.groupId
+      && !params.roleName
+    ) {
       navigate('/access-control/users', { replace: true });
     }
-  }, [navigate, params.entityId, params.section, params.username]);
+  }, [
+    navigate,
+    params.entityId,
+    params.groupId,
+    params.roleName,
+    params.section,
+    params.username,
+  ]);
 
   useEffect(() => {
     setSelectedPolicyName(undefined);
@@ -345,11 +408,24 @@ export default function AccessControlPage() {
     userpassMounts,
     usersState,
   ]);
+  const refreshPolicyResources = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: vaultQueryKeys.policyRecords(),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: vaultQueryKeys.policies(),
+      }),
+    ]);
+    await queryClient.invalidateQueries({
+      queryKey: vaultQueryKeys.policyCatalogs(),
+    });
+  }, [queryClient]);
   const refreshCreateUserResources = () => {
     refreshAuthMounts();
     refreshUsers();
     refreshGroups();
-    refreshPolicyNames();
+    void refreshPolicyResources();
   };
   const clearRestoredUserFocus = useCallback(() => {
     setRestoreFocusUserId(undefined);
@@ -402,35 +478,55 @@ export default function AccessControlPage() {
               ),
             )
       )}
-      {viewMode === 'groups' && renderQuery(
+      {viewMode === 'groups-list' && renderQuery(
         groupsState,
         'Loading identity groups…',
         refreshGroups,
-        (groups) => <GroupsList groups={groups} />,
-      )}
-      {viewMode === 'roles' && renderQuery(
-        policyNamesState,
-        'Loading role names…',
-        refreshPolicyNames,
-        (names) => (
-          <RolesList
-            roles={rolesFromPolicyNames(names)}
-            selectedName={selectedPolicyName}
-            selectedPolicy={selectedPolicyState}
-            onSelect={setSelectedPolicyName}
+        (groups) => (
+          <GroupsList
+            groups={groups}
+            onCreate={() => navigate('/access-control/groups/new')}
+            onView={(groupId) => {
+              navigate(`/access-control/groups/${encodeURIComponent(groupId)}`);
+            }}
+            onRefresh={refreshGroups}
+            restoreFocusGroupId={restoreFocusGroupId}
+            onFocusRestored={() => setRestoreFocusGroupId(undefined)}
           />
         ),
+      )}
+      {viewMode === 'roles-list' && (
+        policyCatalogState.status === 'error' ? (
+          <ResourceError
+            error={policyCatalogState.error}
+            retry={() => { void refreshPolicyResources(); }}
+          />
+        ) : policyCatalogState.status !== 'success' ? (
+          <ResourceLoading label="Loading role policies…" />
+        ) : (
+          <RolesList
+            roles={policyCatalogState.data.filter(({ kind }) => kind === 'role')}
+            onCreate={() => navigate('/access-control/roles/new')}
+            onView={(policyName) => {
+              navigate(`/access-control/roles/${encodeURIComponent(policyName)}`);
+            }}
+            onRefresh={() => { void refreshPolicyResources(); }}
+            restoreFocusRoleName={restoreFocusRoleName}
+            onFocusRestored={() => setRestoreFocusRoleName(undefined)}
+          />
+        )
       )}
       {viewMode === 'policies' && renderQuery(
         policyNamesState,
         'Loading policy names…',
-        refreshPolicyNames,
+        () => { void refreshPolicyResources(); },
         (names) => (
           <PolicyExplorer
             policyNames={names}
             selectedName={selectedPolicyName}
             selectedPolicy={selectedPolicyState}
             onSelect={setSelectedPolicyName}
+            onRefresh={() => { void refreshPolicyResources(); }}
           />
         ),
       )}
@@ -542,6 +638,122 @@ export default function AccessControlPage() {
                 pathname: `/access-control/users/${encodeURIComponent(profileAccount.username)}`,
                 search: new URLSearchParams({ mount: profileAccount.mount }).toString(),
               })}
+            />
+          </Suspense>
+        )
+      )}
+      {viewMode === 'group-detail' && params.groupId && (
+        policyCatalogState.status === 'error' ? (
+          <ResourceError
+            error={policyCatalogState.error}
+            retry={() => { void refreshPolicyResources(); }}
+          />
+        ) : policyCatalogState.status !== 'success' ? (
+          <ResourceLoading label="Loading the managed role catalog…" />
+        ) : (
+          <Suspense fallback={<ResourceLoading label="Loading group detail…" />}>
+            <GroupDetail
+              groupId={params.groupId}
+              catalog={catalog}
+              gateway={accessGateway}
+              session={session}
+              onSessionExpired={vault.expireSession}
+              onBack={() => {
+                setRestoreFocusGroupId(params.groupId);
+                navigate('/access-control/groups');
+              }}
+              onEdit={() => navigate(
+                `/access-control/groups/${encodeURIComponent(params.groupId!)}/edit`,
+              )}
+              onDeleted={() => navigate('/access-control/groups')}
+            />
+          </Suspense>
+        )
+      )}
+      {viewMode === 'group-edit' && params.groupId && (
+        policyCatalogState.status === 'error' ? (
+          <ResourceError
+            error={policyCatalogState.error}
+            retry={() => { void refreshPolicyResources(); }}
+          />
+        ) : policyCatalogState.status !== 'success' ? (
+          <ResourceLoading label="Loading the group access catalog…" />
+        ) : (
+          <Suspense fallback={<ResourceLoading label="Preparing the group workspace…" />}>
+            <GroupEditor
+              groupId={creatingGroup ? undefined : params.groupId}
+              catalog={catalog}
+              gateway={accessGateway}
+              session={session}
+              onSessionExpired={vault.expireSession}
+              onClose={() => navigate(
+                creatingGroup
+                  ? '/access-control/groups'
+                  : `/access-control/groups/${encodeURIComponent(params.groupId!)}`,
+              )}
+              onDone={(groupId) => {
+                navigate(`/access-control/groups/${encodeURIComponent(groupId)}`);
+              }}
+            />
+          </Suspense>
+        )
+      )}
+      {viewMode === 'role-detail' && params.roleName && (
+        policyCatalogState.status === 'error' ? (
+          <ResourceError
+            error={policyCatalogState.error}
+            retry={() => { void refreshPolicyResources(); }}
+          />
+        ) : policyCatalogState.status !== 'success' ? (
+          <ResourceLoading label="Loading the role catalog…" />
+        ) : (
+          <Suspense fallback={<ResourceLoading label="Loading role detail…" />}>
+            <RoleDetail
+              policyName={params.roleName}
+              catalog={catalog}
+              gateway={accessGateway}
+              session={session}
+              onSessionExpired={vault.expireSession}
+              onBack={() => {
+                setRestoreFocusRoleName(params.roleName);
+                navigate('/access-control/roles');
+              }}
+              onEdit={() => navigate(
+                `/access-control/roles/${encodeURIComponent(params.roleName!)}/edit`,
+              )}
+              onAdopt={() => navigate(
+                `/access-control/roles/${encodeURIComponent(params.roleName!)}/adopt`,
+              )}
+              onDeleted={() => navigate('/access-control/roles')}
+            />
+          </Suspense>
+        )
+      )}
+      {viewMode === 'role-edit' && params.roleName && (
+        policyCatalogState.status === 'error' ? (
+          <ResourceError
+            error={policyCatalogState.error}
+            retry={() => { void refreshPolicyResources(); }}
+          />
+        ) : policyCatalogState.status !== 'success' ? (
+          <ResourceLoading label="Loading the role access catalog…" />
+        ) : (
+          <Suspense fallback={<ResourceLoading label="Preparing the role workspace…" />}>
+            <RoleEditor
+              mode={creatingRole ? 'create' : roleMode}
+              policyName={creatingRole ? undefined : params.roleName}
+              catalog={catalog}
+              gateway={accessGateway}
+              session={session}
+              onSessionExpired={vault.expireSession}
+              onClose={() => navigate(
+                creatingRole
+                  ? '/access-control/roles'
+                  : `/access-control/roles/${encodeURIComponent(params.roleName!)}`,
+              )}
+              onDone={(policyName) => {
+                navigate(`/access-control/roles/${encodeURIComponent(policyName)}`);
+              }}
             />
           </Suspense>
         )
