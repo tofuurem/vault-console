@@ -196,7 +196,7 @@ test('browses KV v2 and creates an identity-backed user in real Vault', async ({
 
   await page.getByText('shared', { exact: true }).first().click();
   await expect(page.getByText('API_KEY')).toBeVisible();
-  await page.getByRole('button', { name: 'Users' }).click();
+  await page.getByRole('button', { name: 'Access Center' }).click();
   await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
   await page.getByRole('button', { name: /Create user/ }).click();
   await page.getByLabel(/Username/).fill('e2e-user');
@@ -395,7 +395,7 @@ test('keeps navigation and the secret inspector usable across the responsive mat
   await inspector.getByRole('button', { name: 'Close inspector' }).click();
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await page.getByRole('dialog', { name: 'Vault navigation' })
-    .getByRole('button', { name: 'Users' }).click();
+    .getByRole('button', { name: 'Access Center' }).click();
   await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 900 });
   const createUser = page.getByRole('button', { name: 'Create user' });

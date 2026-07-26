@@ -31,18 +31,12 @@ import { directoryPathForSecret, explorerRoute } from '@/router/explorer-route';
 import { normalizeVaultError } from '@/domain/vault/errors';
 
 const NO_MOUNTS = [] as const;
-const ACCESS_SECTIONS = new Set(['users', 'groups', 'roles', 'policies']);
 const ACCESS_COMMANDS = [
   ['users', 'Open users', 'ri-user-settings-line'],
   ['groups', 'Open groups', 'ri-group-line'],
   ['roles', 'Open roles', 'ri-shield-check-line'],
   ['policies', 'Open Policy Explorer', 'ri-file-code-line'],
 ] as const;
-
-function accessSection(pathname: string): string | undefined {
-  const section = matchPath('/access-control/:section/*', pathname)?.params.section;
-  return section && ACCESS_SECTIONS.has(section) ? section : undefined;
-}
 
 export default function AuthenticatedAppShell() {
   const vault = useVaultSession();
@@ -102,7 +96,7 @@ function AuthenticatedWorkspace() {
   const explorer = matchPath('/explorer/:mount/*', location.pathname);
   const activeMount = explorer?.params.mount ? decodeURIComponent(explorer.params.mount) : '';
   const activePath = explorer?.params['*'] ?? '';
-  const activeAccessSection = accessSection(location.pathname);
+  const accessCenterActive = location.pathname.startsWith('/access-control');
   const accessNotice = (location.state as { notice?: string } | null)?.notice === 'access-control-denied';
   const showAccessControl = vault.accessControlPermission.state !== 'denied';
 
@@ -182,14 +176,24 @@ function AuthenticatedWorkspace() {
     })),
     ...pathCommands,
     ...(indexCommand ? [indexCommand] : []),
-    ...(showAccessControl ? ACCESS_COMMANDS.map(([section, label, icon]) => ({
-      id: `access-${section}`,
-      label,
-      group: 'Access control',
-      keywords: ['identity', 'acl', section],
-      icon,
-      run: () => navigate(`/access-control/${section}`),
-    })) : []),
+    ...(showAccessControl ? [
+      {
+        id: 'access-center',
+        label: 'Open Access Center',
+        group: 'Access control',
+        keywords: ['identity', 'acl', 'users', 'groups', 'roles', 'policies'],
+        icon: 'ri-shield-user-line',
+        run: () => navigate('/access-control/users'),
+      },
+      ...ACCESS_COMMANDS.map(([section, label, icon]) => ({
+        id: `access-${section}`,
+        label,
+        group: 'Access control',
+        keywords: ['identity', 'acl', section],
+        icon,
+        run: () => navigate(`/access-control/${section}`),
+      })),
+    ] : []),
     ...([
       ['system', 'Use system appearance', 'ri-computer-line'],
       ['light', 'Use light appearance', 'ri-sun-line'],
@@ -269,8 +273,8 @@ function AuthenticatedWorkspace() {
           onMountSelect={(mount) => navigate(`/explorer/${encodeURIComponent(mount)}`)}
           onCreateMount={() => setCreateMountOpen(true)}
           showAccessControl={showAccessControl}
-          activeAccessSection={activeAccessSection}
-          onAccessSectionSelect={(section) => navigate(`/access-control/${section}`)}
+          activeAccessCenter={accessCenterActive}
+          onAccessCenterSelect={() => navigate('/access-control/users')}
           favorites={navigationHistory.favorites}
           recents={navigationHistory.recents}
           onPathSelect={openNavigationPath}
@@ -300,10 +304,10 @@ function AuthenticatedWorkspace() {
               setCreateMountOpen(true);
             }}
             showAccessControl={showAccessControl}
-            activeAccessSection={activeAccessSection}
-            onAccessSectionSelect={(section) => {
+            activeAccessCenter={accessCenterActive}
+            onAccessCenterSelect={() => {
               setMobileNavigationOpen(false);
-              navigate(`/access-control/${section}`);
+              navigate('/access-control/users');
             }}
             favorites={navigationHistory.favorites}
             recents={navigationHistory.recents}

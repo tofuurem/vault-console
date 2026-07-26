@@ -17,20 +17,13 @@ interface SidebarProps {
   readonly onMountSelect: (mount: string) => void;
   readonly onCreateMount?: () => void;
   readonly showAccessControl?: boolean;
-  readonly activeAccessSection?: string;
-  readonly onAccessSectionSelect?: (section: string) => void;
+  readonly activeAccessCenter?: boolean;
+  readonly onAccessCenterSelect?: () => void;
   readonly favorites?: readonly FavoriteNavigationPath[];
   readonly recents?: readonly RecentNavigationPath[];
   readonly onPathSelect?: (path: NavigationPath) => void;
   readonly mobile?: boolean;
 }
-
-const accessSections = [
-  { key: 'users', label: 'Users', icon: 'ri-user-settings-line' },
-  { key: 'groups', label: 'Groups', icon: 'ri-group-line' },
-  { key: 'roles', label: 'Roles', icon: 'ri-shield-check-line' },
-  { key: 'policies', label: 'Policy Explorer', icon: 'ri-file-code-line' },
-] as const;
 
 function PathSection({
   title,
@@ -88,8 +81,8 @@ export default function Sidebar({
   onMountSelect,
   onCreateMount,
   showAccessControl,
-  activeAccessSection,
-  onAccessSectionSelect,
+  activeAccessCenter,
+  onAccessCenterSelect,
   favorites = [],
   recents = [],
   onPathSelect,
@@ -125,18 +118,17 @@ export default function Sidebar({
         {showAccessControl && (
           <>
             <div className="my-1 h-px w-6 bg-background-300" />
-            {accessSections.map((section) => (
-              <Tooltip key={section.key} content={section.label} position="right">
-                <button
-                  type="button"
-                  aria-label={section.label}
-                  onClick={() => onAccessSectionSelect?.(section.key)}
-                  className={`flex h-7 w-7 items-center justify-center rounded-md text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${activeAccessSection === section.key ? 'bg-primary-100 text-primary-700' : 'text-foreground-400 hover:bg-background-200'}`}
-                >
-                  <i className={`${section.icon} text-sm`} aria-hidden="true" />
-                </button>
-              </Tooltip>
-            ))}
+            <Tooltip content="Access Center" position="right">
+              <button
+                type="button"
+                aria-label="Access Center"
+                aria-current={activeAccessCenter ? 'page' : undefined}
+                onClick={onAccessCenterSelect}
+                className={`flex h-7 w-7 items-center justify-center rounded-md text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${activeAccessCenter ? 'bg-primary-100 text-primary-700' : 'text-foreground-400 hover:bg-background-200'}`}
+              >
+                <i className="ri-shield-user-line text-sm" aria-hidden="true" />
+              </button>
+            </Tooltip>
           </>
         )}
       </aside>
@@ -218,24 +210,22 @@ export default function Sidebar({
         {showAccessControl && (
           <div className="mt-3 border-t border-background-200 pt-3">
             <div className={`${mobile ? 'flex' : 'hidden sm:flex'} h-6 items-center px-3`}>
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-500">Access control</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-500">Administration</span>
             </div>
-            {accessSections.map((section) => (
-              <button
-                key={section.key}
-                type="button"
-                aria-label={section.label}
-                onClick={() => onAccessSectionSelect?.(section.key)}
-                className={`flex w-full items-center gap-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 ${
-                  mobile
-                    ? 'h-11 justify-start px-4'
-                    : 'h-9 justify-center px-2 sm:h-8 sm:justify-start sm:px-3'
-                } ${activeAccessSection === section.key ? 'bg-primary-100 font-medium text-primary-700' : 'text-foreground-700 hover:bg-background-200'}`}
-              >
-                <i className={`${section.icon} shrink-0 text-xs`} aria-hidden="true" />
-                <span className={`${mobile ? 'inline' : 'hidden sm:inline'} truncate`}>{section.label}</span>
-              </button>
-            ))}
+            <button
+              type="button"
+              aria-label="Access Center"
+              aria-current={activeAccessCenter ? 'page' : undefined}
+              onClick={onAccessCenterSelect}
+              className={`flex w-full items-center gap-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 ${
+                mobile
+                  ? 'min-h-11 justify-start px-4'
+                  : 'min-h-9 justify-center px-2 sm:min-h-8 sm:justify-start sm:px-3'
+              } ${activeAccessCenter ? 'bg-primary-100 font-medium text-primary-700' : 'text-foreground-700 hover:bg-background-200'}`}
+            >
+              <i className="ri-shield-user-line shrink-0 text-sm" aria-hidden="true" />
+              <span className={`${mobile ? 'inline' : 'hidden sm:inline'} truncate`}>Access Center</span>
+            </button>
           </div>
         )}
       </nav>

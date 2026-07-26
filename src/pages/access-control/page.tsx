@@ -28,6 +28,7 @@ import { classifyPolicyName } from '@/domain/access-control/managed-resources';
 import type { KvAccessTreeNode } from '@/domain/access-control/effective-access';
 import type { VaultError } from '@/domain/vault/errors';
 import type { CreateUserAccessCatalog } from './components/create-user/access';
+import AccessCenterShell from './components/AccessCenterShell';
 import CreateUserWizard from './components/CreateUserWizard';
 import GroupsList from './components/GroupsList';
 import PolicyExplorer from './components/PolicyExplorer';
@@ -263,6 +264,10 @@ export default function AccessControlPage() {
 
   return (
     <main id="main-content" tabIndex={-1} className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <AccessCenterShell
+        activeSection={activeSection}
+        onSectionSelect={(section) => navigate(`/access-control/${section}`)}
+      >
       {viewMode === 'users-list' && (
         usersResourceError && usersState.data === undefined
           ? <ResourceError error={usersResourceError} retry={refreshProfileResources} />
@@ -361,6 +366,7 @@ export default function AccessControlPage() {
           )
         )
       )}
+      </AccessCenterShell>
     </main>
   );
 }

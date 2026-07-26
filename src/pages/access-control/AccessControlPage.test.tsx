@@ -124,7 +124,7 @@ async function loginAndOpenUsers(
   await user.click(screen.getByRole('button', { name: 'Sign in' }));
   await screen.findByRole('heading', { name: 'Applications' });
   await waitFor(() => expect(kv.listPaths).toHaveBeenCalled());
-  await user.click(await screen.findByRole('button', { name: 'Users' }));
+  await user.click(await screen.findByRole('button', { name: 'Access Center' }));
   await screen.findByRole('heading', { name: 'Users' });
 }
 
@@ -193,7 +193,7 @@ describe('AccessControlPage', () => {
     expect(screen.getByText('Platform Readers')).toBeVisible();
     expect(window.location.pathname).toBe('/access-control/roles');
 
-    await user.click(screen.getByRole('button', { name: 'Policy Explorer' }));
+    await user.click(screen.getByRole('button', { name: 'Policies' }));
     expect(await screen.findByRole('heading', { name: 'Policy explorer' })).toBeVisible();
     expect(screen.getByText('legacy-operator')).toBeVisible();
     expect(screen.getAllByText('External').length).toBeGreaterThan(0);

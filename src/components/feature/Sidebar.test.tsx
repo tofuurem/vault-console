@@ -71,13 +71,16 @@ describe('Sidebar', () => {
         activePath=""
         onMountSelect={vi.fn()}
         showAccessControl
-        activeAccessSection="users"
-        onAccessSectionSelect={vi.fn()}
+        activeAccessCenter
+        onAccessCenterSelect={vi.fn()}
       />,
     );
 
     expect(screen.getByText('applications/')).toBeVisible();
-    expect(screen.getByText('Users')).toBeVisible();
+    expect(screen.getByText('Access Center')).toBeVisible();
+    expect(screen.queryByText('Users')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Access Center' }))
+      .toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'Open applications mount' }))
       .toHaveClass('min-h-11');
     expect(screen.queryByRole('button', { name: 'Collapse sidebar' }))
