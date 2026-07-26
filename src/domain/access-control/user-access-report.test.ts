@@ -239,6 +239,26 @@ describe('buildUserAccessReport', () => {
     ]);
   });
 
+  it('keeps a denied external policy denied instead of claiming readable HCL', () => {
+    const report = buildUserAccessReport(input({
+      attachments: [attachment('legacy-private')],
+      policies: [{
+        name: 'legacy-private',
+        kind: 'external',
+        status: 'denied',
+      }],
+    }));
+
+    expect(report.completeness.state).toBe('limited-by-policy');
+    expect(report.unresolvedSources).toEqual([
+      expect.objectContaining({
+        policyName: 'legacy-private',
+        resolution: 'denied',
+        reason: 'denied',
+      }),
+    ]);
+  });
+
   it('marks supported HCL with unsafe KV targets as partially representable', () => {
     const report = buildUserAccessReport(input({
       attachments: [attachment('vc-role-wildcard')],

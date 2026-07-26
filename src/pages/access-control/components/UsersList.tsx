@@ -17,7 +17,7 @@ export default function UsersList({ users, warnings, onCreateUser, onViewUser, o
     .some((value) => value.toLowerCase().includes(search.toLowerCase())));
 
   return (
-    <section aria-labelledby="users-heading" className="flex min-h-0 flex-1 flex-col">
+    <section aria-labelledby="users-heading" className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="shrink-0 border-b border-background-200 px-5 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">Userpass + Identity</p><div className="flex items-center gap-2"><h1 id="users-heading" className="text-sm font-semibold text-foreground-900">Users</h1><span className="text-xs text-foreground-400">{users.length}</span></div></div>
@@ -30,7 +30,7 @@ export default function UsersList({ users, warnings, onCreateUser, onViewUser, o
         {warnings.length > 0 && <div className="mt-3 rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-[11px] leading-5 text-warning-800">Some auth mounts or aliases could not be read. The list may be partial.</div>}
       </header>
 
-      <div className="flex-1 overflow-auto">
+      <div className="min-w-0 flex-1 overflow-auto">
         {filtered.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-4 text-center"><div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-background-200"><i className="ri-user-search-line text-xl text-foreground-400" aria-hidden="true" /></div><p className="text-sm font-medium text-foreground-700">{users.length ? 'No users match this search' : 'No userpass accounts found'}</p><p className="mt-1 text-xs text-foreground-400">Accounts are discovered across every readable userpass mount.</p></div>
         ) : (

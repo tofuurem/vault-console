@@ -149,6 +149,148 @@ docker exec \
   --interactive \
   --env VAULT_ADDR=http://127.0.0.1:8200 \
   --env "VAULT_TOKEN=${root_token}" \
+  "${vault_container}" vault policy write vc-role-e2e-direct-editor - >/dev/null <<'HCL'
+path "applications/data/teams/direct/*" {
+  capabilities = ["create", "read", "update", "patch"]
+}
+
+path "applications/metadata/teams/direct" {
+  capabilities = ["list"]
+}
+
+path "applications/metadata/teams/direct/*" {
+  capabilities = ["read"]
+}
+HCL
+
+docker exec \
+  --interactive \
+  --env VAULT_ADDR=http://127.0.0.1:8200 \
+  --env "VAULT_TOKEN=${root_token}" \
+  "${vault_container}" vault policy write vc-role-e2e-group-readers - >/dev/null <<'HCL'
+path "applications/data/platform/*" {
+  capabilities = ["read"]
+}
+
+path "applications/metadata/platform" {
+  capabilities = ["list"]
+}
+
+path "applications/metadata/platform/*" {
+  capabilities = ["read"]
+}
+HCL
+
+docker exec \
+  --interactive \
+  --env VAULT_ADDR=http://127.0.0.1:8200 \
+  --env "VAULT_TOKEN=${root_token}" \
+  "${vault_container}" vault policy write vc-user-e2e-access - >/dev/null <<'HCL'
+path "applications/data/lifecycle" {
+  capabilities = ["create", "read", "update", "patch", "delete"]
+}
+
+path "applications/metadata" {
+  capabilities = ["list"]
+}
+
+path "applications/metadata/lifecycle" {
+  capabilities = ["read", "delete"]
+}
+
+path "applications/delete/lifecycle" {
+  capabilities = ["update"]
+}
+
+path "applications/undelete/lifecycle" {
+  capabilities = ["update"]
+}
+
+path "applications/destroy/lifecycle" {
+  capabilities = ["update"]
+}
+HCL
+
+docker exec \
+  --interactive \
+  --env VAULT_ADDR=http://127.0.0.1:8200 \
+  --env "VAULT_TOKEN=${root_token}" \
+  "${vault_container}" vault policy write e2e-external-audit - >/dev/null <<'HCL'
+# This policy is intentionally external to Vault Console's managed prefixes.
+path "applications/data/private/*" {
+  capabilities = ["read"]
+}
+HCL
+
+vault_exec write auth/userpass/users/e2e-access \
+  password=e2e-access-password \
+  token_policies=vc-role-e2e-direct-editor,vc-user-e2e-access,e2e-external-audit \
+  token_ttl=10m >/dev/null
+
+userpass_accessor="$(
+  vault_exec auth list -format=json \
+    | node -e 'const fs=require("node:fs");process.stdout.write(JSON.parse(fs.readFileSync(0,"utf8"))["userpass/"].accessor)'
+)"
+access_entity_id="$(
+  vault_exec write -field=id identity/entity \
+    name="E2E Access Operator"
+)"
+vault_exec write identity/entity-alias \
+  name=e2e-access \
+  canonical_id="${access_entity_id}" \
+  mount_accessor="${userpass_accessor}" >/dev/null
+vault_exec write identity/group \
+  name=e2e-access-team \
+  type=internal \
+  policies=vc-role-e2e-group-readers \
+  member_entity_ids="${access_entity_id}" >/dev/null
+
+docker exec \
+  --interactive \
+  --env VAULT_ADDR=http://127.0.0.1:8200 \
+  --env "VAULT_TOKEN=${root_token}" \
+  "${vault_container}" vault policy write e2e-access-reviewer - >/dev/null <<'HCL'
+path "sys/internal/ui/mounts" {
+  capabilities = ["read"]
+}
+
+path "sys/capabilities-self" {
+  capabilities = ["update"]
+}
+
+path "sys/auth" {
+  capabilities = ["read"]
+}
+
+path "auth/userpass/users" {
+  capabilities = ["list"]
+}
+
+path "auth/userpass/users/*" {
+  capabilities = ["read"]
+}
+
+path "applications/metadata" {
+  capabilities = ["list"]
+}
+
+path "sys/policy/vc-role-e2e-direct-editor" {
+  capabilities = ["read"]
+}
+HCL
+
+restricted_access_token="$(
+  vault_exec token create \
+    -no-default-policy \
+    -policy=e2e-access-reviewer \
+    -ttl=10m \
+    -field=token
+)"
+
+docker exec \
+  --interactive \
+  --env VAULT_ADDR=http://127.0.0.1:8200 \
+  --env "VAULT_TOKEN=${root_token}" \
   "${vault_container}" vault policy write e2e-data-only - >/dev/null <<'HCL'
 path "applications/data/*" {
   capabilities = ["read"]
@@ -251,4 +393,5 @@ PLAYWRIGHT_BASE_URL="${console_origin}" \
 E2E_VAULT_TOKEN="${root_token}" \
 E2E_LIMITED_VAULT_TOKEN="${limited_token}" \
 E2E_PARTIAL_LIST_VAULT_TOKEN="${partial_list_token}" \
+E2E_RESTRICTED_ACCESS_TOKEN="${restricted_access_token}" \
 npm run test:e2e:playwright

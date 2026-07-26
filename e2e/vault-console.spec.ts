@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 const vaultToken = process.env.E2E_VAULT_TOKEN;
 const limitedVaultToken = process.env.E2E_LIMITED_VAULT_TOKEN;
 const partialListVaultToken = process.env.E2E_PARTIAL_LIST_VAULT_TOKEN;
+const restrictedAccessToken = process.env.E2E_RESTRICTED_ACCESS_TOKEN;
 
 test.skip(!vaultToken, 'E2E_VAULT_TOKEN is supplied by the disposable real-Vault harness.');
 
@@ -217,6 +218,115 @@ test('browses KV v2 and creates an identity-backed user in real Vault', async ({
   expect(account.ok()).toBe(true);
 });
 
+test('explains effective KV access from real user, group, and policy sources', async ({ page }) => {
+  test.setTimeout(60_000);
+  await login(page);
+
+  await expect(page.getByRole('button', { name: 'Access Center' })).toHaveCount(1);
+  await page.getByRole('button', { name: 'Access Center' }).click();
+  await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open user e2e-access' }).click();
+
+  await expect(page).toHaveURL(/\/access-control\/users\/e2e-access\?mount=userpass$/);
+  await expect(page.getByRole('heading', { name: 'E2E Access Operator' })).toBeFocused();
+  await expect(page.getByText('Partial visibility')).toBeVisible();
+
+  const directRow = page.getByRole('button', {
+    name: 'Explain access to applications/teams/direct/',
+  });
+  const groupRow = page.getByRole('button', {
+    name: 'Explain access to applications/platform/',
+  });
+  const ownerRow = page.getByRole('button', {
+    name: 'Explain access to applications/lifecycle',
+  });
+  await expect(directRow).toContainText('Edit');
+  await expect(groupRow).toContainText('View');
+  await expect(ownerRow).toContainText('Owner');
+
+  await expect(page.getByText(
+    'E2e Direct Editor → vc-role-e2e-direct-editor',
+  )).toBeVisible();
+  await expect(page.getByText(
+    'e2e-access-team → E2e Group Readers → vc-role-e2e-group-readers',
+  )).toBeVisible();
+  await expect(page.getByText('User rule → vc-user-e2e-access')).toBeVisible();
+  const externalSource = page.locator('li').filter({ hasText: 'e2e-external-audit' });
+  await expect(externalSource).toContainText('External HCL');
+  await externalSource.getByText('View raw HCL').click();
+  await expect(externalSource).toContainText(
+    'This policy is intentionally external to Vault Console',
+  );
+
+  await groupRow.click();
+  const explanationHeading = page.getByRole('heading', {
+    name: 'applications/platform/',
+  });
+  await expect(explanationHeading).toBeVisible();
+  const explanation = explanationHeading.locator('xpath=ancestor::section[1]');
+  await expect(explanation.getByLabel(
+    'read from e2e-access-team → E2e Group Readers',
+  ).first()).toBeVisible();
+  const tableBox = await page.getByRole('table', {
+    name: 'Effective KV access by logical path',
+  }).boundingBox();
+  const explanationBox = await explanation.boundingBox();
+  expect(tableBox).not.toBeNull();
+  expect(explanationBox).not.toBeNull();
+  expect(explanationBox!.y).toBeGreaterThanOrEqual(tableBox!.y + tableBox!.height);
+
+  const secretValueReads: string[] = [];
+  const captureSecretReads = (request: import('@playwright/test').Request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.startsWith('/v1/applications/data/')) secretValueReads.push(path);
+  };
+  page.on('request', captureSecretReads);
+  await page.getByRole('button', { name: 'All visible paths' }).click();
+  await page.getByLabel('Mount to discover').selectOption('applications');
+  await page.getByRole('button', { name: 'Discover visible paths' }).click();
+  await expect(page.getByText(/Discovery complete · \d+ paths/)).toBeVisible();
+  page.off('request', captureSecretReads);
+  expect(secretValueReads).toEqual([]);
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'E2E Access Operator' })).toBeVisible();
+  await page.goto('/access-control/policies');
+  await expect(page.getByRole('heading', { name: 'Policy explorer' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Policy explorer' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open applications mount' }).click();
+  await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();
+});
+
+test('keeps a useful partial access profile for a restricted operator', async ({ page }) => {
+  test.skip(
+    !restrictedAccessToken,
+    'E2E_RESTRICTED_ACCESS_TOKEN is supplied by the disposable real-Vault harness.',
+  );
+  await login(page, restrictedAccessToken);
+
+  await page.getByRole('button', { name: 'Access Center' }).click();
+  await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open user e2e-access' }).click();
+
+  await expect(page.getByRole('heading', { name: 'e2e-access' })).toBeVisible();
+  await expect(page.getByText('Limited by policy')).toBeVisible();
+  await expect(page.getByText(/current operator token blocks/i)).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: 'Explain access to applications/teams/direct/',
+  })).toContainText('Edit');
+  await expect(
+    page.locator('li').filter({ hasText: 'vc-role-e2e-direct-editor' }),
+  ).toContainText('Resolved');
+  await expect(
+    page.locator('li').filter({ hasText: 'vc-user-e2e-access' }),
+  ).toContainText('Denied');
+  await expect(
+    page.locator('li').filter({ hasText: 'e2e-external-audit' }),
+  ).toContainText('Denied');
+  await expect(page.getByText('This access-control resource could not be loaded')).toHaveCount(0);
+});
+
 test('reads and edits nested JSON without flattening it', async ({ page }) => {
   await login(page);
 
@@ -404,6 +514,16 @@ test('keeps navigation and the secret inspector usable across the responsive mat
   expect(createUserBounds).not.toBeNull();
   expect(createUserBounds!.x + createUserBounds!.width).toBeLessThanOrEqual(320);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Open user e2e-access' }).click();
+  await expect(page.getByRole('heading', { name: 'E2E Access Operator' })).toBeVisible();
+  await page.getByRole('button', {
+    name: 'Explain access to applications/platform/',
+  }).click();
+  await expect(page.getByRole('heading', {
+    name: 'applications/platform/',
+  })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Back to users' }).click();
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await page.getByRole('dialog', { name: 'Vault navigation' })
     .getByRole('button', { name: 'Open applications mount' }).click();

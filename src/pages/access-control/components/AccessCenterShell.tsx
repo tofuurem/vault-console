@@ -60,7 +60,7 @@ export default function AccessCenterShell({
           })}
         </nav>
       </header>
-      <div className="flex min-h-0 flex-1">{children}</div>
+      <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
     </section>
   );
 }

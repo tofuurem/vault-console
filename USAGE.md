@@ -12,7 +12,9 @@ Vault Console не запускает, не перезапускает и не �
 
 ## Запуск готового образа рядом с Vault
 
-Текущий стабильный контейнер имеет версию `0.4.0`.
+Текущий стабильный опубликованный контейнер имеет версию `0.4.0`. Исходный код
+в этой ветке уже имеет версию `0.5.0`; до отдельной публикации не подставляйте
+несуществующий tag `0.5.0` в Compose.
 
 Добавьте сервис в Compose-файл существующего Vault:
 
@@ -248,6 +250,83 @@ mounts. Оператору отдельно нужны ACL на требуемы
 разрешённые mounts и действия.
 
 Роли, которыми управляет интерфейс, имеют prefix `vc-role-`, а прямая policy пользователя — `vc-user-<username>`. Сторонние HCL policies отображаются как External и не переписываются визуальным редактором, если их нельзя безопасно интерпретировать.
+
+### Access Center и effective access
+
+Глобальная навигация содержит один пункт **Access Center**. Внутри него
+расположены Users, Groups, Roles и Policies. Каталог Users загружает только
+список `userpass`-учёток; identity, группы и тела policies запрашиваются после
+открытия конкретного профиля. Username в URL дополняется параметром `mount`,
+поэтому одинаковые имена в разных auth mounts не смешиваются и корректно
+восстанавливаются после reload.
+
+Для полного read-only отчёта оператору нужны следующие права с заменой
+`userpass` на фактический auth mount:
+
+```hcl
+path "sys/auth" {
+  capabilities = ["read"]
+}
+
+path "auth/userpass/users" {
+  capabilities = ["list"]
+}
+
+path "auth/userpass/users/*" {
+  capabilities = ["read"]
+}
+
+path "identity/lookup/entity" {
+  capabilities = ["update"]
+}
+
+path "identity/group/id" {
+  capabilities = ["list"]
+}
+
+path "identity/group/id/*" {
+  capabilities = ["read"]
+}
+
+path "sys/policy/*" {
+  capabilities = ["read"]
+}
+```
+
+Глобальный `list` на `sys/policy` для уже известной attached policy не нужен:
+профиль читает только названия, полученные от учётки, entity и доступных
+групп, максимум по четыре тела одновременно. Он не перечисляет все policies
+Vault. Разделы Roles/Policies и мастер создания пользователя требуют
+дополнительные административные права из полного example policy.
+
+Полнота профиля обозначается текстом, а не только цветом:
+
+- **Complete** — все известные источники прочитаны и безопасно разобраны;
+- **Partial visibility** — есть external/unsupported/missing либо временно
+  недоступный источник, поэтому фактический доступ может быть шире;
+- **Limited by policy** — token текущего оператора получил `403` хотя бы для
+  одной части identity, groups или attached policy.
+
+Отказ одного источника не очищает профиль: успешно прочитанные учётка,
+managed policies и строки matrix остаются видимыми, а ошибочный источник
+получает отдельный Retry. Policy с prefix `vc-role-` и `vc-user-` разбираются
+в визуальную модель. Любая другая policy считается **External HCL**:
+читаемое тело можно раскрыть как обычный текст, но UI не интерпретирует его и
+не приписывает пользователю права из такого HCL.
+
+Матрица по умолчанию показывает **Policy paths** и не обходит KV mount.
+Уровни View, Edit, Manage versions и Owner вычисляются отдельно по data,
+metadata/list, delete, undelete и destroy endpoints; нестандартный набор
+помечается Custom, а явный `deny` имеет приоритет. Выбор строки раскрывает
+конкретные endpoint paths, capabilities, matched patterns и цепочку источника
+вида `group → role → policy`.
+
+Режим **All visible paths** запускается только явной кнопкой и использует
+только KV v2 metadata `LIST`. Он не вызывает `<mount>/data/*`, не читает JSON
+keys и secret values. `403`, ошибка отдельной ветки или лимит обхода оставляют
+покрытие частичным: неизвестная ветка не выдаётся за пустую или запрещённую.
+Для discovery нужны те же ограниченные metadata LIST capabilities, которые
+описаны в разделе «Поиск KV v2 путей».
 
 ### Версии и подтверждение удаления
 
@@ -501,13 +580,15 @@ npm run test:e2e
 
 `npm run test:e2e` сам создаёт одноразовые Docker network, Vault и production
 контейнер UI, проверяет security headers и отсутствие публичных source maps,
-а затем запускает 13 Chromium-сценариев. Матрица включает token и `userpass`,
+а затем запускает 15 Chromium-сценариев. Матрица включает token и `userpass`,
 reload/deep links, partial ACL для metadata и LIST prefixes, рекурсивный поиск,
 Command palette, тему и плотность, Favorites/Recent, создание mount и
-пользователя, вложенный JSON, exact-version lifecycle при конкурентной записи,
-bulk-операции версий, глубокие breadcrumbs и responsive viewport’ы от 320 до
-1440 px. Одноразовые token, policy, mount и secret fixtures удаляются вместе с
-контейнерами после прогона.
+пользователя, provenance-aware Access Center для direct/group/per-user и
+external policies, ограниченный операторский token, отсутствие data reads при
+matrix discovery, вложенный JSON, exact-version lifecycle при конкурентной
+записи, bulk-операции версий, глубокие breadcrumbs и responsive viewport’ы от
+320 до 1440 px. Одноразовые token, policy, mount, identity и secret fixtures
+удаляются вместе с контейнерами после прогона.
 
 Если Docker daemon недоступен, структуру browser suite без запуска контейнеров
 можно проверить командой:

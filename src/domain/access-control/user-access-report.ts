@@ -188,8 +188,8 @@ function policyStatus(
   policy: UserAccessPolicy | undefined,
 ): UserAccessPolicyStatus {
   if (!policy) return 'missing';
-  if (policy.kind === 'external') return 'external';
   if (policy.status !== 'resolved') return policy.status;
+  if (policy.kind === 'external') return 'external';
   return policy.rules && policy.rules.length > 0 ? 'resolved' : 'unsupported';
 }
 
