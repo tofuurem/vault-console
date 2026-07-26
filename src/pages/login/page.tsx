@@ -288,9 +288,18 @@ export default function LoginPage() {
           )}
 
           {authTab === 'token' ? (
-            <form id="token-panel" role="tabpanel" aria-labelledby="token-tab" onSubmit={(event) => void handleTokenLogin(event)} className="space-y-4">
+            <form
+              id="token-panel"
+              name="vault-token-login"
+              autoComplete="off"
+              role="tabpanel"
+              aria-labelledby="token-tab"
+              onSubmit={(event) => void handleTokenLogin(event)}
+              className="space-y-4"
+            >
               <Input
                 id="vault-token"
+                name="vault-token"
                 label="Vault token"
                 type="password"
                 value={token}
@@ -307,25 +316,35 @@ export default function LoginPage() {
               </Button>
             </form>
           ) : (
-            <form id="userpass-panel" role="tabpanel" aria-labelledby="userpass-tab" onSubmit={(event) => void handleUserpassLogin(event)} className="space-y-3">
+            <form
+              id="userpass-panel"
+              name="vault-userpass-login"
+              autoComplete="on"
+              role="tabpanel"
+              aria-labelledby="userpass-tab"
+              onSubmit={(event) => void handleUserpassLogin(event)}
+              className="space-y-3"
+            >
               <Input
                 id="userpass-username"
+                name="username"
                 label="Username"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 placeholder="ops-team"
-                autoComplete="username"
+                autoComplete="section-vaultuserpass username"
                 icon="ri-user-line"
                 autoFocus
               />
               <Input
                 id="userpass-password"
+                name="password"
                 label="Password"
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="••••••••••••"
-                autoComplete="current-password"
+                autoComplete="section-vaultuserpass current-password"
                 icon="ri-lock-line"
               />
               <Button type="submit" variant="primary" className="mt-1 w-full" size="lg" loading={isAuthenticating}>

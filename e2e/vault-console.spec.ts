@@ -127,8 +127,20 @@ test('collapses and expands a deeply linked logical path without losing the rout
 test('signs in with userpass without persisting the password and signs out cleanly', async ({ page }) => {
   await page.goto('/login');
   await page.getByRole('tab', { name: 'Username & password' }).click();
-  await page.getByLabel('Username', { exact: true }).fill('e2e-login');
-  await page.getByLabel('Password', { exact: true }).fill('e2e-password');
+  const username = page.getByLabel('Username', { exact: true });
+  const password = page.getByLabel('Password', { exact: true });
+  await expect(username).toHaveAttribute('name', 'username');
+  await expect(username).toHaveAttribute(
+    'autocomplete',
+    'section-vaultuserpass username',
+  );
+  await expect(password).toHaveAttribute('name', 'password');
+  await expect(password).toHaveAttribute(
+    'autocomplete',
+    'section-vaultuserpass current-password',
+  );
+  await username.fill('e2e-login');
+  await password.fill('e2e-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();

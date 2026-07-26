@@ -104,7 +104,13 @@ describe('LoginPage', () => {
     await user.click(screen.getByText('Advanced connection settings'));
     await user.clear(screen.getByLabelText('Vault server'));
     await user.type(screen.getByLabelText('Vault server'), 'https://vault.example.test:8200');
-    await user.type(screen.getByLabelText('Vault token'), 'hvs.operator');
+    const token = screen.getByLabelText('Vault token');
+    expect(token).toHaveAttribute('name', 'vault-token');
+    expect(token).toHaveAttribute('type', 'password');
+    expect(token).toHaveAttribute('autocomplete', 'off');
+    expect(token.closest('form')).toHaveAttribute('name', 'vault-token-login');
+    expect(token.closest('form')).toHaveAttribute('autocomplete', 'off');
+    await user.type(token, 'hvs.operator');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(window.location.pathname).toBe('/explorer'));
@@ -161,8 +167,24 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText('Vault server'), 'https://vault.example.test:8200');
     await user.clear(screen.getByLabelText('Auth mount path'));
     await user.type(screen.getByLabelText('Auth mount path'), 'team/userpass');
-    await user.type(screen.getByLabelText('Username'), 'alice');
-    await user.type(screen.getByLabelText('Password'), 'not-persisted');
+    const username = screen.getByLabelText('Username');
+    const password = screen.getByLabelText('Password');
+    expect(username).toHaveAttribute('name', 'username');
+    expect(username).toHaveAttribute(
+      'autocomplete',
+      'section-vaultuserpass username',
+    );
+    expect(password).toHaveAttribute('name', 'password');
+    expect(password).toHaveAttribute('type', 'password');
+    expect(password).toHaveAttribute(
+      'autocomplete',
+      'section-vaultuserpass current-password',
+    );
+    expect(username.closest('form')).toBe(password.closest('form'));
+    expect(username.closest('form')).toHaveAttribute('name', 'vault-userpass-login');
+    expect(username.closest('form')).toHaveAttribute('autocomplete', 'on');
+    await user.type(username, 'alice');
+    await user.type(password, 'not-persisted');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(window.location.pathname).toBe('/explorer'));
