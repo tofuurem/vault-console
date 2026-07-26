@@ -41,24 +41,22 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community, орие
 
 ## Запуск
 
-Текущий исходный код подготовлен как версия `0.4.0`. До публикации её
-контейнера последним готовым multi-architecture образом остаётся `0.3.0`:
+Текущий стабильный multi-architecture образ:
 
 ```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.3.0
+zero-noise-registry.registry.twcstorage.ru/vault-console:0.4.0
 ```
 
 Он опубликован для `linux/amd64` и `linux/arm64`. Для развёртывания с
 неизменяемой привязкой используйте digest:
 
 ```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.3.0@sha256:e538518e7f9844b9e21c08d0361f7b298f4c6c5c02a88ec5cd140d031486030b
+zero-noise-registry.registry.twcstorage.ru/vault-console:0.4.0@sha256:9e9e64f36e35d1b1e817ce62115b9001e70260e12e6ed86eb7ca37bf39bb6faf
 ```
 
-Чтобы проверить все возможности `0.4.0` до публикации образа, соберите
-контейнер из текущего checkout. Подробные инструкции по Docker Compose,
-подключению к существующему Vault, Caddy, TLS, настройке policy, локальной
-разработке и обновлению находятся в [USAGE.md](USAGE.md).
+Подробные инструкции по Docker Compose, подключению к существующему Vault,
+Caddy, TLS, настройке policy, локальной разработке и обновлению находятся в
+[USAGE.md](USAGE.md).
 
 ## Безопасность
 
@@ -78,5 +76,4 @@ unseal keys или recovery keys через `.env`, Git и reverse-proxy headers
 [SECURITY.md](SECURITY.md).
 
 Проект ориентирован на self-hosted Vault Community, проверен с Vault `1.21.3`.
-Текущий исходный код имеет версию `0.4.0`; последний опубликованный образ —
-`0.3.0`.
+Текущий исходный код и опубликованный образ имеют версию `0.4.0`.
