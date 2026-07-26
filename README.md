@@ -49,6 +49,10 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community, орие
   layout;
 - хранение token в `sessionStorage` текущей вкладки до logout/expiry; пароль
   никогда не сохраняется.
+- точное распознавание invalid/revoked token без поломки валидных
+  least-privilege sessions, которым запрещён `lookup-self`;
+- каноническая проверка Vault paths и отключённый по умолчанию access log для
+  `/v1/*`, чтобы логические secret paths не попадали в Docker logs.
 
 Облачные secrets engines, database credentials, Transit, PKI, OIDC и аудит-статистика пока не поддерживаются.
 
@@ -57,7 +61,7 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community, орие
 Текущий стабильный multi-architecture образ:
 
 ```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.0
+zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.1
 ```
 
 Он публикуется для `linux/amd64` и `linux/arm64`. Для неизменяемой привязки
@@ -65,7 +69,7 @@ zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.0
 
 ```bash
 docker buildx imagetools inspect \
-  zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.0
+  zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.1
 ```
 
 Подробные инструкции по Docker Compose, подключению к существующему Vault,
@@ -90,4 +94,4 @@ unseal keys или recovery keys через `.env`, Git и reverse-proxy headers
 [SECURITY.md](SECURITY.md).
 
 Проект ориентирован на self-hosted Vault Community, проверен с Vault `1.21.3`.
-Текущий исходный код и опубликованный образ имеют версию `0.6.0`.
+Текущий исходный код и опубликованный образ имеют версию `0.6.1`.

@@ -12,14 +12,14 @@ Vault Console не запускает, не перезапускает и не �
 
 ## Запуск готового образа рядом с Vault
 
-Текущий стабильный опубликованный контейнер имеет версию `0.6.0`.
+Текущий стабильный опубликованный контейнер имеет версию `0.6.1`.
 
 Добавьте сервис в Compose-файл существующего Vault:
 
 ```yaml
 services:
   vault-console:
-    image: zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.0
+    image: zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.1
     container_name: vault-console
     restart: unless-stopped
     environment:
@@ -56,11 +56,11 @@ docker login zero-noise-registry.registry.twcstorage.ru
 
 ```bash
 docker buildx imagetools inspect \
-  zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.0
+  zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.1
 ```
 
 После этого используйте форму
-`zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.0@sha256:…`.
+`zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.1@sha256:…`.
 
 Адрес Vault и стандартный auth mount скрыты на форме входа: их уже задаёт
 deployment. Для редких конфигураций можно разрешить секцию Advanced:
@@ -95,6 +95,13 @@ proxy и состояние Vault: кроме `200` active-сервер може
 браузер отправляет token из `sessionStorage` текущей вкладки, а права проверяет
 Vault. Token удаляется при logout или окончании известного lease; пароль
 `userpass` не сохраняется.
+
+Vault отвечает HTTP `403` и при обычном запрете policy, и при
+недействительном token. UI различает их по точному безопасному сигналу
+`invalid token`: revoked/expired session очищается и возвращается на login, а
+валидный least-privilege token без доступа к `lookup-self` продолжает работать
+на разрешённых ему KV paths. Полный текст ответа Vault не сохраняется и не
+показывается в диагностике.
 
 По умолчанию Nginx не пишет access log для `/v1/*`, чтобы mount names,
 логические пути секретов и usernames не попадали в Docker logs. Логи shell и
@@ -171,7 +178,7 @@ VAULT_UI_USERPASS_MOUNT=userpass
 VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT=false
 VAULT_CONSOLE_BIND=127.0.0.1
 VAULT_CONSOLE_PORT=8080
-VAULT_CONSOLE_IMAGE=zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.0
+VAULT_CONSOLE_IMAGE=zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.1
 ```
 
 Для готового образа:
@@ -340,7 +347,7 @@ keys и secret values. `403`, ошибка отдельной ветки или 
 
 ### Lifecycle пользователей, групп и ролей
 
-Vault Console 0.6.0 выполняет изменения доступа через полноэкранные staged
+Vault Console 0.6.1 выполняет изменения доступа через полноэкранные staged
 workspace. До нажатия Apply ни один шаг мастера не пишет в Vault. Экран
 Review показывает будущие операции, добавленные и удалённые capabilities,
 момент вступления изменения в силу и отдельное подтверждение для опасных

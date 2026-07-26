@@ -12,11 +12,28 @@ Credentials must never be committed, placed in environment variables, or
 forwarded by the reverse proxy. Vault remains the source of authorization.
 See [USAGE.md](USAGE.md) for the deployment and storage model.
 
+## Vault response and proxy metadata
+
+Reviewed: 2026-07-27
+
+Vault returns HTTP 403 for both policy denial and invalid, expired, or revoked
+tokens. Vault Console treats a 403 as session expiry only when the structured
+Vault `errors` array contains the exact `invalid token` marker. Arbitrary
+upstream error text is not retained or exposed. A generic 403 remains an
+authorization result so that valid no-default and least-privilege tokens can
+continue to use their permitted paths.
+
+Vault path segments are validated before URL construction. Dot segments,
+controls, and ambiguous empty segments are rejected without echoing the path in
+the error. The default Nginx `/v1/*` proxy location has access logging disabled
+because mount names, logical secret paths, and usernames are sensitive
+metadata. Use a Vault audit device for the authoritative operation trail.
+
 ## Reviewed dependency advisories
 
 ### GHSA-qwww-vcr4-c8h2 — not reachable
 
-Reviewed: 2026-07-26
+Reviewed: 2026-07-27
 
 `npm audit --omit=dev` reports the React Router advisory
 [GHSA-qwww-vcr4-c8h2](https://github.com/advisories/GHSA-qwww-vcr4-c8h2)
@@ -39,7 +56,7 @@ router release is available.
 
 ### GHSA-mh99-v99m-4gvg — build tooling only
 
-Reviewed: 2026-07-26
+Reviewed: 2026-07-27
 
 The full development-tree audit reports the `brace-expansion` denial-of-service
 advisory through ESLint and TypeScript ESLint glob matching. It is absent from

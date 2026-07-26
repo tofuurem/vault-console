@@ -56,7 +56,7 @@ export default function UserAccountStep({
         </h2>
         <p className="mt-1 max-w-2xl text-xs leading-5 text-foreground-500">
           Username and auth mount are immutable in Vault. Advanced token settings are shown
-          read-only in 0.6.0 and are preserved by policy updates.
+          read-only in this release and are preserved by policy updates.
         </p>
       </div>
 
