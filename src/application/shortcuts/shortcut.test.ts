@@ -53,4 +53,27 @@ describe('shortcut matching', () => {
       'weaker-favorite',
     ]);
   });
+
+  it('matches commands when all query terms appear in different parts of the search text', () => {
+    const commands: readonly ShortcutCommand[] = [
+      {
+        id: 'compact',
+        label: 'Use compact table density',
+        group: 'View',
+        keywords: ['density', 'table', 'rows', 'spacing', 'compact'],
+        run: () => undefined,
+      },
+      {
+        id: 'dark',
+        label: 'Use dark appearance',
+        group: 'Appearance',
+        keywords: ['theme', 'color', 'dark'],
+        run: () => undefined,
+      },
+    ];
+
+    expect(rankShortcutCommands(commands, 'compact density').map(({ id }) => id))
+      .toEqual(['compact']);
+    expect(rankShortcutCommands(commands, 'density missing')).toEqual([]);
+  });
 });

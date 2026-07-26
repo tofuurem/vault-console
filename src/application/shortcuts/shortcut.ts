@@ -57,9 +57,16 @@ export function rankShortcutCommands(
 ): readonly ShortcutCommand[] {
   const query = rawQuery.trim().toLocaleLowerCase();
   if (!query) return commands;
+  const queryTerms = query.split(/\s+/);
   return commands
     .flatMap((command, index) => {
-      const score = commandMatchScore(command, query);
+      const phraseScore = commandMatchScore(command, query);
+      const termScores = queryTerms.map((term) => commandMatchScore(command, term));
+      const score = phraseScore ?? (
+        queryTerms.length > 1 && termScores.every((termScore) => termScore !== null)
+          ? 60 + termScores.reduce((total, termScore) => total + termScore!, 0)
+          : null
+      );
       return score === null ? [] : [{
         command,
         index,
