@@ -46,12 +46,32 @@ function responseRequestId(response: Response): string | undefined {
     ?? undefined;
 }
 
-async function bodyRequestId(response: Response): Promise<string | undefined> {
+interface VaultErrorResponseSummary {
+  readonly requestId?: string;
+  readonly invalidToken: boolean;
+}
+
+function isInvalidTokenError(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const errors = (value as { errors?: unknown }).errors;
+  if (!Array.isArray(errors)) return false;
+  return errors.some((error) => (
+    typeof error === 'string'
+    && error.split('\n').some((line) => (
+      line.trim().replace(/^\*+\s*/, '').trim().toLowerCase() === 'invalid token'
+    ))
+  ));
+}
+
+async function errorResponseSummary(response: Response): Promise<VaultErrorResponseSummary> {
   try {
     const payload = await response.clone().json() as { request_id?: unknown };
-    return typeof payload.request_id === 'string' ? payload.request_id : undefined;
+    return {
+      ...(typeof payload.request_id === 'string' ? { requestId: payload.request_id } : {}),
+      invalidToken: isInvalidTokenError(payload),
+    };
   } catch {
-    return undefined;
+    return { invalidToken: false };
   }
 }
 
@@ -111,7 +131,14 @@ export class VaultHttpClient {
       });
 
       if (!response.ok && !options.allowStatuses?.includes(response.status)) {
-        const requestId = responseRequestId(response) ?? await bodyRequestId(response);
+        const summary = await errorResponseSummary(response);
+        const requestId = responseRequestId(response) ?? summary.requestId;
+        if (summary.invalidToken) {
+          throw new VaultError('session-expired', {
+            status: response.status,
+            diagnostic: diagnosticFor(options, startedAt, response, requestId),
+          });
+        }
         throw vaultErrorFromStatus(
           response.status,
           diagnosticFor(options, startedAt, response, requestId),

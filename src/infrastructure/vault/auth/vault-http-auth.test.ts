@@ -73,6 +73,19 @@ describe('VaultAuthAdapter', () => {
     });
   });
 
+  it('rejects an invalid token even though Vault reports it with HTTP 403', async () => {
+    const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(
+      jsonResponse({
+        errors: ['2 errors occurred:\n\t* permission denied\n\t* invalid token\n\n'],
+      }, 403),
+    );
+    const gateway = new VaultAuthAdapter(new VaultHttpClient(fetchRequest));
+
+    await expect(
+      gateway.validateToken('https://vault.example.test', vaultToken('hvs.invalid')),
+    ).rejects.toMatchObject({ code: 'session-expired', status: 403 });
+  });
+
   it('logs in through a custom userpass mount and encodes the username', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-21T12:00:00Z'));

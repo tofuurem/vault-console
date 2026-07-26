@@ -77,6 +77,7 @@ runAgainstVault('Vault Community integration', () => {
   const externalPolicy = `console-external-${suffix}`;
   const adoptedRole = `vc-role-adopted-${suffix}`;
   const lifecycleRole = `vc-role-lifecycle-${suffix}`;
+  const tokenPolicy = `console-token-${suffix}`;
   const groupName = `console-group-${suffix}`;
   const lifecycleGroupName = `console-lifecycle-group-${suffix}`;
   const nestedGroupName = `console-nested-${suffix}`;
@@ -237,10 +238,47 @@ runAgainstVault('Vault Community integration', () => {
       externalPolicy,
       adoptedRole,
       lifecycleRole,
+      tokenPolicy,
       `vc-user-${username}`,
     ].map((name) => access.deletePolicy(rootSession, name).catch(() => undefined)));
     await setupRequest(`sys/auth/${userpassMount}`, 'DELETE').catch(() => undefined);
     await setupRequest(`sys/mounts/${kvMount}`, 'DELETE').catch(() => undefined);
+  });
+
+  it('distinguishes invalid tokens from valid lookup-forbidden tokens', async () => {
+    await expect(
+      auth.validateToken(vaultAddress!, vaultToken(`invalid-${suffix}`)),
+    ).rejects.toMatchObject({ code: 'session-expired', status: 403 });
+
+    await kv.writeSecret(rootSession, kvMount, 'token-check/demo', { status: 'ok' }, 0);
+    await access.writePolicy(rootSession, {
+      name: tokenPolicy,
+      policy: [
+        `path "${kvMount}/data/token-check/demo" {`,
+        '  capabilities = ["read"]',
+        '}',
+      ].join('\n'),
+    });
+    const created = await setupRequest('auth/token/create', 'POST', {
+      policies: [tokenPolicy],
+      no_default_policy: true,
+      ttl: '5m',
+    }) as { auth: { client_token: string } };
+    const rawToken = created.auth.client_token;
+    const degradedSession = await auth.validateToken(vaultAddress!, vaultToken(rawToken));
+    expect(degradedSession).toMatchObject({
+      serverUrl: vaultAddress,
+      authMethod: 'token',
+    });
+    expect(degradedSession).not.toHaveProperty('displayName');
+    await expect(
+      kv.readSecret(degradedSession, kvMount, 'token-check/demo'),
+    ).resolves.toMatchObject({ data: { status: 'ok' } });
+
+    await setupRequest('auth/token/revoke', 'POST', { token: rawToken });
+    await expect(
+      auth.getCapabilities(degradedSession, [`${kvMount}/data/token-check/demo`]),
+    ).rejects.toMatchObject({ code: 'session-expired', status: 403 });
   });
 
   it('creates an identity-backed user and enforces canonical KV v2 access', async () => {

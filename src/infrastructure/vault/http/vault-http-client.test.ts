@@ -72,6 +72,58 @@ describe('VaultHttpClient', () => {
     expect(JSON.stringify((error as VaultError).diagnostic)).not.toContain('do-not-leak');
   });
 
+  it('classifies Vault invalid-token responses without retaining the raw error body', async () => {
+    const client = new VaultHttpClient(
+      vi.fn<VaultFetch>().mockResolvedValue(
+        new Response(JSON.stringify({
+          request_id: 'invalid-session-request',
+          errors: ['2 errors occurred:\n\t* permission denied\n\t* invalid token\n\n'],
+        }), { status: 403, headers: { 'Content-Type': 'application/json' } }),
+      ),
+    );
+
+    const error = await client.request('https://vault.example.test', 'sys/capabilities-self')
+      .catch((value: unknown) => value);
+
+    expect(error).toBeInstanceOf(VaultError);
+    expect(error).toMatchObject({
+      code: 'session-expired',
+      status: 403,
+      diagnostic: {
+        requestId: 'invalid-session-request',
+        operation: 'GET /v1/:vault-path',
+      },
+    });
+    expect((error as Error).message).not.toContain('invalid token');
+    expect(JSON.stringify(error)).not.toContain('permission denied');
+  });
+
+  it('does not confuse unrelated token wording with an invalid session', async () => {
+    const client = new VaultHttpClient(
+      vi.fn<VaultFetch>().mockResolvedValue(
+        new Response(JSON.stringify({
+          errors: ['permission denied for token policy'],
+        }), { status: 403, headers: { 'Content-Type': 'application/json' } }),
+      ),
+    );
+
+    await expect(
+      client.request('https://vault.example.test', 'secret/data/app'),
+    ).rejects.toMatchObject({ code: 'authorization', status: 403 });
+  });
+
+  it('keeps status-based handling for non-JSON error responses', async () => {
+    const client = new VaultHttpClient(
+      vi.fn<VaultFetch>().mockResolvedValue(
+        new Response('invalid token', { status: 403, headers: { 'Content-Type': 'text/plain' } }),
+      ),
+    );
+
+    await expect(
+      client.request('https://vault.example.test', 'secret/data/app'),
+    ).rejects.toMatchObject({ code: 'authorization', status: 403 });
+  });
+
   it('rejects malformed successful responses as invalid-response', async () => {
     const client = new VaultHttpClient(
       vi.fn<VaultFetch>().mockResolvedValue(

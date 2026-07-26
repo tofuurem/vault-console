@@ -162,6 +162,47 @@ describe('VaultSessionProvider', () => {
     expect(screen.getByTestId('persistence')).toHaveTextContent('false');
   });
 
+  it('does not authenticate when token validation proves the token is invalid', async () => {
+    const gateway = new StubAuthGateway();
+    gateway.validateToken.mockRejectedValue(
+      new VaultError('session-expired', { status: 403 }),
+    );
+
+    render(
+      <VaultSessionProvider gateway={gateway}>
+        <SessionProbe />
+      </VaultSessionProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Token login' }));
+
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('anonymous'));
+    expect(screen.getByTestId('identity')).toHaveTextContent('none');
+    expect(screen.getByTestId('error')).toHaveTextContent('session-expired');
+    expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
+  });
+
+  it('expires a restored session when capability discovery proves the token is invalid', async () => {
+    const gateway = new StubAuthGateway();
+    createVaultSessionStorage(sessionStorage).save({
+      ...gateway.session,
+      token: vaultToken('hvs.revoked'),
+    });
+    gateway.getCapabilities.mockRejectedValue(
+      new VaultError('session-expired', { status: 403 }),
+    );
+
+    render(
+      <VaultSessionProvider gateway={gateway}>
+        <SessionProbe />
+      </VaultSessionProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('expired'));
+    expect(screen.getByTestId('identity')).toHaveTextContent('none');
+    expect(screen.getByTestId('error')).toHaveTextContent('session-expired');
+    expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
+  });
+
   it('keeps a valid session open when capability discovery is forbidden', async () => {
     const gateway = new StubAuthGateway();
     gateway.getCapabilities.mockRejectedValue(
