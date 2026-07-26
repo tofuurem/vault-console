@@ -514,6 +514,7 @@ test('keeps navigation and the secret inspector usable across the responsive mat
   expect(createUserBounds).not.toBeNull();
   expect(createUserBounds!.x + createUserBounds!.width).toBeLessThanOrEqual(320);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.getByLabel('Search users').fill('e2e');
   await page.getByRole('button', { name: 'Open user e2e-access' }).click();
   await expect(page.getByRole('heading', { name: 'E2E Access Operator' })).toBeVisible();
   await page.getByRole('button', {
@@ -524,6 +525,8 @@ test('keeps navigation and the secret inspector usable across the responsive mat
   })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.getByRole('button', { name: 'Back to users' }).click();
+  await expect(page.getByLabel('Search users')).toHaveValue('e2e');
+  await expect(page.getByRole('button', { name: 'Open user e2e-access' })).toBeFocused();
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await page.getByRole('dialog', { name: 'Vault navigation' })
     .getByRole('button', { name: 'Open applications mount' }).click();
@@ -544,7 +547,7 @@ test('keeps navigation and the secret inspector usable across the responsive mat
   await expect(page.getByRole('separator', { name: 'Resize bottom inspector' })).toBeVisible();
   await dockedInspector.getByRole('button', { name: 'Close inspector' }).click();
 
-  for (const [index, width] of [320, 430, 768, 1024, 1440].entries()) {
+  for (const [index, width] of [320, 360, 393, 430, 768, 1024, 1280, 1440].entries()) {
     const secretName = index % 2 === 0 ? 'shared' : 'nested';
     const visibleKey = secretName === 'shared' ? 'API_KEY' : 'service';
     await page.setViewportSize({ width, height: 900 });

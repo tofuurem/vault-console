@@ -30,6 +30,8 @@ describe('UsersList', () => {
         onCreateUser={vi.fn()}
         onViewUser={onViewUser}
         onRefresh={vi.fn()}
+        search=""
+        onSearchChange={vi.fn()}
       />,
     );
 
@@ -37,5 +39,39 @@ describe('UsersList', () => {
     trigger.focus();
     await user.keyboard('{Enter}');
     expect(onViewUser).toHaveBeenCalledWith(userRecord);
+  });
+
+  it('restores focus to the originating account without owning search state', async () => {
+    const onFocusRestored = vi.fn();
+    const { rerender } = render(
+      <UsersList
+        users={[userRecord]}
+        warnings={[]}
+        onCreateUser={vi.fn()}
+        onViewUser={vi.fn()}
+        onRefresh={vi.fn()}
+        search="ali"
+        onSearchChange={vi.fn()}
+        restoreFocusUserId={userRecord.id}
+        onFocusRestored={onFocusRestored}
+      />,
+    );
+
+    expect(screen.getByLabelText('Search users')).toHaveValue('ali');
+    expect(screen.getByRole('button', { name: 'Open user alice' })).toHaveFocus();
+    expect(onFocusRestored).toHaveBeenCalledOnce();
+
+    rerender(
+      <UsersList
+        users={[userRecord]}
+        warnings={[]}
+        onCreateUser={vi.fn()}
+        onViewUser={vi.fn()}
+        onRefresh={vi.fn()}
+        search="alice"
+        onSearchChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText('Search users')).toHaveValue('alice');
   });
 });

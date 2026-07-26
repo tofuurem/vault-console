@@ -1,8 +1,10 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -103,6 +105,10 @@ export default function AccessControlPage() {
   const accessGateway = useAccessControlGateway();
   const [creatingUser, setCreatingUser] = useState(false);
   const [selectedPolicyName, setSelectedPolicyName] = useState<string>();
+  const [userSearch, setUserSearch] = useState('');
+  const [profileOriginUserId, setProfileOriginUserId] = useState<string>();
+  const [restoreFocusUserId, setRestoreFocusUserId] = useState<string>();
+  const previousProfileRequested = useRef(false);
   const activeSection = params.section && ACCESS_SECTIONS.has(params.section)
     ? params.section
     : 'users';
@@ -197,6 +203,18 @@ export default function AccessControlPage() {
   }, [activeSection]);
 
   useEffect(() => {
+    if (
+      previousProfileRequested.current
+      && !profileRequested
+      && activeSection === 'users'
+      && profileOriginUserId
+    ) {
+      setRestoreFocusUserId(profileOriginUserId);
+    }
+    previousProfileRequested.current = profileRequested;
+  }, [activeSection, profileOriginUserId, profileRequested]);
+
+  useEffect(() => {
     const error = firstQueryError([
       mountsState,
       authMountsState,
@@ -278,6 +296,9 @@ export default function AccessControlPage() {
     refreshGroups();
     refreshPolicyNames();
   };
+  const clearRestoredUserFocus = useCallback(() => {
+    setRestoreFocusUserId(undefined);
+  }, []);
   const usersResourceError = firstQueryError([authMountsState, usersState]);
   const profileResourceError = firstQueryError([
     authMountsState,
@@ -308,11 +329,18 @@ export default function AccessControlPage() {
                 <UsersList
                   users={result.users}
                   warnings={result.warnings}
+                  search={userSearch}
+                  onSearchChange={setUserSearch}
+                  restoreFocusUserId={restoreFocusUserId}
+                  onFocusRestored={clearRestoredUserFocus}
                   onCreateUser={() => setCreatingUser(true)}
-                  onViewUser={(user: AccessControlUserRecord) => navigate({
-                    pathname: `/access-control/users/${encodeURIComponent(user.username)}`,
-                    search: new URLSearchParams({ mount: user.mount }).toString(),
-                  })}
+                  onViewUser={(user: AccessControlUserRecord) => {
+                    setProfileOriginUserId(user.id);
+                    navigate({
+                      pathname: `/access-control/users/${encodeURIComponent(user.username)}`,
+                      search: new URLSearchParams({ mount: user.mount }).toString(),
+                    });
+                  }}
                   onRefresh={refreshUsers}
                 />
               ),

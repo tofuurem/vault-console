@@ -208,7 +208,9 @@ describe('AccessControlPage', () => {
     expect(window.location.pathname).toBe('/access-control/policies');
 
     await user.click(screen.getByRole('button', { name: 'Users' }));
-    await user.click(await screen.findByText('alice', { exact: true }));
+    const search = screen.getByLabelText('Search users');
+    await user.type(search, 'ali');
+    await user.click(screen.getByRole('button', { name: 'Open user alice' }));
     await waitFor(() => expect(access.readUserpassAccount).toHaveBeenCalled());
     await waitFor(() => expect(access.lookupEntityByAlias).toHaveBeenCalled());
     await waitFor(() => expect(access.listGroups).toHaveBeenCalled());
@@ -221,6 +223,13 @@ describe('AccessControlPage', () => {
     expect(access.lookupEntityByAlias).toHaveBeenCalledOnce();
     expect(window.location.pathname).toBe('/access-control/users/alice');
     expect(window.location.search).toBe('?mount=userpass');
+
+    await user.click(screen.getByRole('button', { name: 'Back to users' }));
+    expect(await screen.findByRole('heading', { name: 'Users' })).toBeVisible();
+    expect(screen.getByLabelText('Search users')).toHaveValue('ali');
+    await waitFor(() => expect(
+      screen.getByRole('button', { name: 'Open user alice' }),
+    ).toHaveFocus());
   });
 
   it('routes duplicate usernames with a reload-stable userpass mount identity', async () => {
