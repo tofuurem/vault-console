@@ -269,33 +269,6 @@ export default function AccessControlPage() {
     userpassMounts,
     usersState,
   ]);
-  const profileCatalog = useMemo<CreateUserAccessCatalog | undefined>(() => {
-    const resource = profileReport.state.data;
-    if (resource?.kind !== 'report') return undefined;
-    const reportPolicies = resource.policies.map((policy) => ({
-      name: policy.name,
-      managed: policy.kind !== 'external',
-      rules: policy.rules ?? null,
-    }));
-    return {
-      groups: resource.user.groups.map((group) => ({
-        id: group.id,
-        name: group.name,
-        roleIds: group.policies.filter((policy) => classifyPolicyName(policy) === 'role'),
-        policyNames: group.policies.filter((policy) => classifyPolicyName(policy) !== 'role'),
-      })),
-      roles: resource.policies
-        .filter((policy) => policy.kind === 'role')
-        .map((policy) => ({
-          id: policy.name,
-          name: rolesFromPolicyNames([policy.name])[0]?.name ?? policy.name,
-          policyNames: [policy.name],
-        })),
-      policies: reportPolicies,
-      tree: mountRoots(mountsState.data ?? []),
-    };
-  }, [mountsState.data, profileReport.state.data]);
-
   const refreshCreateUserResources = () => {
     refreshAuthMounts();
     refreshUsers();
@@ -414,10 +387,10 @@ export default function AccessControlPage() {
             <p className="mt-2 text-sm text-foreground-700">User not found</p>
             <button type="button" onClick={() => navigate('/access-control/users')} className="mt-2 text-xs font-medium text-primary-600">Back to users</button>
           </div>
-        ) : profileReport.state.data?.kind === 'report' && profileCatalog ? (
+        ) : profileReport.state.data?.kind === 'report' ? (
           <UserProfile
-            user={profileReport.state.data.user}
-            catalog={profileCatalog}
+            resource={profileReport.state.data}
+            actions={profileReport.actions}
             onBack={() => navigate('/access-control/users')}
           />
         ) : <ResourceLoading label="Loading the user access report…" />

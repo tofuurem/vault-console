@@ -1,64 +1,236 @@
-import { useState } from 'react';
+import {
+  useEffect,
+  useRef,
+} from 'react';
 
-import type { AccessControlUserRecord } from '@/application/vault/useAccessControlData';
+import type {
+  UserAccessReportActions,
+  UserAccessReportResource,
+} from '@/application/vault/useUserAccessReport';
 import Button from '@/components/base/Button';
-import Tabs from '@/components/base/Tabs';
-import { resolveAccessSelection, resolveEffectiveKvTree, type AccessRole } from '@/domain/access-control/effective-access';
-import type { CreateUserAccessCatalog } from './create-user/access';
-import EffectivePermissionTree from './create-user/EffectivePermissionTree';
+import AccessSourceSummary from './AccessSourceSummary';
+import ReportCompleteness from './ReportCompleteness';
 
 interface UserProfileProps {
-  readonly user: AccessControlUserRecord;
-  readonly catalog: CreateUserAccessCatalog;
+  readonly resource: UserAccessReportResource;
+  readonly actions: UserAccessReportActions;
   readonly onBack: () => void;
 }
 
-export default function UserProfile({ user, catalog, onBack }: UserProfileProps) {
-  const [tab, setTab] = useState('overview');
-  const policyRoleIds = [...user.directPolicyNames, ...user.externalPolicyNames].map((name) => `policy:${name}`);
-  const policyRoles: readonly AccessRole[] = policyRoleIds.map((id) => ({
-    id,
-    name: id.replace('policy:', ''),
-    policyNames: [id.replace('policy:', '')],
-  }));
-  const selection = resolveAccessSelection({
-    groups: catalog.groups,
-    roles: [...catalog.roles, ...policyRoles],
-    policies: catalog.policies,
-    selectedGroupIds: user.groups.map((group) => group.id),
-    directRoleIds: [...user.directRolePolicyNames, ...policyRoleIds],
-    directRules: [],
-  });
-  const effectiveTree = resolveEffectiveKvTree(catalog.tree, selection.rules);
-  const tabs = [
-    { key: 'overview', label: 'Overview', icon: 'ri-dashboard-line' },
-    { key: 'effective', label: 'Effective access', icon: 'ri-shield-check-line' },
-    { key: 'identity', label: 'Identity', icon: 'ri-fingerprint-line' },
-  ];
+function identityStatus(resource: UserAccessReportResource): {
+  readonly label: string;
+  readonly classes: string;
+} {
+  const status = resource.identity.state.status;
+  if (status === 'available') {
+    return {
+      label: resource.identity.state.entity.disabled ? 'Identity disabled' : 'Identity linked',
+      classes: resource.identity.state.entity.disabled
+        ? 'bg-danger-100 text-danger-800'
+        : 'bg-success-100 text-success-800',
+    };
+  }
+  if (status === 'absent') {
+    return { label: 'No identity entity', classes: 'bg-background-200 text-foreground-600' };
+  }
+  if (status === 'denied') {
+    return { label: 'Identity denied', classes: 'bg-danger-100 text-danger-800' };
+  }
+  return { label: 'Identity unavailable', classes: 'bg-warning-100 text-warning-900' };
+}
 
+function Metric({
+  icon,
+  label,
+  value,
+  detail,
+}: {
+  readonly icon: string;
+  readonly label: string;
+  readonly value: string | number;
+  readonly detail: string;
+}) {
   return (
-    <section className="flex min-h-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-center gap-3 border-b border-background-200 px-5 py-3"><Button size="sm" onClick={onBack}><i className="ri-arrow-left-line" aria-hidden="true" /> Users</Button><div><h1 className="text-sm font-semibold text-foreground-900">{user.displayName}</h1><p className="font-mono text-[10px] text-foreground-400">{user.mount}/{user.username}</p></div></header>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {user.detailWarning && (
-          <div role="status" className="mx-5 mt-4 rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
-            {user.detailWarning} Account and direct token-policy data remain available.
-          </div>
-        )}
-        <Tabs tabs={tabs} activeTab={tab} onChange={setTab}>
-          {tab === 'overview' && <div className="space-y-5 p-5"><div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 text-lg font-semibold text-primary-700">{user.displayName.charAt(0).toUpperCase()}</div><div><h2 className="text-sm font-semibold text-foreground-900">{user.displayName}</h2><p className="font-mono text-xs text-foreground-500">{user.username}</p></div></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Summary label="Auth mount" values={[`${user.mount}/`]} mono /><Summary label="Groups" values={user.groups.map((group) => group.name)} /><Summary label="Direct roles" values={user.directRolePolicyNames} mono /><Summary label="Other policies" values={[...user.directPolicyNames, ...user.externalPolicyNames]} mono /></div>{selection.unresolvedPolicies.length > 0 && <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800"><p className="font-semibold">Effective access includes unresolved HCL</p><p className="mt-1">{selection.unresolvedPolicies.map((item) => item.policyName).join(', ')}</p></div>}</div>}
-          {tab === 'effective' && <div className="p-5"><EffectivePermissionTree nodes={effectiveTree} directRules={[]} onDirectRuleChange={() => undefined} readOnly /></div>}
-          {tab === 'identity' && <div className="space-y-3 p-5"><IdentityRow label="Entity ID" value={user.entity?.id ?? 'No identity entity'} /><IdentityRow label="Alias ID" value={user.entity?.aliases.find((alias) => alias.mountAccessor === user.mountAccessor)?.id ?? 'No alias'} /><IdentityRow label="Mount accessor" value={user.mountAccessor} /><IdentityRow label="Token policies" value={user.tokenPolicies.join(', ') || 'None'} /></div>}
-        </Tabs>
+    <div className="rounded-lg border border-background-200 bg-background-50 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-medium text-foreground-500">{label}</p>
+        <i className={`${icon} text-sm text-foreground-400`} aria-hidden="true" />
       </div>
-    </section>
+      <p className="mt-2 font-mono text-lg font-semibold tracking-tight text-foreground-900">
+        {value}
+      </p>
+      <p className="mt-0.5 text-[10px] leading-4 text-foreground-400">{detail}</p>
+    </div>
   );
 }
 
-function Summary({ label, values, mono = false }: { label: string; values: readonly string[]; mono?: boolean }) {
-  return <div className="rounded-md border border-background-200 p-3"><p className="text-[9px] font-semibold uppercase tracking-wider text-foreground-400">{label}</p><div className="mt-2 flex flex-wrap gap-1">{values.length ? values.map((value) => <span key={value} className={`rounded bg-background-100 px-1.5 py-0.5 text-[10px] text-foreground-700 ${mono ? 'font-mono' : ''}`}>{value}</span>) : <span className="text-xs text-foreground-400">None</span>}</div></div>;
+function IdentityRow({
+  label,
+  value,
+}: {
+  readonly label: string;
+  readonly value: string;
+}) {
+  return (
+    <div className="grid gap-1 border-b border-background-200 py-2.5 last:border-0 sm:grid-cols-[150px_1fr]">
+      <dt className="text-[10px] font-medium text-foreground-500">{label}</dt>
+      <dd className="break-all font-mono text-[10px] text-foreground-800 sm:text-right">
+        {value}
+      </dd>
+    </div>
+  );
 }
 
-function IdentityRow({ label, value }: { label: string; value: string }) {
-  return <div className="flex max-w-2xl justify-between gap-6 border-b border-background-200 pb-3 text-xs"><span className="text-foreground-500">{label}</span><span className="break-all text-right font-mono text-foreground-800">{value}</span></div>;
+export default function UserProfile({
+  resource,
+  actions,
+  onBack,
+}: UserProfileProps) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const identity = identityStatus(resource);
+  const resolvedSources = resource.report.sources.filter(
+    (source) => source.resolution === 'resolved',
+  ).length;
+  const refreshing = resource.refreshing.account
+    || resource.refreshing.identity
+    || resource.refreshing.groups
+    || resource.refreshing.policies.length > 0;
+  const alias = resource.user.entity?.aliases.find(
+    (candidate) => candidate.mountAccessor === resource.user.mountAccessor,
+  );
+
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, [resource.report.account.mount, resource.report.account.username]);
+
+  return (
+    <section
+      aria-labelledby="user-profile-heading"
+      className="flex min-h-0 flex-1 flex-col bg-background-100/40"
+    >
+      <header className="shrink-0 border-b border-background-200 bg-background-50 px-4 py-3 sm:px-5">
+        <div className="mx-auto flex max-w-[1480px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button size="sm" onClick={onBack} aria-label="Back to users">
+              <i className="ri-arrow-left-line" aria-hidden="true" />
+              <span className="hidden sm:inline">Users</span>
+            </Button>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary-200 bg-primary-100 font-mono text-sm font-semibold text-primary-700">
+              {resource.user.displayName.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2
+                  ref={headingRef}
+                  id="user-profile-heading"
+                  tabIndex={-1}
+                  className="truncate text-base font-semibold tracking-tight text-foreground-900 focus:outline-none"
+                >
+                  {resource.user.displayName}
+                </h2>
+                <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${identity.classes}`}>
+                  {identity.label}
+                </span>
+              </div>
+              <p className="mt-0.5 truncate font-mono text-[10px] text-foreground-500">
+                auth/{resource.user.mount}/users/{resource.user.username}
+              </p>
+            </div>
+          </div>
+          <div className="w-full lg:max-w-xl">
+            <ReportCompleteness
+              completeness={resource.report.completeness}
+              refreshing={refreshing}
+              onRetry={actions.retryIncomplete}
+            />
+          </div>
+        </div>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-[1480px] space-y-5 p-4 sm:p-5">
+          <section aria-label="User access overview">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Metric
+                icon="ri-database-2-line"
+                label="Auth mount"
+                value={`${resource.user.mount}/`}
+                detail={`accessor ${resource.user.mountAccessor}`}
+              />
+              <Metric
+                icon="ri-group-line"
+                label="Identity groups"
+                value={resource.report.groups.length}
+                detail={resource.report.groups.length > 0
+                  ? resource.report.groups.map((group) => group.name).join(', ')
+                  : 'No readable memberships'}
+              />
+              <Metric
+                icon="ri-shield-check-line"
+                label="Resolved sources"
+                value={resolvedSources}
+                detail={`${resource.report.sources.length} total policy attachments`}
+              />
+              <Metric
+                icon="ri-route-line"
+                label="Policy paths"
+                value={resource.report.targets.length}
+                detail={resource.report.unresolvedSources.length > 0
+                  ? `${resource.report.unresolvedSources.length} sources remain unresolved`
+                  : 'All attached sources resolved'}
+              />
+            </div>
+          </section>
+
+          {resource.report.groups.length > 0 && (
+            <section
+              aria-labelledby="profile-groups-heading"
+              className="rounded-lg border border-background-200 bg-background-50 p-3"
+            >
+              <div className="flex items-center gap-2">
+                <i className="ri-node-tree text-sm text-secondary-600" aria-hidden="true" />
+                <h2 id="profile-groups-heading" className="text-xs font-semibold text-foreground-800">
+                  Identity memberships
+                </h2>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {resource.report.groups.map((group) => (
+                  <span
+                    key={group.id}
+                    className="rounded-md border border-secondary-200 bg-secondary-100 px-2 py-1 text-[10px] font-medium text-secondary-800"
+                  >
+                    {group.name}
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <AccessSourceSummary
+            resource={resource}
+            onRetryPolicy={actions.retryPolicy}
+          />
+
+          <details className="rounded-lg border border-background-200 bg-background-50">
+            <summary className="flex min-h-11 cursor-pointer select-none items-center gap-2 px-3 text-xs font-semibold text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400">
+              <i className="ri-fingerprint-line text-sm text-foreground-500" aria-hidden="true" />
+              Technical identity
+            </summary>
+            <dl className="border-t border-background-200 px-3">
+              <IdentityRow
+                label="Entity ID"
+                value={resource.user.entity?.id ?? 'No identity entity'}
+              />
+              <IdentityRow label="Alias ID" value={alias?.id ?? 'No alias'} />
+              <IdentityRow label="Mount accessor" value={resource.user.mountAccessor} />
+              <IdentityRow
+                label="Token policies"
+                value={resource.user.tokenPolicies.join(', ') || 'None'}
+              />
+            </dl>
+          </details>
+        </div>
+      </div>
+    </section>
+  );
 }
