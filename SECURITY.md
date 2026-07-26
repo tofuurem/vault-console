@@ -16,7 +16,7 @@ See [USAGE.md](USAGE.md) for the deployment and storage model.
 
 ### GHSA-qwww-vcr4-c8h2 — not reachable
 
-Reviewed: 2026-07-25
+Reviewed: 2026-07-26
 
 `npm audit --omit=dev` reports the React Router advisory
 [GHSA-qwww-vcr4-c8h2](https://github.com/advisories/GHSA-qwww-vcr4-c8h2)
@@ -29,3 +29,10 @@ The vulnerable flow is therefore not reachable in this application. The
 advisory is retained here instead of being silently suppressed. Reassess this
 exception whenever React Router is upgraded or the routing architecture
 changes.
+
+The review was repeated against resolved `react-router-dom@7.18.1` and
+`react-router@7.18.1`. `npm audit fix --omit=dev --dry-run` did not propose a
+production dependency version that removes the advisory; it only pruned
+development dependencies for the omitted install. Do not treat that command as
+a remediation. Track the upstream range and upgrade once a fixed declarative
+router release is available.

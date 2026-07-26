@@ -179,24 +179,22 @@ describe('VaultKvV2Adapter', () => {
     expect(history.versions[0].deletionTime).toBe('later');
   });
 
-  it('uses the documented methods for delete, undelete, destroy, and metadata deletion', async () => {
+  it('uses exact-version endpoints for delete, undelete, destroy, and metadata deletion', async () => {
     const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(jsonResponse(null, 204));
     const gateway = new VaultKvV2Adapter(new VaultHttpClient(fetchRequest));
 
-    await gateway.deleteLatestVersion(session, 'secret', 'apps/db');
     await gateway.deleteVersions(session, 'secret', 'apps/db', [1]);
     await gateway.undeleteVersions(session, 'secret', 'apps/db', [1]);
     await gateway.destroyVersions(session, 'secret', 'apps/db', [1]);
     await gateway.deleteMetadata(session, 'secret', 'apps/db');
 
     expect(fetchRequest.mock.calls.map(([, request]) => request?.method)).toEqual([
-      'DELETE',
       'POST',
       'POST',
       'PUT',
       'DELETE',
     ]);
-    expect(fetchRequest.mock.calls.slice(1, 4).map(([, request]) => request?.body)).toEqual([
+    expect(fetchRequest.mock.calls.slice(0, 3).map(([, request]) => request?.body)).toEqual([
       JSON.stringify({ versions: [1] }),
       JSON.stringify({ versions: [1] }),
       JSON.stringify({ versions: [1] }),

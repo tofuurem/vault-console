@@ -40,7 +40,6 @@ function gateway(): KvV2Gateway {
         ],
       };
     }),
-    deleteLatestVersion: vi.fn(),
     deleteVersions: vi.fn(),
     undeleteVersions: vi.fn(),
     destroyVersions: vi.fn(async (_session, _mount, path) => {

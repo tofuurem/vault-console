@@ -102,7 +102,6 @@ export interface KvV2Gateway {
     signal?: AbortSignal,
   ): Promise<number>;
   readSecretHistory(session: VaultSession, mount: string, path: string, signal?: AbortSignal): Promise<KvV2SecretHistory>;
-  deleteLatestVersion(session: VaultSession, mount: string, path: string, signal?: AbortSignal): Promise<void>;
   deleteVersions(session: VaultSession, mount: string, path: string, versions: readonly number[], signal?: AbortSignal): Promise<void>;
   undeleteVersions(session: VaultSession, mount: string, path: string, versions: readonly number[], signal?: AbortSignal): Promise<void>;
   destroyVersions(session: VaultSession, mount: string, path: string, versions: readonly number[], signal?: AbortSignal): Promise<void>;

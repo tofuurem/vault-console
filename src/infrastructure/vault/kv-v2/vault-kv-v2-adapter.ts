@@ -196,19 +196,6 @@ export class VaultKvV2Adapter implements KvV2Gateway {
     };
   }
 
-  async deleteLatestVersion(
-    session: VaultSession,
-    mount: string,
-    path: string,
-    signal?: AbortSignal,
-  ): Promise<void> {
-    await this.client.request(session.serverUrl, kvPath(mount, 'data', path), {
-      method: 'DELETE',
-      token: session.token,
-      signal,
-    });
-  }
-
   async deleteVersions(
     session: VaultSession,
     mount: string,

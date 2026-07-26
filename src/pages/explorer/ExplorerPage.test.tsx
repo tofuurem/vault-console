@@ -78,7 +78,6 @@ function kvGateway(options: { denied?: boolean } = {}): KvV2Gateway {
       ],
     })),
     writeSecret: vi.fn(async () => 3),
-    deleteLatestVersion: vi.fn(async () => undefined),
     deleteVersions: vi.fn(async () => undefined),
     undeleteVersions: vi.fn(async () => undefined),
     destroyVersions: vi.fn(async () => undefined),
@@ -355,7 +354,6 @@ describe('ExplorerPage', () => {
       'shared',
       [2],
     ));
-    expect(gateway.deleteLatestVersion).not.toHaveBeenCalled();
     expect(await screen.findByText(
       'Version 2 of applications/shared was soft-deleted.',
     )).toBeVisible();
@@ -411,7 +409,6 @@ describe('ExplorerPage', () => {
       [2],
       undefined,
     );
-    expect(gateway.deleteLatestVersion).not.toHaveBeenCalled();
     expect(await screen.findByText(
       '2 current versions were soft-deleted.',
     )).toBeVisible();

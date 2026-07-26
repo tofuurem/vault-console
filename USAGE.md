@@ -493,6 +493,23 @@ npm run test:e2e
 
 Интеграционные проверки требуют Docker. Перед первым E2E-запуском может потребоваться `npx playwright install chromium`.
 
+`npm run test:e2e` сам создаёт одноразовые Docker network, Vault и production
+контейнер UI, проверяет security headers и отсутствие публичных source maps,
+а затем запускает 13 Chromium-сценариев. Матрица включает token и `userpass`,
+reload/deep links, partial ACL для metadata и LIST prefixes, рекурсивный поиск,
+Command palette, тему и плотность, Favorites/Recent, создание mount и
+пользователя, вложенный JSON, exact-version lifecycle при конкурентной записи,
+bulk-операции версий, глубокие breadcrumbs и responsive viewport’ы от 320 до
+1440 px. Одноразовые token, policy, mount и secret fixtures удаляются вместе с
+контейнерами после прогона.
+
+Если Docker daemon недоступен, структуру browser suite без запуска контейнеров
+можно проверить командой:
+
+```bash
+npm run test:e2e:playwright -- --list
+```
+
 ## Обновление
 
 После публикации новой версии измените tag образа в Compose и выполните:

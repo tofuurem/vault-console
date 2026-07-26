@@ -108,7 +108,7 @@ export default function CommandPalette() {
             placeholder="Go to a mount, user, setting, or action…"
             autoComplete="off"
             spellCheck={false}
-            className="h-10 min-w-0 flex-1 bg-transparent text-sm text-foreground-900 outline-none placeholder:text-foreground-400"
+            className="h-11 min-w-0 flex-1 bg-transparent text-sm text-foreground-900 outline-none placeholder:text-foreground-400 sm:h-10"
           />
           <kbd className="rounded border border-background-300 bg-background-50 px-1.5 py-0.5 font-mono text-[9px] text-foreground-400">
             Esc

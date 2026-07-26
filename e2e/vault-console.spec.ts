@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const vaultToken = process.env.E2E_VAULT_TOKEN;
 const limitedVaultToken = process.env.E2E_LIMITED_VAULT_TOKEN;
+const partialListVaultToken = process.env.E2E_PARTIAL_LIST_VAULT_TOKEN;
 
 test.skip(!vaultToken, 'E2E_VAULT_TOKEN is supplied by the disposable real-Vault harness.');
 
@@ -54,6 +55,73 @@ test('persists dark appearance and finds a nested logical path across the mount'
   await page.getByRole('button', { name: 'Open secret platform/api' }).click();
   await expect(page).toHaveURL(/secret=platform%2Fapi/);
   await expect(page.getByText('URL', { exact: true })).toBeVisible();
+});
+
+test('uses the command palette for density, favorites, and recent secret navigation', async ({ page }) => {
+  await login(page);
+
+  await page.keyboard.press('Control+K');
+  const paletteSearch = page.getByRole('combobox', { name: 'Search commands' });
+  await expect(paletteSearch).toBeFocused();
+  await paletteSearch.fill('compact density');
+  await page.getByRole('option', { name: /Use compact table density/ }).click();
+  await expect(page.getByRole('table')).toHaveAttribute('data-density', 'compact');
+  await page.reload();
+  await expect(page.getByRole('table')).toHaveAttribute('data-density', 'compact');
+
+  await page.getByRole('button', { name: 'Pin secret shared' }).click();
+  await expect(page.getByRole('button', {
+    name: 'Open favorites path applications/shared',
+  })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Inspect secret nested' }).click();
+  await expect(page.getByText('service', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close inspector' }).click();
+  await expect(page.getByRole('button', {
+    name: 'Open recent path applications/nested',
+  })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Open folder platform/' }).click();
+  await page.keyboard.press('Control+K');
+  await page.getByRole('combobox', { name: 'Search commands' }).fill('applications/shared');
+  const favorite = page.getByRole('option', { name: /applications\/shared/ });
+  await expect(favorite).toContainText('Favorite secret');
+  await favorite.click();
+  await expect(page).toHaveURL(/\/explorer\/applications\?secret=shared$/);
+  await expect(page.getByText('API_KEY', { exact: true })).toBeVisible();
+});
+
+test('keeps recursive search useful when one listed prefix is forbidden', async ({ page }) => {
+  test.skip(
+    !partialListVaultToken,
+    'E2E_PARTIAL_LIST_VAULT_TOKEN is supplied by the disposable real-Vault harness.',
+  );
+  await login(page, partialListVaultToken);
+
+  await expect(page.getByRole('button', { name: 'Open folder private/' })).toBeVisible();
+  await page.getByRole('radio', { name: 'Entire mount' }).click();
+  await page.getByRole('searchbox', { name: 'Search secret paths' }).fill('api');
+
+  await expect(page.getByRole('button', {
+    name: 'Open secret platform/api',
+  })).toBeVisible();
+  await expect(page.getByText(/Partial coverage · .* · 1 inaccessible/)).toBeVisible();
+});
+
+test('collapses and expands a deeply linked logical path without losing the route', async ({ page }) => {
+  await login(page);
+  await page.goto('/explorer/applications/deep/one/two/three/four/five/');
+
+  await expect(page).toHaveURL(/\/explorer\/applications\/deep\/one\/two\/three\/four\/five\/$/);
+  await expect(page.getByRole('button', { name: 'Inspect secret deep/one/two/three/four/five/secret' }))
+    .toBeVisible();
+  const expand = page.getByRole('button', { name: 'Show 3 hidden path segments' });
+  await expect(expand).toBeVisible();
+  await expect(page.getByRole('button', { name: 'one/' })).toHaveCount(0);
+  await expand.click();
+  await expect(page.getByRole('button', { name: 'one/' })).toBeVisible();
+  await page.getByRole('button', { name: 'Collapse middle path segments' }).click();
+  await expect(page.getByRole('button', { name: 'one/' })).toHaveCount(0);
 });
 
 test('signs in with userpass without persisting the password and signs out cleanly', async ({ page }) => {
@@ -188,6 +256,15 @@ test('compares, deletes, undeletes, and permanently destroys real KV versions', 
   await expect(comparison.getByLabel('Version B')).toHaveValue('3');
   await comparison.getByRole('button', { name: 'Close', exact: true }).click();
 
+  const concurrentWrite = await page.request.post('/v1/applications/data/lifecycle', {
+    headers: { 'X-Vault-Token': vaultToken! },
+    data: {
+      data: { STATE: 'concurrent-fourth' },
+      options: { cas: 3 },
+    },
+  });
+  expect(concurrentWrite.ok()).toBe(true);
+
   await inspector.getByRole('button', { name: 'Version actions for version 3' }).click();
   await inspector.getByRole('menuitem', { name: 'Delete current version 3' }).click();
   const softDelete = page.getByRole('dialog', { name: 'Soft-delete current version' });
@@ -197,6 +274,14 @@ test('compares, deletes, undeletes, and permanently destroys real KV versions', 
     'Version 3 of applications/lifecycle was soft-deleted.',
   )).toBeVisible();
   await expect(inspector.getByText('Deleted', { exact: true })).toBeVisible();
+
+  const metadataAfterDelete = await page.request.get('/v1/applications/metadata/lifecycle', {
+    headers: { 'X-Vault-Token': vaultToken! },
+  });
+  expect(metadataAfterDelete.ok()).toBe(true);
+  const metadataAfterDeleteBody = await metadataAfterDelete.json();
+  expect(metadataAfterDeleteBody.data.versions['3'].deletion_time).not.toBe('');
+  expect(metadataAfterDeleteBody.data.versions['4'].deletion_time).toBe('');
 
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.getByText(
@@ -220,6 +305,7 @@ test('compares, deletes, undeletes, and permanently destroys real KV versions', 
   expect(metadata.ok()).toBe(true);
   const body = await metadata.json();
   expect(body.data.versions['3'].deletion_time).toBe('');
+  expect(body.data.versions['4'].deletion_time).toBe('');
   expect(body.data.versions['1'].destroyed).toBe(true);
 });
 

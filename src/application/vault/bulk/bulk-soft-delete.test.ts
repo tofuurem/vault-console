@@ -40,7 +40,6 @@ function gateway(): KvV2Gateway {
         }],
       };
     }),
-    deleteLatestVersion: vi.fn(),
     deleteVersions: vi.fn(async (_session, _mount, path) => {
       if (path === 'runtime-denied') throw new VaultError('authorization');
     }),
@@ -132,7 +131,6 @@ describe('bulk soft delete', () => {
       [3],
       undefined,
     );
-    expect(kv.deleteLatestVersion).not.toHaveBeenCalled();
 
     const undo = await undoBulkSoftDelete({
       gateway: kv,

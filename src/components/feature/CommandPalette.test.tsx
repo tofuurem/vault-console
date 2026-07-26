@@ -54,6 +54,7 @@ describe('CommandPalette', () => {
     await user.click(screen.getByRole('button', { name: 'Open commands' }));
     const input = await screen.findByRole('combobox', { name: 'Search commands' });
     expect(input).toHaveFocus();
+    expect(input).toHaveClass('h-11', 'sm:h-10');
 
     await user.type(input, 'app');
     expect(screen.getByRole('option', { name: /Open applications/ })).toBeVisible();

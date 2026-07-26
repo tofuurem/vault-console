@@ -48,7 +48,6 @@ function kvGateway(): KvV2Gateway {
     readSecret: vi.fn(),
     writeSecret: vi.fn(),
     readSecretHistory: vi.fn(),
-    deleteLatestVersion: vi.fn(),
     deleteVersions: vi.fn(),
     undeleteVersions: vi.fn(),
     destroyVersions: vi.fn(),

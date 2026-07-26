@@ -69,6 +69,8 @@ vault_exec secrets enable -path=applications -description="Application secrets" 
 vault_exec auth enable -path=userpass userpass >/dev/null
 vault_exec kv put applications/shared API_KEY=real-vault-e2e-value >/dev/null
 vault_exec kv put applications/platform/api URL=https://api.example.test >/dev/null
+vault_exec kv put applications/private/secret VALUE=restricted-prefix >/dev/null
+vault_exec kv put applications/deep/one/two/three/four/five/secret VALUE=deep-path >/dev/null
 vault_exec kv put applications/lifecycle STATE=first >/dev/null
 vault_exec kv put applications/lifecycle STATE=second >/dev/null
 vault_exec kv put applications/lifecycle STATE=third >/dev/null
@@ -163,6 +165,42 @@ HCL
 
 limited_token="$(vault_exec token create -no-default-policy -policy=e2e-data-only -ttl=10m -field=token)"
 
+docker exec \
+  --interactive \
+  --env VAULT_ADDR=http://127.0.0.1:8200 \
+  --env "VAULT_TOKEN=${root_token}" \
+  "${vault_container}" vault policy write e2e-partial-list - >/dev/null <<'HCL'
+path "sys/mounts" {
+  capabilities = ["read"]
+}
+
+path "applications/data/platform/*" {
+  capabilities = ["read"]
+}
+
+path "applications/metadata" {
+  capabilities = ["list"]
+}
+
+path "applications/metadata/platform" {
+  capabilities = ["read", "list"]
+}
+
+path "applications/metadata/platform/*" {
+  capabilities = ["read", "list"]
+}
+
+path "applications/metadata/deep" {
+  capabilities = ["read", "list"]
+}
+
+path "applications/metadata/deep/*" {
+  capabilities = ["read", "list"]
+}
+HCL
+
+partial_list_token="$(vault_exec token create -no-default-policy -policy=e2e-partial-list -ttl=10m -field=token)"
+
 docker compose up --detach --build
 
 console_origin="http://127.0.0.1:${console_port}"
@@ -212,4 +250,5 @@ fi
 PLAYWRIGHT_BASE_URL="${console_origin}" \
 E2E_VAULT_TOKEN="${root_token}" \
 E2E_LIMITED_VAULT_TOKEN="${limited_token}" \
+E2E_PARTIAL_LIST_VAULT_TOKEN="${partial_list_token}" \
 npm run test:e2e:playwright
