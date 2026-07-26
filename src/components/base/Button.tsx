@@ -26,9 +26,9 @@ export default function Button({
   };
 
   const sizes = {
-    sm: 'h-7 px-2.5 text-xs gap-1.5',
-    md: 'h-8 px-3 text-sm gap-1.5',
-    lg: 'h-9 px-4 text-sm gap-2',
+    sm: 'h-11 px-3 text-xs gap-1.5 sm:h-7 sm:px-2.5',
+    md: 'h-11 px-3 text-sm gap-1.5 sm:h-8',
+    lg: 'h-11 px-4 text-sm gap-2 sm:h-9',
   };
 
   return (

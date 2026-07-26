@@ -151,4 +151,32 @@ describe('TopBar', () => {
     await user.click(trigger);
     expect(onOpenNavigation).toHaveBeenCalledOnce();
   });
+
+  it('exposes a clearly labelled table-density control', async () => {
+    const user = userEvent.setup();
+    const onDensityChange = vi.fn();
+    render(
+      <ThemeProvider storage={null} colorSchemeQuery={lightQuery}>
+        <TopBar
+          session={{
+            serverUrl: 'https://vault.example.test',
+            token: vaultToken('hvs.test'),
+            authMethod: 'token',
+            displayName: 'Alice',
+          }}
+          density="comfortable"
+          onDensityChange={onDensityChange}
+          onSignOut={vi.fn()}
+        />
+      </ThemeProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Session menu for Alice' }));
+    expect(screen.getByRole('radio', { name: 'Comfortable' }))
+      .toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Comfortable' }))
+      .toHaveClass('h-11', 'sm:h-8');
+    await user.click(screen.getByRole('radio', { name: 'Compact' }));
+    expect(onDensityChange).toHaveBeenCalledWith('compact');
+  });
 });

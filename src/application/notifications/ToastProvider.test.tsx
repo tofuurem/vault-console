@@ -81,6 +81,10 @@ describe('ToastProvider', () => {
 
     await user.click(screen.getByRole('button', { name: 'Action' }));
     const undo = screen.getByRole('button', { name: 'Undo' });
+    expect(undo).toHaveClass('min-h-11', 'sm:min-h-0');
+    expect(screen.getByRole('button', {
+      name: 'Dismiss Version deleted notification',
+    })).toHaveClass('h-11', 'w-11', 'sm:h-6', 'sm:w-6');
     act(() => {
       undo.click();
       undo.click();

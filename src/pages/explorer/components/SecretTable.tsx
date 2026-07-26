@@ -1,3 +1,5 @@
+import type { WorkspaceDensity } from '@/application/preferences/workspace-preferences';
+
 export interface KvDirectoryEntry {
   readonly kind: 'folder' | 'secret';
   readonly name: string;
@@ -20,6 +22,7 @@ interface SecretTableProps {
   ) => void;
   readonly onToggleSelectAll?: () => void;
   readonly emptyReason?: 'folder' | 'filter';
+  readonly density?: WorkspaceDensity;
 }
 
 export default function SecretTable({
@@ -34,6 +37,7 @@ export default function SecretTable({
   onSelectionChange,
   onToggleSelectAll,
   emptyReason = 'folder',
+  density = 'comfortable',
 }: SecretTableProps) {
   if (entries.length === 0) {
     return (
@@ -50,7 +54,7 @@ export default function SecretTable({
             : 'Vault returned no secrets or subfolders.'}
         </p>
         {onCreateSecret && emptyReason === 'folder' && (
-          <button type="button" onClick={onCreateSecret} className="mt-4 flex h-8 items-center gap-1.5 rounded-md bg-primary-500 px-3 text-xs font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+          <button type="button" onClick={onCreateSecret} className="mt-4 flex h-11 items-center gap-1.5 rounded-md bg-primary-500 px-3 text-xs font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-8">
             <i className="ri-add-line text-sm" aria-hidden="true" /> Create secret
           </button>
         )}
@@ -73,7 +77,7 @@ export default function SecretTable({
     : selectedVisibleCount > 0 ? 'mixed' as const : false;
 
   return (
-    <table className="w-full">
+    <table className="w-full" data-density={density}>
       <thead>
         <tr className="border-b border-background-200">
           {selectable && (
@@ -87,7 +91,9 @@ export default function SecretTable({
                   : 'Select all visible secrets'}
                 disabled={visibleSecretPaths.length === 0}
                 onClick={onToggleSelectAll}
-                className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-500 disabled:cursor-not-allowed disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                className={`flex h-11 w-11 items-center justify-center rounded-md text-foreground-500 disabled:cursor-not-allowed disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
+                  density === 'compact' ? 'sm:h-8 sm:w-8' : ''
+                }`}
               >
                 <i
                   className={`${allVisibleSelected
@@ -130,7 +136,9 @@ export default function SecretTable({
                         !bulkSelected,
                         event.shiftKey,
                       )}
-                      className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                      className={`flex h-11 w-11 items-center justify-center rounded-md text-foreground-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
+                        density === 'compact' ? 'sm:h-8 sm:w-8' : ''
+                      }`}
                     >
                       <i
                         className={`${bulkSelected
@@ -142,22 +150,24 @@ export default function SecretTable({
                   )}
                 </td>
               )}
-              <td className="px-3 py-2.5">
+              <td className={`px-3 py-2.5 ${density === 'compact' ? 'sm:py-1' : ''}`}>
                 <i className={`${entry.kind === 'folder' ? 'ri-folder-3-line text-warning-500' : 'ri-key-2-line text-foreground-400'} text-sm`} aria-hidden="true" />
               </td>
-              <td className="px-0 py-2.5">
+              <td className={`px-0 py-2.5 ${density === 'compact' ? 'sm:py-1' : ''}`}>
                 <button
                   type="button"
                   aria-label={`${entry.kind === 'folder' ? 'Open folder' : 'Inspect secret'} ${entry.path}`}
                   aria-current={selected ? 'true' : undefined}
                   onClick={() => entry.kind === 'folder' ? onNavigateToFolder(entry.path) : onSelectSecret(entry.path)}
-                  className="min-h-8 w-full rounded-sm text-left font-mono text-sm font-medium text-foreground-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                  className={`min-h-11 w-full rounded-sm text-left font-mono text-sm font-medium text-foreground-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
+                    density === 'compact' ? 'sm:min-h-7' : 'sm:min-h-8'
+                  }`}
                 >
                   {entry.name}{entry.kind === 'folder' ? '/' : ''}
                 </button>
               </td>
-              <td className="px-3 py-2.5 text-xs text-foreground-500">{entry.kind === 'folder' ? 'Folder' : 'Secret'}</td>
-              <td className="hidden px-3 py-2.5 font-mono text-[11px] text-foreground-400 md:table-cell">{entry.path}</td>
+              <td className={`px-3 py-2.5 text-xs text-foreground-500 ${density === 'compact' ? 'sm:py-1' : ''}`}>{entry.kind === 'folder' ? 'Folder' : 'Secret'}</td>
+              <td className={`hidden px-3 py-2.5 font-mono text-[11px] text-foreground-400 md:table-cell ${density === 'compact' ? 'sm:py-1' : ''}`}>{entry.path}</td>
               {onToggleFavorite && (
                 <td className="px-2 py-2">
                   <button
@@ -165,7 +175,9 @@ export default function SecretTable({
                     aria-label={`${favorite ? 'Unpin' : 'Pin'} ${entry.kind} ${entry.path}`}
                     aria-pressed={favorite}
                     onClick={() => onToggleFavorite(entry)}
-                    className={`flex h-7 w-7 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
+                    className={`flex h-11 w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
+                      density === 'compact' ? 'sm:h-6 sm:w-6' : 'sm:h-7 sm:w-7'
+                    } ${
                       favorite
                         ? 'text-warning-600 hover:bg-warning-100'
                         : 'text-foreground-300 hover:bg-background-200 hover:text-warning-600'

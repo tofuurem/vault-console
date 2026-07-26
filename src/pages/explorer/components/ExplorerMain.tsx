@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { NavigationPath } from '@/application/navigation-history/navigation-history';
+import type { WorkspaceDensity } from '@/application/preferences/workspace-preferences';
 import { useKvSearch, type KvSearchMountState } from '@/application/vault/search/KvSearchContext';
 import { rankKvPathMatches } from '@/application/vault/search/search-ranking';
 import type { KvSecretDetails, VaultQueryState } from '@/application/vault/useKvExplorerData';
@@ -55,6 +56,7 @@ interface ExplorerMainProps {
   readonly onBulkSoftDelete?: (paths: readonly string[]) => void;
   readonly onBulkDestroy?: (paths: readonly string[]) => void;
   readonly selectionClearKey?: number;
+  readonly density?: WorkspaceDensity;
 }
 
 function entriesFromKeys(currentPath: string, keys: readonly string[]): readonly KvDirectoryEntry[] {
@@ -95,6 +97,7 @@ export default function ExplorerMain({
   onBulkSoftDelete,
   onBulkDestroy,
   selectionClearKey = 0,
+  density = 'comfortable',
 }: ExplorerMainProps) {
   const selectionScope = `${mount}\u001f${currentPath}`;
   const [inspectorOpen, setInspectorOpen] = useState(true);
@@ -292,13 +295,13 @@ export default function ExplorerMain({
             </div>
             <div className="flex items-center gap-1.5">
               <Tooltip content="Refresh directory">
-                <button type="button" aria-label="Refresh directory" onClick={onRefresh} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className={`${directory.status === 'loading' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} text-sm`} aria-hidden="true" /></button>
+                <button type="button" aria-label="Refresh directory" onClick={onRefresh} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"><i className={`${directory.status === 'loading' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} text-sm`} aria-hidden="true" /></button>
               </Tooltip>
               <Tooltip content={copiedTarget === 'path' ? 'Path copied' : 'Copy logical path'}>
-                <button type="button" aria-label="Copy logical path" onClick={() => void copy(`${mount}/${currentPath}`, 'path')} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className={`${copiedTarget === 'path' ? 'ri-check-line text-success-600' : 'ri-file-copy-line'} text-sm`} aria-hidden="true" /></button>
+                <button type="button" aria-label="Copy logical path" onClick={() => void copy(`${mount}/${currentPath}`, 'path')} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"><i className={`${copiedTarget === 'path' ? 'ri-check-line text-success-600' : 'ri-file-copy-line'} text-sm`} aria-hidden="true" /></button>
               </Tooltip>
               <Tooltip content={copiedTarget === 'cli' ? 'CLI command copied' : 'Copy Vault CLI command'}>
-                <button type="button" aria-label="Copy Vault CLI command" onClick={() => void copy(`vault kv list -mount=${mount} ${currentPath || '/'}`, 'cli')} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"><i className={`${copiedTarget === 'cli' ? 'ri-check-line text-success-600' : 'ri-terminal-line'} text-sm`} aria-hidden="true" /></button>
+                <button type="button" aria-label="Copy Vault CLI command" onClick={() => void copy(`vault kv list -mount=${mount} ${currentPath || '/'}`, 'cli')} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"><i className={`${copiedTarget === 'cli' ? 'ri-check-line text-success-600' : 'ri-terminal-line'} text-sm`} aria-hidden="true" /></button>
               </Tooltip>
               {onCreateSecret && <Button size="sm" variant="primary" onClick={onCreateSecret}><i className="ri-add-line" aria-hidden="true" /> Create secret</Button>}
             </div>
@@ -387,6 +390,7 @@ export default function ExplorerMain({
                     visibleSecretPaths,
                   }));
                 }}
+                density={density}
               />
             )
           )}

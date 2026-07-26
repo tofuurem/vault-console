@@ -202,7 +202,7 @@ export default function CreateUserWizard({
               type="button"
               onClick={cancel}
               aria-label="Cancel user creation"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"
             >
               <i className="ri-arrow-left-line" aria-hidden="true" />
             </button>

@@ -26,6 +26,8 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community, орие
 - светлая, тёмная и системная тема с переключением без перезагрузки;
 - адаптивная навигация: desktop sidebar и полноразмерный mobile drawer с
   безопасными зонами и touch targets не меньше 44 px;
+- сохраняемые режимы плотности таблиц **Comfortable** и **Compact**, причём
+  мобильные touch targets остаются полноразмерными;
 - command palette по `⌘K`/`Ctrl+K` для mounts, KV paths, access-control, тем
   и действий;
 - избранные папки и секреты, а также последние успешно открытые секреты;

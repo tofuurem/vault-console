@@ -117,7 +117,7 @@ function ToastItem({ toast, onDismiss, onAction }: ToastItemProps) {
               actionRun.current = true;
               onAction(toast.id);
             }}
-            className="mt-1 rounded text-xs font-semibold text-primary-700 underline decoration-primary-300 underline-offset-2 hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            className="mt-1 min-h-11 rounded px-1 text-xs font-semibold text-primary-700 underline decoration-primary-300 underline-offset-2 hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-0"
           >
             {toast.action.label}
           </button>
@@ -127,7 +127,7 @@ function ToastItem({ toast, onDismiss, onAction }: ToastItemProps) {
         type="button"
         aria-label={`Dismiss ${toast.message} notification`}
         onClick={() => onDismiss(toast.id)}
-        className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6"
       >
         <i className="ri-close-line text-sm" aria-hidden="true" />
       </button>

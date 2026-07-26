@@ -12,6 +12,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuthenticatedShell } from '@/app/authenticated-shell';
 import { useNavigationHistory } from '@/application/navigation-history/NavigationHistoryContext';
 import { useToast } from '@/application/notifications/ToastContext';
+import { useWorkspacePreferences } from '@/application/preferences/WorkspacePreferencesContext';
 import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import type {
   BulkDestroyPreflight,
@@ -71,6 +72,7 @@ export default function ExplorerPage() {
   const { mountsState, refreshMounts } = useAuthenticatedShell();
   const vault = useVaultSession();
   const toast = useToast();
+  const workspacePreferences = useWorkspacePreferences();
   const queryClient = useQueryClient();
   const {
     recordRecent,
@@ -612,6 +614,7 @@ export default function ExplorerPage() {
       isFavorite={isFavorite}
       onToggleFavorite={toggleFavorite}
       selectionClearKey={selectionClearKey}
+      density={workspacePreferences.density}
       onBulkSoftDelete={(paths) => void beginBulkSoftDelete(paths)}
       onBulkDestroy={(paths) => void beginBulkDestroy(paths)}
       onClipboardFeedback={(kind, success) => {

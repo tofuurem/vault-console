@@ -22,11 +22,11 @@ export default function DirectAccessEditor({ label, value, onChange }: DirectAcc
       value={value}
       onChange={(event) => onChange(event.target.value as KvPermissionLevel)}
       onClick={(event) => event.stopPropagation()}
-      className={`h-7 min-w-[118px] rounded-md border px-2 text-[11px] font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-primary-300 ${
+      className={`h-11 min-w-[118px] rounded-md border px-2 text-[11px] font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-primary-300 sm:h-7 ${
         value === 'deny'
           ? 'border-danger-300 bg-danger-50 text-danger-700'
           : value === 'owner'
-            ? 'border-violet-300 bg-violet-50 text-violet-700'
+            ? 'border-primary-300 bg-primary-50 text-primary-700'
             : value === 'inherited'
               ? 'border-background-300 bg-background-50 text-foreground-500'
               : 'border-primary-200 bg-primary-50 text-primary-700'

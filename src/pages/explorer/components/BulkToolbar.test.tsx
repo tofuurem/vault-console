@@ -33,7 +33,9 @@ describe('BulkToolbar', () => {
       'Destroy versions…',
       'Clear selection',
     ]) {
-      await user.click(screen.getByRole('button', { name: label }));
+      const button = screen.getByRole('button', { name: label });
+      expect(button).toHaveClass('min-h-11');
+      await user.click(button);
     }
     Object.values(actions).forEach((action) => expect(action).toHaveBeenCalledOnce());
   });

@@ -56,7 +56,7 @@ export default function JsonSecretEditor({
         </div>
         <div className="flex items-center gap-3">
           <output aria-live="polite" className="font-mono text-[10px] tabular-nums text-foreground-400">Ln {cursor.line}, Col {cursor.column}</output>
-          <button type="button" onClick={onFormat} disabled={disabled} className="flex h-6 items-center gap-1 rounded px-2 text-[11px] font-medium text-foreground-600 hover:bg-background-200 hover:text-foreground-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-50">
+          <button type="button" onClick={onFormat} disabled={disabled} className="flex h-11 items-center gap-1 rounded px-3 text-[11px] font-medium text-foreground-600 hover:bg-background-200 hover:text-foreground-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-50 sm:h-6 sm:px-2">
             <i className="ri-align-left text-xs" aria-hidden="true" /> Format
           </button>
         </div>
@@ -82,7 +82,7 @@ export default function JsonSecretEditor({
             <button
               type="button"
               onClick={() => editorRef.current?.focusOffset(validationLocation.offset)}
-              className="shrink-0 rounded px-1.5 py-1 font-medium text-danger-800 underline underline-offset-2 hover:bg-danger-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400"
+              className="min-h-11 shrink-0 rounded px-1.5 py-1 font-medium text-danger-800 underline underline-offset-2 hover:bg-danger-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400 sm:min-h-0"
             >
               Go to line {validationLocation.line}, column {validationLocation.column}
             </button>

@@ -91,7 +91,7 @@ export default function CustomAccessTarget({
               aria-label="KV mount"
               value={mount}
               onChange={(event) => setMount(event.target.value)}
-              className="h-8 rounded-md border border-background-300 bg-background-50 px-2.5 font-mono text-xs text-foreground-900 focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-400/30"
+              className="h-11 rounded-md border border-background-300 bg-background-50 px-2.5 font-mono text-xs text-foreground-900 focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-400/30 sm:h-8"
             >
               {mounts.map((candidate) => <option key={candidate.mount} value={candidate.mount}>{candidate.mount}</option>)}
             </select>
@@ -111,7 +111,7 @@ export default function CustomAccessTarget({
               aria-label="Target type"
               value={target}
               onChange={(event) => setTarget(event.target.value as KvAccessTarget)}
-              className="h-8 rounded-md border border-background-300 bg-background-50 px-2.5 text-xs text-foreground-900 focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-400/30"
+              className="h-11 rounded-md border border-background-300 bg-background-50 px-2.5 text-xs text-foreground-900 focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-400/30 sm:h-8"
             >
               <option value="folder">Folder / prefix</option>
               <option value="secret">Single secret</option>
@@ -123,7 +123,7 @@ export default function CustomAccessTarget({
               aria-label="Access level"
               value={level}
               onChange={(event) => setLevel(event.target.value as Exclude<KvPermissionLevel, 'inherited'>)}
-              className="h-8 rounded-md border border-background-300 bg-background-50 px-2.5 text-xs text-foreground-900 focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-400/30"
+              className="h-11 rounded-md border border-background-300 bg-background-50 px-2.5 text-xs text-foreground-900 focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-400/30 sm:h-8"
             >
               {LEVELS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
@@ -178,7 +178,7 @@ export default function CustomAccessTarget({
                       type="button"
                       aria-label={`Remove direct target ${rule.mount}/${rule.path || '*'}`}
                       onClick={() => onDirectRuleChange(node, 'inherited')}
-                      className="flex h-7 items-center justify-center rounded-md px-2 text-xs text-danger-600 hover:bg-danger-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-300"
+                      className="flex min-h-11 items-center justify-center rounded-md px-2 text-xs text-danger-600 hover:bg-danger-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-300 sm:min-h-7"
                     >
                       <i className="ri-close-line mr-1" aria-hidden="true" /> Remove
                     </button>

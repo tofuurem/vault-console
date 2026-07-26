@@ -30,7 +30,8 @@ describe('ApplicationErrorBoundary', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('This screen stopped unexpectedly');
     expect(screen.getByText(/render-failure · \/explorer\/:mount\/\*/)).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Retry screen' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Retry screen' }))
+      .toHaveClass('h-11', 'sm:h-8');
     expect(screen.getByRole('button', { name: 'Return to Explorer' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeVisible();
 

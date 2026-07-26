@@ -96,7 +96,7 @@ export default function AccessSummary({
           </div>
         )}
         {owners.length > 0 && (
-          <div className="rounded-md border border-violet-200 bg-violet-50 p-2 text-violet-800">
+          <div className="rounded-md border border-primary-200 bg-primary-50 p-2 text-primary-800">
             <p className="font-semibold">Owner on {owners.length} path{owners.length === 1 ? '' : 's'}</p>
             <p className="mt-0.5 text-[10px]">Permanent version destruction is allowed.</p>
           </div>

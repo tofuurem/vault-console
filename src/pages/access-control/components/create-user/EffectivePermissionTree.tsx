@@ -21,10 +21,10 @@ const LEVEL_LABELS: Readonly<Record<EffectiveKvPermissionLevel, string>> = {
 
 const LEVEL_STYLES: Readonly<Record<EffectiveKvPermissionLevel, string>> = {
   none: 'border-background-300 bg-background-100 text-foreground-500',
-  view: 'border-sky-200 bg-sky-50 text-sky-700',
+  view: 'border-secondary-200 bg-secondary-50 text-secondary-700',
   edit: 'border-warning-200 bg-warning-50 text-warning-700',
   'manage-versions': 'border-success-200 bg-success-50 text-success-700',
-  owner: 'border-violet-200 bg-violet-50 text-violet-700',
+  owner: 'border-primary-200 bg-primary-50 text-primary-700',
   deny: 'border-danger-200 bg-danger-50 text-danger-700',
   custom: 'border-background-400 bg-background-100 text-foreground-700',
 };
@@ -82,7 +82,7 @@ export default function EffectivePermissionTree({
               type="button"
               onClick={() => toggle(node.id)}
               aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${path}`}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-foreground-400 hover:bg-background-200 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-foreground-400 hover:bg-background-200 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6"
             >
               <i className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} aria-hidden="true" />
             </button>

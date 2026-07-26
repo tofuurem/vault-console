@@ -65,7 +65,7 @@ export default function SessionExpiryBanner({
                 type="button"
                 disabled={renewal.status === 'renewing'}
                 onClick={() => void onRenew().catch(() => undefined)}
-                className="h-7 rounded-md bg-warning-700 px-2.5 text-[11px] font-medium text-background-50 hover:bg-warning-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-500 disabled:cursor-wait disabled:opacity-60"
+                className="h-11 rounded-md bg-warning-700 px-3 text-[11px] font-medium text-background-50 hover:bg-warning-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-500 disabled:cursor-wait disabled:opacity-60 sm:h-7 sm:px-2.5"
               >
                 {renewal.status === 'renewing' ? 'Renewing…' : 'Renew session'}
               </button>
@@ -73,7 +73,7 @@ export default function SessionExpiryBanner({
             <button
               type="button"
               onClick={() => setDismissedExpiry(expiryKey)}
-              className="h-7 rounded-md px-2 text-[11px] font-medium text-warning-900 underline decoration-warning-400 underline-offset-2 hover:bg-warning-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-500"
+              className="min-h-11 rounded-md px-2 text-[11px] font-medium text-warning-900 underline decoration-warning-400 underline-offset-2 hover:bg-warning-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-500 sm:min-h-7"
             >
               Dismiss for this expiry
             </button>

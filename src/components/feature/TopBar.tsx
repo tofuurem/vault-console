@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import type { WorkspaceDensity } from '@/application/preferences/workspace-preferences';
 import { useTheme } from '@/application/theme/ThemeContext';
 import type { VaultSessionRenewalState } from '@/application/vault/VaultSessionContext';
 import type { VaultHealth, VaultSession } from '@/domain/vault/contracts';
@@ -13,6 +14,9 @@ interface TopBarProps {
   renewal?: VaultSessionRenewalState;
   onRenewSession?: () => Promise<void>;
   onOpenNavigation?: () => void;
+  density?: WorkspaceDensity;
+  onDensityChange?: (density: WorkspaceDensity) => void;
+  densityPersistenceAvailable?: boolean;
 }
 
 export default function TopBar({
@@ -25,6 +29,9 @@ export default function TopBar({
   renewal = { status: 'idle' },
   onRenewSession,
   onOpenNavigation,
+  density = 'comfortable',
+  onDensityChange,
+  densityPersistenceAvailable = true,
 }: TopBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -143,7 +150,7 @@ export default function TopBar({
                       role="radio"
                       aria-checked={theme.preference === preference}
                       onClick={() => theme.setPreference(preference)}
-                      className={`flex h-8 items-center justify-center gap-1 rounded border text-[10px] font-medium transition-colors ${
+                      className={`flex h-11 items-center justify-center gap-1 rounded border text-[10px] font-medium transition-colors sm:h-8 ${
                         theme.preference === preference
                           ? 'border-primary-300 bg-primary-100 text-primary-700'
                           : 'border-background-200 text-foreground-500 hover:bg-background-100 hover:text-foreground-800'
@@ -160,12 +167,46 @@ export default function TopBar({
                   </p>
                 )}
               </fieldset>
+              {onDensityChange && (
+                <fieldset className="border-b border-background-200 px-3 py-2">
+                  <legend className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-400">
+                    Table density
+                  </legend>
+                  <div className="grid grid-cols-2 gap-1" role="radiogroup" aria-label="Table density">
+                    {([
+                      ['comfortable', 'ri-layout-row-line', 'Comfortable'],
+                      ['compact', 'ri-list-check-3', 'Compact'],
+                    ] as const).map(([value, icon, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={density === value}
+                        onClick={() => onDensityChange(value)}
+                        className={`flex h-11 items-center justify-center gap-1 rounded border text-[10px] font-medium transition-colors sm:h-8 ${
+                          density === value
+                            ? 'border-primary-300 bg-primary-100 text-primary-700'
+                            : 'border-background-200 text-foreground-500 hover:bg-background-100 hover:text-foreground-800'
+                        }`}
+                      >
+                        <i className={`${icon} text-xs`} aria-hidden="true" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {!densityPersistenceAvailable && (
+                    <p className="mt-1.5 text-[10px] leading-4 text-warning-700">
+                      Density applies only until the page closes.
+                    </p>
+                  )}
+                </fieldset>
+              )}
               {session.renewable === true && onRenewSession && (
                 <button
                   type="button"
                   disabled={renewal.status === 'renewing'}
                   onClick={() => void onRenewSession().catch(() => undefined)}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground-700 hover:bg-background-100 disabled:cursor-wait disabled:text-foreground-400"
+                  className="flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground-700 hover:bg-background-100 disabled:cursor-wait disabled:text-foreground-400 sm:min-h-0"
                 >
                   <i
                     className={`${renewal.status === 'renewing' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} text-sm`}
@@ -181,7 +222,7 @@ export default function TopBar({
                     onClearNavigationData();
                     setMenuOpen(false);
                   }}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground-700 hover:bg-background-100"
+                  className="flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground-700 hover:bg-background-100 sm:min-h-0"
                 >
                   <i className="ri-eraser-line text-sm" aria-hidden="true" />
                   Clear recent &amp; favorite paths
@@ -190,7 +231,7 @@ export default function TopBar({
               <button
                 type="button"
                 onClick={() => { setMenuOpen(false); onSignOut(); }}
-                className="w-full text-left px-3 py-1.5 text-xs text-foreground-700 hover:bg-background-100 cursor-pointer flex items-center gap-2"
+                className="flex min-h-11 w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground-700 hover:bg-background-100 sm:min-h-0"
               >
                 <i className="ri-logout-box-r-line text-sm" aria-hidden="true" />
                 Sign out

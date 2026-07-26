@@ -28,7 +28,7 @@ export default function ExplorerSearch({
           placeholder={scope === 'folder' ? 'Search this folder' : 'Search paths in this mount'}
           autoComplete="off"
           spellCheck={false}
-          className="h-8 w-full rounded-md border border-background-300 bg-background-50 pl-8 pr-3 text-xs text-foreground-900 placeholder:text-foreground-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
+          className="h-11 w-full rounded-md border border-background-300 bg-background-50 pl-8 pr-3 text-xs text-foreground-900 placeholder:text-foreground-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200 sm:h-8"
         />
       </label>
       <div
@@ -46,7 +46,7 @@ export default function ExplorerSearch({
             role="radio"
             aria-checked={scope === value}
             onClick={() => onScopeChange(value)}
-            className={`h-7 rounded px-2.5 text-[10px] font-semibold transition-colors ${
+            className={`h-11 rounded px-2.5 text-[10px] font-semibold transition-colors sm:h-7 ${
               scope === value
                 ? 'bg-background-50 text-foreground-800 shadow-sm'
                 : 'text-foreground-500 hover:text-foreground-800'

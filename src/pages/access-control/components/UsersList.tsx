@@ -22,8 +22,8 @@ export default function UsersList({ users, warnings, onCreateUser, onViewUser, o
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">Userpass + Identity</p><div className="flex items-center gap-2"><h1 id="users-heading" className="text-sm font-semibold text-foreground-900">Users</h1><span className="text-xs text-foreground-400">{users.length}</span></div></div>
           <div className="flex w-full items-center gap-2 sm:w-auto">
-            <label className="relative min-w-0 flex-1 sm:flex-none"><span className="sr-only">Search users</span><i className="ri-search-line absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground-400" aria-hidden="true" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search users" className="h-7 w-full rounded-md border border-background-300 bg-background-50 pl-6 pr-2.5 text-xs focus:outline-none focus:border-primary-400 sm:w-48" /></label>
-            <button type="button" aria-label="Refresh users" onClick={onRefresh} className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700"><i className="ri-refresh-line" aria-hidden="true" /></button>
+            <label className="relative min-w-0 flex-1 sm:flex-none"><span className="sr-only">Search users</span><i className="ri-search-line absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground-400" aria-hidden="true" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search users" className="h-11 w-full rounded-md border border-background-300 bg-background-50 pl-6 pr-2.5 text-xs focus:border-primary-400 focus:outline-none sm:h-7 sm:w-48" /></label>
+            <button type="button" aria-label="Refresh users" onClick={onRefresh} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"><i className="ri-refresh-line" aria-hidden="true" /></button>
             <Button size="sm" variant="primary" onClick={onCreateUser}><i className="ri-user-add-line" aria-hidden="true" /> Create user</Button>
           </div>
         </div>
@@ -39,7 +39,7 @@ export default function UsersList({ users, warnings, onCreateUser, onViewUser, o
             <tbody>{filtered.map((user) => (
               <tr key={user.id} className="border-b border-background-100 hover:bg-background-100 focus-within:bg-background-100">
                 <td className="px-4 py-1.5">
-                  <button type="button" aria-label={`Open user ${user.username}`} onClick={() => onViewUser(user)} className="min-h-8 w-full rounded-sm text-left font-mono text-sm text-foreground-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+                  <button type="button" aria-label={`Open user ${user.username}`} onClick={() => onViewUser(user)} className="min-h-11 w-full rounded-sm text-left font-mono text-sm text-foreground-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-8">
                     {user.username}
                   </button>
                 </td>

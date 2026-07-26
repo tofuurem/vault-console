@@ -147,36 +147,36 @@ export default function InspectorDock({
   };
 
   const header = (isFullScreen: boolean) => (
-    <div className="flex h-9 shrink-0 items-center gap-2 border-b border-background-200 bg-background-50 px-3">
+    <div className="flex min-h-12 shrink-0 items-center gap-2 border-b border-background-200 bg-background-50 px-2 sm:h-9 sm:min-h-0 sm:px-3">
       <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground-500">Inspector</span>
       <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-foreground-400">{path}</span>
       <div className="flex items-center gap-0.5">
         <Tooltip content="Dock inspector at bottom">
-          <button type="button" aria-label="Dock inspector at bottom" onClick={() => setPlacement('bottom')} className={`flex h-6 w-6 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${!isFullScreen && preferences.placement === 'bottom' ? 'bg-primary-100 text-primary-700' : 'text-foreground-400 hover:bg-background-100 hover:text-foreground-700'}`}>
+          <button type="button" aria-label="Dock inspector at bottom" onClick={() => setPlacement('bottom')} className={`hidden h-11 w-11 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6 md:flex ${!isFullScreen && preferences.placement === 'bottom' ? 'bg-primary-100 text-primary-700' : 'text-foreground-400 hover:bg-background-100 hover:text-foreground-700'}`}>
             <i className="ri-layout-bottom-2-line text-xs" aria-hidden="true" />
           </button>
         </Tooltip>
         <Tooltip content="Dock inspector at right">
-          <button type="button" aria-label="Dock inspector at right" onClick={() => setPlacement('right')} className={`flex h-6 w-6 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${!isFullScreen && preferences.placement === 'right' ? 'bg-primary-100 text-primary-700' : 'text-foreground-400 hover:bg-background-100 hover:text-foreground-700'}`}>
+          <button type="button" aria-label="Dock inspector at right" onClick={() => setPlacement('right')} className={`hidden h-11 w-11 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6 md:flex ${!isFullScreen && preferences.placement === 'right' ? 'bg-primary-100 text-primary-700' : 'text-foreground-400 hover:bg-background-100 hover:text-foreground-700'}`}>
             <i className="ri-layout-right-2-line text-xs" aria-hidden="true" />
           </button>
         </Tooltip>
         {!isFullScreen && (
           <Tooltip content="Open inspector full screen">
-            <button type="button" aria-label="Open inspector full screen" onClick={() => setFullScreen(true)} className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+            <button type="button" aria-label="Open inspector full screen" onClick={() => setFullScreen(true)} className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6">
               <i className="ri-fullscreen-line text-xs" aria-hidden="true" />
             </button>
           </Tooltip>
         )}
         {isFullScreen && (
           <Tooltip content="Exit full screen">
-            <button type="button" aria-label="Exit inspector full screen" onClick={exitFullScreen} className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+            <button type="button" aria-label="Exit inspector full screen" onClick={exitFullScreen} className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6">
               <i className="ri-fullscreen-exit-line text-xs" aria-hidden="true" />
             </button>
           </Tooltip>
         )}
         <Tooltip content="Close inspector">
-          <button type="button" aria-label="Close inspector" onClick={onClose} className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+          <button type="button" aria-label="Close inspector" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6">
             <i className="ri-close-line text-xs" aria-hidden="true" />
           </button>
         </Tooltip>
@@ -246,7 +246,7 @@ export default function InspectorDock({
 
       {!visible && path && (
         <Tooltip content="Open inspector" position="left">
-          <button type="button" aria-label="Open inspector" onClick={onOpen} className="absolute right-0 top-1/2 z-10 flex h-12 w-6 -translate-y-1/2 items-center justify-center rounded-l-md border border-r-0 border-background-300 bg-background-50 text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+          <button type="button" aria-label="Open inspector" onClick={onOpen} className="absolute right-0 top-1/2 z-10 flex h-12 w-11 -translate-y-1/2 items-center justify-center rounded-l-md border border-r-0 border-background-300 bg-background-50 text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:w-6">
             <i className="ri-arrow-left-s-line text-sm" aria-hidden="true" />
           </button>
         </Tooltip>

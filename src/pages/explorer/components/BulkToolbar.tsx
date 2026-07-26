@@ -34,26 +34,26 @@ export default function BulkToolbar({
           {hiddenSelectedCount} hidden by filter
         </span>
       )}
-      <button type="button" onClick={onCopyPaths} className="flex min-h-9 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-foreground-700 hover:bg-background-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+      <button type="button" onClick={onCopyPaths} className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-foreground-700 hover:bg-background-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-9">
         <i className="ri-file-copy-line" aria-hidden="true" /> Copy paths
       </button>
-      <button type="button" onClick={onPin} className="flex min-h-9 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-foreground-700 hover:bg-background-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+      <button type="button" onClick={onPin} className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-foreground-700 hover:bg-background-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-9">
         <i className="ri-star-line" aria-hidden="true" /> Pin
       </button>
-      <button type="button" onClick={onUnpin} className="flex min-h-9 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-foreground-700 hover:bg-background-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+      <button type="button" onClick={onUnpin} className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-foreground-700 hover:bg-background-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-9">
         <i className="ri-star-off-line" aria-hidden="true" /> Unpin
       </button>
       {onSoftDelete && (
-        <button type="button" onClick={onSoftDelete} className="flex min-h-9 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-warning-800 hover:bg-warning-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-500">
+        <button type="button" onClick={onSoftDelete} className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-warning-800 hover:bg-warning-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-500 sm:min-h-9">
           <i className="ri-delete-bin-line" aria-hidden="true" /> Soft-delete latest
         </button>
       )}
       {onDestroy && (
-        <button type="button" onClick={onDestroy} className="flex min-h-9 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-danger-700 hover:bg-danger-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-500">
+        <button type="button" onClick={onDestroy} className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-danger-700 hover:bg-danger-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-500 sm:min-h-9">
           <i className="ri-close-circle-line" aria-hidden="true" /> Destroy versions…
         </button>
       )}
-      <button type="button" onClick={onClear} className="ml-auto min-h-9 rounded-md px-2 text-[11px] font-medium text-primary-700 underline underline-offset-2 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+      <button type="button" onClick={onClear} className="ml-auto min-h-11 rounded-md px-2 text-[11px] font-medium text-primary-700 underline underline-offset-2 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-9">
         Clear selection
       </button>
     </div>

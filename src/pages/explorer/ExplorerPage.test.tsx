@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import App from '@/App';
 import { RECENT_PATHS_STORAGE_KEY } from '@/application/navigation-history/navigation-history';
+import { WORKSPACE_PREFERENCES_STORAGE_KEY } from '@/application/preferences/workspace-preferences';
 import type {
   KvV2Gateway,
   UserpassLogin,
@@ -101,6 +102,40 @@ async function replaceEditorContent(
 }
 
 describe('ExplorerPage', () => {
+  it('persists density from the session menu and exposes it in the command palette', async () => {
+    const user = userEvent.setup();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway()} kvV2Gateway={kvGateway()} />);
+    await login(user);
+    await screen.findByRole('heading', { name: 'Application secrets' });
+
+    expect(await screen.findByRole('table')).toHaveAttribute(
+      'data-density',
+      'comfortable',
+    );
+    await user.click(screen.getByRole('button', {
+      name: 'Session menu for reader',
+    }));
+    await user.click(screen.getByRole('radio', { name: 'Compact' }));
+    expect(screen.getByRole('table')).toHaveAttribute('data-density', 'compact');
+    expect(JSON.parse(
+      window.localStorage.getItem(WORKSPACE_PREFERENCES_STORAGE_KEY)!,
+    )).toEqual({ version: 1, density: 'compact' });
+
+    await user.click(screen.getByRole('button', { name: 'Open command palette' }));
+    await user.type(
+      screen.getByRole('combobox', { name: 'Search commands' }),
+      'comfortable',
+    );
+    await user.click(await screen.findByRole('option', {
+      name: /Use comfortable table density/,
+    }));
+    expect(screen.getByRole('table')).toHaveAttribute(
+      'data-density',
+      'comfortable',
+    );
+  });
+
   it('creates a KV v2 mount, refreshes the sidebar, and opens it without a page reload', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();

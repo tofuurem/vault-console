@@ -56,7 +56,7 @@ export default function Modal({
         {title && (
           <div className="flex items-center justify-between px-4 py-3 border-b border-background-200">
             <h3 id={titleId} className="text-sm font-semibold text-foreground-900">{title}</h3>
-            <button type="button" aria-label="Close dialog" onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-md text-foreground-400 hover:text-foreground-700 hover:bg-background-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+            <button type="button" aria-label="Close dialog" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7">
               <i className="ri-close-line" aria-hidden="true" />
             </button>
           </div>

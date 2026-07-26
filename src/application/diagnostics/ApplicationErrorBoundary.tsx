@@ -91,10 +91,10 @@ function RecoveryPanel({
         <p className="mt-1 text-sm leading-6 text-foreground-600">Your Vault session is still available. Retry this screen, return to Explorer, or sign out safely.</p>
         <p className="mt-3 rounded-md bg-background-100 px-3 py-2 font-mono text-[11px] text-foreground-500">Reference: {diagnostic.errorCode} · {diagnostic.route}</p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" onClick={reset} className="h-8 rounded-md bg-primary-500 px-3 text-xs font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Retry screen</button>
-          <button type="button" onClick={returnToExplorer} className="h-8 rounded-md border border-background-300 px-3 text-xs font-medium text-foreground-700 hover:bg-background-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Return to Explorer</button>
-          <button type="button" onClick={() => void copy()} className="h-8 rounded-md border border-background-300 px-3 text-xs font-medium text-foreground-700 hover:bg-background-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Copy safe diagnostics</button>
-          <button type="button" onClick={signOut} className="h-8 rounded-md px-3 text-xs font-medium text-danger-600 hover:bg-danger-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400">Sign out</button>
+          <button type="button" onClick={reset} className="h-11 rounded-md bg-primary-500 px-3 text-xs font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-8">Retry screen</button>
+          <button type="button" onClick={returnToExplorer} className="h-11 rounded-md border border-background-300 px-3 text-xs font-medium text-foreground-700 hover:bg-background-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-8">Return to Explorer</button>
+          <button type="button" onClick={() => void copy()} className="h-11 rounded-md border border-background-300 px-3 text-xs font-medium text-foreground-700 hover:bg-background-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-8">Copy safe diagnostics</button>
+          <button type="button" onClick={signOut} className="h-11 rounded-md px-3 text-xs font-medium text-danger-600 hover:bg-danger-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400 sm:h-8">Sign out</button>
         </div>
         <p role="status" aria-live="polite" className="mt-3 min-h-4 text-xs text-foreground-500">{copyStatus}</p>
       </section>

@@ -43,7 +43,7 @@ export default function AccessSourcePicker({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search groups"
-            className="h-8 w-full rounded-md border border-background-300 bg-background-50 pl-8 pr-2.5 text-xs outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-200"
+            className="h-11 w-full rounded-md border border-background-300 bg-background-50 pl-8 pr-2.5 text-xs outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-200 sm:h-8"
           />
         </div>
 

@@ -59,7 +59,7 @@ function SecretTreeNode({
   return (
     <li>
       <div
-        className="group flex min-h-8 min-w-max items-center gap-2 border-b border-background-100 pr-3 text-xs hover:bg-background-100/70"
+        className="group flex min-h-11 min-w-max items-center gap-2 border-b border-background-100 pr-3 text-xs hover:bg-background-100/70 sm:min-h-8"
         style={{ paddingLeft: `${12 + depth * 20}px` }}
       >
         {container ? (
@@ -68,11 +68,11 @@ function SecretTreeNode({
             aria-expanded={expanded}
             aria-label={`${expanded ? 'Collapse' : 'Expand'} ${path}`}
             onClick={() => setExpanded((current) => !current)}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-foreground-400 hover:bg-background-200 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-foreground-400 hover:bg-background-200 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6"
           >
             <i className={`${expanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} text-sm`} aria-hidden="true" />
           </button>
-        ) : <span className="h-6 w-6 shrink-0" aria-hidden="true" />}
+        ) : <span className="h-11 w-11 shrink-0 sm:h-6 sm:w-6" aria-hidden="true" />}
 
         <span className="max-w-[min(42vw,440px)] break-all font-mono font-medium text-foreground-800">{label}</span>
         <span className="rounded bg-background-200 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-foreground-500">{type}</span>
@@ -93,7 +93,7 @@ function SecretTreeNode({
                   aria-label={`${visible ? 'Hide' : 'Reveal'} ${path}`}
                   onClick={() => onToggleReveal(path)}
                   disabled={revealAll}
-                  className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-background-200 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-200 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:cursor-not-allowed disabled:opacity-40 sm:h-6 sm:w-6"
                 >
                   <i className={`${visible ? 'ri-eye-off-line' : 'ri-eye-line'} text-xs`} aria-hidden="true" />
                 </button>
@@ -103,7 +103,7 @@ function SecretTreeNode({
                   type="button"
                   aria-label={`Copy ${path}`}
                   onClick={() => onCopy(path, value)}
-                  className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-background-200 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                  className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-200 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6"
                 >
                   <i className={`${copiedPath === path ? 'ri-check-line text-success-600' : 'ri-file-copy-line'} text-xs`} aria-hidden="true" />
                 </button>

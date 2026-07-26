@@ -45,7 +45,7 @@ export default function Tabs({ tabs, activeTab, onChange, children }: TabsProps)
             onKeyDown={(event) => selectAdjacent(event, index)}
             onMouseEnter={() => setHoveredKey(tab.key)}
             onMouseLeave={() => setHoveredKey(null)}
-            className={`relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap cursor-pointer transition-colors duration-100
+            className={`relative flex min-h-11 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-xs font-medium transition-colors duration-100 sm:min-h-0
               ${activeTab === tab.key
                 ? 'text-primary-600'
                 : 'text-foreground-500 hover:text-foreground-700'

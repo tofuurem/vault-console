@@ -150,7 +150,7 @@ export default function SecretWorkspace({
       >
         <header className="shrink-0 border-b border-background-200 bg-background-50">
           <div className="flex min-h-14 flex-wrap items-center gap-3 px-3 py-2 sm:px-5">
-            <button type="button" aria-label="Close secret workspace" onClick={requestClose} disabled={saving} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-500 hover:bg-background-100 hover:text-foreground-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-50">
+            <button type="button" aria-label="Close secret workspace" onClick={requestClose} disabled={saving} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-foreground-500 hover:bg-background-100 hover:text-foreground-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-50 sm:h-8 sm:w-8">
               <i className="ri-arrow-left-line text-base" aria-hidden="true" />
             </button>
             <div className="min-w-[180px] flex-1">

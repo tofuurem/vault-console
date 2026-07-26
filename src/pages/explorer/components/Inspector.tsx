@@ -74,14 +74,14 @@ function MaskedValue({
       <span className={`min-w-0 flex-1 break-all font-mono text-xs ${revealed ? 'whitespace-pre-wrap text-foreground-800' : 'select-none text-foreground-400'}`}>
         {revealed ? printable : '•'.repeat(Math.min(Math.max(printable.length, 8), 24))}
       </span>
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
         <Tooltip content={revealed ? 'Hide value' : 'Reveal for 8 seconds'}>
-          <button type="button" aria-label={revealed ? 'Hide value' : 'Reveal value'} onClick={reveal} className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+          <button type="button" aria-label={revealed ? 'Hide value' : 'Reveal value'} onClick={reveal} className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6">
             <i className={`${revealed ? 'ri-eye-off-line' : 'ri-eye-line'} text-xs`} aria-hidden="true" />
           </button>
         </Tooltip>
         <Tooltip content={copied ? 'Copied' : 'Copy value'}>
-          <button type="button" aria-label="Copy value" onClick={() => void copy()} className="flex h-6 w-6 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+          <button type="button" aria-label="Copy value" onClick={() => void copy()} className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6">
             <i className={`${copied ? 'ri-check-line text-success-600' : 'ri-file-copy-line'} text-xs`} aria-hidden="true" />
           </button>
         </Tooltip>
@@ -204,15 +204,15 @@ function VersionActionsMenu({
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={() => setOpen((currentOpen) => !currentOpen)}
-          className="flex h-7 items-center gap-1 rounded-md border border-background-300 bg-background-50 px-2 text-[11px] font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+          className="flex h-11 items-center gap-1 rounded-md border border-background-300 bg-background-50 px-3 text-[11px] font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2"
         >
           Actions <i className="ri-arrow-down-s-line text-xs" aria-hidden="true" />
         </button>
       </Tooltip>
       {open && (
-        <div role="menu" aria-label={`Actions for version ${version}`} className="absolute right-0 top-8 z-30 w-64 overflow-hidden rounded-md border border-background-300 bg-background-50 py-1 shadow-xl">
+        <div role="menu" aria-label={`Actions for version ${version}`} className="absolute right-0 top-12 z-30 w-64 overflow-hidden rounded-md border border-background-300 bg-background-50 py-1 shadow-xl sm:top-8">
           {canUndelete && (
-            <button type="button" role="menuitem" aria-label={`Undelete version ${version}`} onClick={() => run(() => onUndelete?.(version))} className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-success-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400">
+            <button type="button" role="menuitem" aria-label={`Undelete version ${version}`} onClick={() => run(() => onUndelete?.(version))} className="flex min-h-11 w-full items-start gap-2 px-3 py-2 text-left hover:bg-success-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400">
               <i className="ri-arrow-go-back-line mt-0.5 text-sm text-success-600" aria-hidden="true" />
               <span><strong className="block text-xs font-medium text-foreground-800">Undelete version</strong><span className="block text-[10px] text-foreground-500">Make this soft-deleted version readable again.</span></span>
             </button>
@@ -223,14 +223,14 @@ function VersionActionsMenu({
               role="menuitem"
               aria-label={current ? `Delete current version ${version}` : `Delete version ${version}`}
               onClick={() => run(() => current ? onDeleteLatest?.(version) : onDeleteVersion?.(version))}
-              className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-danger-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400"
+              className="flex min-h-11 w-full items-start gap-2 px-3 py-2 text-left hover:bg-danger-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400"
             >
               <i className="ri-delete-bin-line mt-0.5 text-sm text-danger-500" aria-hidden="true" />
               <span><strong className="block text-xs font-medium text-foreground-800">Soft-delete version</strong><span className="block text-[10px] text-foreground-500">Data can be undeleted later.</span></span>
             </button>
           )}
           {canDestroy && (
-            <button type="button" role="menuitem" aria-label={`Destroy version ${version}`} onClick={() => run(() => onDestroyVersion?.(version))} className="flex w-full items-start gap-2 border-t border-background-200 px-3 py-2 text-left hover:bg-danger-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400">
+            <button type="button" role="menuitem" aria-label={`Destroy version ${version}`} onClick={() => run(() => onDestroyVersion?.(version))} className="flex min-h-11 w-full items-start gap-2 border-t border-background-200 px-3 py-2 text-left hover:bg-danger-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400">
               <i className="ri-close-circle-line mt-0.5 text-sm text-danger-600" aria-hidden="true" />
               <span><strong className="block text-xs font-medium text-danger-700">Permanently destroy version</strong><span className="block text-[10px] text-danger-600">Irreversible. The data cannot be recovered.</span></span>
             </button>
@@ -338,7 +338,7 @@ export default function Inspector({
                     aria-label={`${favorite ? 'Unpin' : 'Pin'} secret ${mount}/${path}`}
                     aria-pressed={favorite}
                     onClick={onToggleFavorite}
-                    className={`flex h-7 w-7 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
+                    className={`flex h-11 w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7 ${
                       favorite
                         ? 'text-warning-600 hover:bg-warning-100'
                         : 'text-foreground-400 hover:bg-background-100 hover:text-warning-600'
@@ -348,7 +348,7 @@ export default function Inspector({
                   </button>
                 </Tooltip>
               )}
-              {onEdit && permissions?.canEdit && <button type="button" onClick={onEdit} className="h-7 rounded-md bg-primary-500 px-2 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Edit secret</button>}
+              {onEdit && permissions?.canEdit && <button type="button" onClick={onEdit} className="h-11 rounded-md bg-primary-500 px-3 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2">Edit secret</button>}
             </div>
           </div>
           <p className="text-[10px] text-foreground-400">Created {formatTime(secret.metadata.createdTime)}</p>
@@ -386,7 +386,7 @@ export default function Inspector({
                   <div className="flex shrink-0 items-center gap-1">
                     {!version.deletionTime && onCompare && (
                       <Tooltip content={`Compare version ${version.version} with another version`}>
-                        <button type="button" aria-label={`Compare version ${version.version}`} onClick={onCompare} className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-primary-600 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+                        <button type="button" aria-label={`Compare version ${version.version}`} onClick={onCompare} className="flex h-11 items-center gap-1 rounded-md px-3 text-[11px] font-medium text-primary-600 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2">
                           <i className="ri-scales-line text-xs" aria-hidden="true" /> Compare
                         </button>
                       </Tooltip>

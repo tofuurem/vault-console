@@ -20,12 +20,17 @@ describe('SecretDataTree', () => {
     const user = userEvent.setup();
     render(<SecretDataTree data={nestedData} />);
 
-    expect(screen.getByRole('button', { name: 'Collapse service' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Collapse service' }))
+      .toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Collapse service' }))
+      .toHaveClass('h-11', 'w-11', 'sm:h-6', 'sm:w-6');
     expect(screen.getByText('credentials')).toBeVisible();
     expect(screen.getAllByText('••••••••').length).toBeGreaterThan(0);
     expect(screen.queryByText('alpha-value')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Reveal service/credentials/access' }));
+    const reveal = screen.getByRole('button', { name: 'Reveal service/credentials/access' });
+    expect(reveal).toHaveClass('h-11', 'w-11', 'sm:h-6', 'sm:w-6');
+    await user.click(reveal);
     expect(screen.getByText('alpha-value')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'Collapse service' }));

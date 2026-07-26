@@ -55,13 +55,13 @@ export default function PasswordHandoff({
               type={visible ? 'text' : 'password'}
               readOnly
               value={password}
-              className="h-8 min-w-0 flex-1 rounded-md border border-warning-300 bg-background-50 px-2.5 font-mono text-xs text-foreground-900 outline-none"
+              className="h-11 min-w-0 flex-1 rounded-md border border-warning-300 bg-background-50 px-2.5 font-mono text-xs text-foreground-900 outline-none sm:h-8"
             />
             <button
               type="button"
               onClick={() => setVisible((current) => !current)}
               aria-label={visible ? 'Hide created password' : 'Show created password'}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-warning-300 bg-background-50 text-foreground-500 hover:bg-warning-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-400"
+              className="flex h-11 w-11 items-center justify-center rounded-md border border-warning-300 bg-background-50 text-foreground-500 hover:bg-warning-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-400 sm:h-8 sm:w-8"
             >
               <i className={visible ? 'ri-eye-off-line' : 'ri-eye-line'} aria-hidden="true" />
             </button>

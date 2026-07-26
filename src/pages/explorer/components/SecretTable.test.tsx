@@ -103,4 +103,41 @@ describe('SecretTable', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select all visible secrets' }));
     expect(onToggleSelectAll).toHaveBeenCalledOnce();
   });
+
+  it('compacts desktop rows without shrinking mobile touch targets', () => {
+    render(
+      <SecretTable
+        density="compact"
+        entries={[{ kind: 'secret', name: 'database', path: 'database' }]}
+        selectedPath={null}
+        onNavigateToFolder={vi.fn()}
+        onSelectSecret={vi.fn()}
+        isFavorite={() => false}
+        onToggleFavorite={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('table')).toHaveAttribute('data-density', 'compact');
+    expect(screen.getByRole('button', {
+      name: 'Inspect secret database',
+    })).toHaveClass('min-h-11', 'sm:min-h-7');
+    expect(screen.getByRole('button', {
+      name: 'Pin secret database',
+    })).toHaveClass('h-11', 'w-11', 'sm:h-6', 'sm:w-6');
+  });
+
+  it('keeps the empty-state create action touch-sized on mobile', () => {
+    render(
+      <SecretTable
+        entries={[]}
+        selectedPath={null}
+        onNavigateToFolder={vi.fn()}
+        onSelectSecret={vi.fn()}
+        onCreateSecret={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Create secret' }))
+      .toHaveClass('h-11', 'sm:h-8');
+  });
 });

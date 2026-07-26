@@ -41,10 +41,10 @@ export default function PolicyExplorer({
               <span className="text-xs text-foreground-400">{policyNames.length}</span>
             </div>
           </div>
-          <label className="relative">
+          <label className="relative w-full sm:w-auto">
             <span className="sr-only">Search policies</span>
             <i className="ri-search-line absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground-400" aria-hidden="true" />
-            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search policy names" className="h-7 w-56 rounded-md border border-background-300 bg-background-50 pl-6 pr-2.5 text-xs focus:border-primary-400 focus:outline-none" />
+            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search policy names" className="h-11 w-full rounded-md border border-background-300 bg-background-50 pl-6 pr-2.5 text-xs focus:border-primary-400 focus:outline-none sm:h-7 sm:w-56" />
           </label>
         </div>
       </header>

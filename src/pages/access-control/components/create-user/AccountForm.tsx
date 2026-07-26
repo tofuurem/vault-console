@@ -73,7 +73,7 @@ export default function AccountForm({
                 placeholder="alice.johnson"
                 aria-invalid={Boolean(validation.username)}
                 aria-describedby={validation.username ? 'create-user-username-error' : 'create-user-username-help'}
-                className={`h-9 w-full rounded-md border bg-background-50 px-3 font-mono text-sm text-foreground-900 outline-none transition focus:ring-2 focus:ring-primary-200 ${
+                className={`h-11 w-full rounded-md border bg-background-50 px-3 font-mono text-sm text-foreground-900 outline-none transition focus:ring-2 focus:ring-primary-200 sm:h-9 ${
                   validation.username ? 'border-danger-400 focus:border-danger-400' : 'border-background-300 focus:border-primary-400'
                 }`}
               />
@@ -92,7 +92,7 @@ export default function AccountForm({
                 onChange={update('displayName')}
                 autoComplete="off"
                 placeholder="Alice Johnson"
-                className="h-9 w-full rounded-md border border-background-300 bg-background-50 px-3 text-sm text-foreground-900 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-200"
+                className="h-11 w-full rounded-md border border-background-300 bg-background-50 px-3 text-sm text-foreground-900 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-200 sm:h-9"
               />
               <p className="mt-1 text-[11px] text-foreground-400">Used as the identity entity label.</p>
             </div>
@@ -109,7 +109,7 @@ export default function AccountForm({
                 value={value.userpassMount}
                 onChange={update('userpassMount')}
                 aria-invalid={Boolean(validation.userpassMount)}
-                className="h-9 min-w-0 flex-1 bg-transparent px-2.5 font-mono text-sm text-foreground-900 outline-none"
+                className="h-11 min-w-0 flex-1 bg-transparent px-2.5 font-mono text-sm text-foreground-900 outline-none sm:h-9"
               >
                 {userpassMounts.map((mount) => (
                   <option key={mount.path} value={mount.path}>{mount.path}</option>
@@ -140,7 +140,7 @@ export default function AccountForm({
                   autoComplete="new-password"
                   spellCheck={false}
                   aria-invalid={Boolean(validation.password)}
-                  className={`h-9 w-full rounded-md border bg-background-50 px-3 pr-10 font-mono text-sm text-foreground-900 outline-none transition focus:ring-2 focus:ring-primary-200 ${
+                  className={`h-11 w-full rounded-md border bg-background-50 px-3 pr-12 font-mono text-sm text-foreground-900 outline-none transition focus:ring-2 focus:ring-primary-200 sm:h-9 sm:pr-10 ${
                     validation.password ? 'border-danger-400 focus:border-danger-400' : 'border-background-300 focus:border-primary-400'
                   }`}
                 />
@@ -148,12 +148,12 @@ export default function AccountForm({
                   type="button"
                   onClick={() => setPasswordVisible((visible) => !visible)}
                   aria-label={passwordVisible ? 'Hide password' : 'Show password'}
-                  className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                  className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:right-1 sm:top-1 sm:h-7 sm:w-7"
                 >
                   <i className={passwordVisible ? 'ri-eye-off-line' : 'ri-eye-line'} aria-hidden="true" />
                 </button>
               </div>
-              <Button type="button" variant="secondary" onClick={onRegeneratePassword} className="h-9">
+              <Button type="button" variant="secondary" onClick={onRegeneratePassword}>
                 <i className="ri-refresh-line" aria-hidden="true" /> Regenerate
               </Button>
             </div>

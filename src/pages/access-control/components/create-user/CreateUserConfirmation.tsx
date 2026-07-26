@@ -85,16 +85,16 @@ export default function CreateUserConfirmation({
       )}
 
       {dangerous && (
-        <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-violet-200 bg-violet-50 p-3 text-xs text-violet-900">
+        <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-primary-200 bg-primary-50 p-3 text-xs text-primary-900">
           <input
             type="checkbox"
             checked={dangerConfirmed}
             onChange={(event) => setDangerConfirmed(event.target.checked)}
-            className="mt-0.5 h-3.5 w-3.5 rounded border-violet-300 text-violet-600 focus:ring-violet-400"
+            className="mt-0.5 h-4 w-4 rounded border-primary-300 text-primary-600 focus:ring-primary-400"
           />
           <span>
             <strong className="block font-semibold">Confirm broad or Owner access</strong>
-            <span className="mt-0.5 block text-[11px] leading-4 text-violet-700">This user can permanently destroy versions or has recursive access at a mount root.</span>
+            <span className="mt-0.5 block text-[11px] leading-4 text-primary-700">This user can permanently destroy versions or has recursive access at a mount root.</span>
           </span>
         </label>
       )}
