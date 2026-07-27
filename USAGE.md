@@ -1,38 +1,75 @@
 # Использование Vault Console
 
+## Содержание
+
+- [Требования](#требования)
+- [Быстрый запуск](#быстрый-запуск)
+- [Добавление в Compose с Vault](#добавление-в-compose-с-vault)
+- [Готовый образ — необязательно](#готовый-образ--необязательно)
+- [Настройка](#настройка)
+- [Подготовка Vault](#подготовка-vault)
+- [Reverse proxy и TLS](#reverse-proxy-и-tls)
+- [Основные сценарии](#основные-сценарии)
+- [Сессия и данные в браузере](#сессия-и-данные-в-браузере)
+- [Обновление](#обновление)
+- [Локальная разработка](#локальная-разработка)
+- [Диагностика](#диагностика)
+
 ## Требования
 
-- существующий HashiCorp Vault (релиз проверен с Vault Community `1.21.3`);
-- общая external Docker network для Vault и Vault Console, в примерах — `caddy_net`;
-- существующий KV v2 mount либо права Vault на его создание через UI;
-- `userpass` auth method, если требуется управление пользователями;
-- Docker Compose v2.
+- HashiCorp Vault с доступным HTTP API; проект проверен с Community `1.21.3`;
+- существующий KV v2 mount или права на его создание;
+- `userpass` auth method для управления пользователями;
+- Docker и Docker Compose v2;
+- общая external Docker network для Vault, Vault Console и reverse proxy.
 
-Vault Console не запускает, не перезапускает и не удаляет Vault.
+## Быстрый запуск
 
-## Запуск готового образа рядом с Vault
+```bash
+git clone https://github.com/tofuurem/vault-console.git
+cd vault-console
+cp .env.example .env
+```
 
-Текущий стабильный опубликованный контейнер имеет версию `0.6.1`.
+```dotenv
+VAULT_DOCKER_NETWORK=caddy_net
+VAULT_UPSTREAM=http://vault:8200
+```
 
-Добавьте сервис в Compose-файл существующего Vault:
+Network должна существовать и быть подключена к Vault. `VAULT_UPSTREAM` —
+внутренний адрес Vault в ней, без `/v1` и завершающего `/`.
+
+```bash
+docker compose up -d --build
+docker compose ps vault-console
+curl --fail http://127.0.0.1:8080/healthz
+curl -i http://127.0.0.1:8080/v1/sys/health
+```
+
+`/healthz` проверяет контейнер UI. `/v1/sys/health` дополнительно проверяет
+proxy и Vault. Sealed, standby и неинициализированный Vault могут возвращать
+не `200`; см. [Vault health API](https://developer.hashicorp.com/vault/api-docs/system/health).
+
+## Добавление в Compose с Vault
+
+Сначала соберите образ в каталоге проекта:
+
+```bash
+docker build -t vault-console:local .
+```
+
+Затем добавьте сервис в Compose существующего Vault:
 
 ```yaml
 services:
   vault-console:
-    image: zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.1
-    container_name: vault-console
+    image: vault-console:local
     restart: unless-stopped
     environment:
       VAULT_UPSTREAM: http://vault:8200
       VAULT_UI_USERPASS_MOUNT: userpass
     ports:
       - "127.0.0.1:8080:8080"
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
     networks:
       - caddy_net
 
@@ -41,162 +78,89 @@ networks:
     external: true
 ```
 
-`VAULT_UPSTREAM` — внутренний URL Vault, доступный из контейнера UI. Не добавляйте к нему `/v1` или завершающий `/`. В примере имя сервиса Vault — `vault`.
-Если сервис или network alias называется иначе, используйте его Docker DNS-имя.
+Если Vault использует другое имя сервиса или network alias, измените
+`VAULT_UPSTREAM`. Не передавайте Vault token, username или password через
+Compose environment.
 
-Если registry требует авторизацию, предварительно выполните:
+## Готовый образ — необязательно
 
-```bash
-docker login zero-noise-registry.registry.twcstorage.ru
-```
-
-Не передавайте registry password в Compose-файле. Для неизменяемого
-развёртывания получите manifest digest опубликованного multi-architecture
-образа:
+Если вы самостоятельно публикуете образ, используйте нейтральный version tag:
 
 ```bash
-docker buildx imagetools inspect \
-  zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.1
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  --tag <your-registry>/vault-console:<version> \
+  --push .
 ```
 
-После этого используйте форму
-`zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.1@sha256:…`.
+В Compose замените `vault-console:local` на
+`<your-registry>/vault-console:<version>`. Для production зафиксируйте
+конкретную версию или immutable digest и не используйте `latest`.
 
-Адрес Vault и стандартный auth mount скрыты на форме входа: их уже задаёт
-deployment. Для редких конфигураций можно разрешить секцию Advanced:
+## Настройка
 
-```yaml
-environment:
-  VAULT_UI_ALLOW_CUSTOM_ADDRESS: "true"
-  VAULT_UI_USERPASS_MOUNT: team/userpass
-  VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT: "true"
-```
+| Переменная | Значение по умолчанию | Назначение |
+| --- | --- | --- |
+| `VAULT_UPSTREAM` | обязательна | Внутренний URL Vault без `/v1` |
+| `VAULT_DOCKER_NETWORK` | `caddy_net` | External network для Compose |
+| `VAULT_CONSOLE_BIND` | `127.0.0.1` | Адрес публикации UI |
+| `VAULT_CONSOLE_PORT` | `8080` | Порт UI на хосте |
+| `VAULT_CONSOLE_IMAGE` | `vault-console:local` | Имя локального или собственного образа |
+| `VAULT_UI_USERPASS_MOUNT` | `userpass` | Стандартный auth mount |
+| `VAULT_UI_ALLOW_CUSTOM_ADDRESS` | `false` | Разрешить менять адрес Vault на login |
+| `VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT` | `false` | Разрешить менять auth mount на login |
 
-Эти параметры не содержат credentials. Token, username и password нельзя
-передавать через environment.
+Адрес Vault и auth mount обычно задаёт deployment. Advanced settings
+включайте только когда оператору действительно нужен их выбор.
 
-Запустите и проверьте сервис:
+## Подготовка Vault
+
+При необходимости включите KV v2 и `userpass`:
 
 ```bash
-docker compose pull vault-console
-docker compose up -d vault-console
-docker compose ps vault-console
-curl --fail http://127.0.0.1:8080/healthz
-curl -i http://127.0.0.1:8080/v1/sys/health
+vault secrets enable -path=applications -version=2 kv
+vault auth enable -path=userpass userpass
 ```
 
-`/healthz` проверяет запуск самого UI-контейнера. `/v1/sys/health` проверяет
-proxy и состояние Vault: кроме `200` active-сервер может вернуть, например,
-`429` для standby, `501` для неинициализированного или `503` для sealed Vault.
-Полный список кодов приведён в
-[Vault health API](https://developer.hashicorp.com/vault/api-docs/system/health).
-
-Маршрут `/v1/*` проксируется в Vault. Nginx не подставляет `X-Vault-Token`:
-браузер отправляет token из `sessionStorage` текущей вкладки, а права проверяет
-Vault. Token удаляется при logout или окончании известного lease; пароль
-`userpass` не сохраняется.
-
-Vault отвечает HTTP `403` и при обычном запрете policy, и при
-недействительном token. UI различает их по точному безопасному сигналу
-`invalid token`: revoked/expired session очищается и возвращается на login, а
-валидный least-privilege token без доступа к `lookup-self` продолжает работать
-на разрешённых ему KV paths. Полный текст ответа Vault не сохраняется и не
-показывается в диагностике.
-
-По умолчанию Nginx не пишет access log для `/v1/*`, чтобы mount names,
-логические пути секретов и usernames не попадали в Docker logs. Логи shell и
-статических assets могут оставаться включёнными для диагностики контейнера.
-Для security-аудита операций настройте
-[Vault audit device](https://developer.hashicorp.com/vault/docs/audit);
-reverse proxy интерфейса не заменяет аудит Vault.
-
-Если защищённый deep link открылся без активной сессии, после входа UI
-возвращает пользователя на тот же route вместе с query и fragment, например
-на выбранный secret. Профиль `userpass`-пользователя включает auth mount в
-query-параметр: одинаковые username в разных mounts остаются разными
-учётными записями и после reload.
-
-Форма `userpass` передаёт браузеру стандартные autofill-роли `username` и
-`current-password` в отдельной credential-секции. Это позволяет браузеру или
-password manager подставлять имя учётной записи именно в Username, а пароль —
-в Password. Vault token находится в отдельной форме и не участвует в этой
-credential-секции. Конкретный password manager может дополнительно применять
-собственные эвристики, но скрытые поля и vendor-specific обходы UI не
-использует.
-
-## Срок сессии и ручное продление
-
-Vault Console показывает оставшийся срок в меню сессии. Если token lookup или
-ответ `userpass` не содержит надёжного expiry, UI пишет **No fixed expiry**:
-это означает «срок неизвестен», а не гарантию бессрочного token. Поля TTL,
-`renewable` и время последнего продления сохраняются вместе с tab session для
-точного восстановления после reload.
-
-Для leases длиннее пяти минут предупреждение появляется за пять минут. Для
-коротких leases оно появляется в последние 20%, но не позднее чем за 30
-секунд. Banner накладывается поверх workspace и не сдвигает таблицы. Его можно
-скрыть только для текущего значения expiry; новый TTL после продления покажет
-предупреждение снова при достижении порога.
-
-Кнопка **Renew session** доступна только при `renewable: true`. Она вручную
-вызывает `POST /v1/auth/token/renew-self` с token текущей вкладки, без
-запрошенного `increment`. Vault Console не включает фоновое автопродление и
-использует фактические `lease_duration` и `renewable` из ответа — возвращённый
-TTL может оказаться короче предыдущего. Одновременно выполняется не более
-одного renew-запроса.
-
-Обычный отказ продления оставляет текущую сессию активной до её прежнего
-expiry и скрывает повторное действие, если Vault сообщил, что продление
-недоступно. Ответ о недействительном/истёкшем token очищает tab session,
-навигационные recents и query cache и переводит на повторный вход. Token и
-пароль не попадают в сообщения об ошибках или диагностические данные.
-
-Контейнер выставляет CSP, Permissions-Policy, `nosniff`, `no-referrer` и запрет
-встраивания во frame. Production build не содержит публичных source maps.
-Build-time флаг `VAULT_UI_BUILD_SOURCEMAPS=true` следует использовать только
-для отдельной приватной release-сборки:
+Полный шаблон административных прав находится в
+[`deploy/vault-console-admin-policy.hcl.example`](deploy/vault-console-admin-policy.hcl.example):
 
 ```bash
-VAULT_UI_BUILD_SOURCEMAPS=true npm run build
+vault policy write vault-console-admin \
+  deploy/vault-console-admin-policy.hcl.example
 ```
 
-Полученные source maps нельзя раздавать из публичного контейнера.
+Шаблон управляет policies, Identity, `userpass` и mounts. Перед применением
+сузьте пути и замените `userpass` на фактический auth mount. Создание secrets
+engine требует `sudo` вместе с `create`/`update`.
 
-### Запуск через Compose из репозитория
+Admin policy не выдаёт доступ к значениям существующих KV v2 mounts. Для
+чтения и навигации добавьте отдельную минимальную policy, например:
 
-```bash
-cp .env.example .env
+```hcl
+path "applications/data/team/*" {
+  capabilities = ["read"]
+}
+
+path "applications/metadata/team" {
+  capabilities = ["list"]
+}
+
+path "applications/metadata/team/*" {
+  capabilities = ["read", "list"]
+}
 ```
 
-Укажите параметры:
+Права на запись и версии выдавайте отдельно по соответствующим KV v2 API
+paths. `LIST` раскрывает имена путей, даже если чтение data запрещено.
 
-```dotenv
-VAULT_DOCKER_NETWORK=caddy_net
-VAULT_UPSTREAM=http://vault:8200
-VAULT_UI_ALLOW_CUSTOM_ADDRESS=false
-VAULT_UI_USERPASS_MOUNT=userpass
-VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT=false
-VAULT_CONSOLE_BIND=127.0.0.1
-VAULT_CONSOLE_PORT=8080
-VAULT_CONSOLE_IMAGE=zero-noise-registry.registry.twcstorage.ru/vault-console:0.6.1
-```
+Интерфейс управляет визуальными ролями с prefix `vc-role-` и прямыми
+пользовательскими policies `vc-user-<username>`. Сторонние или неподдерживаемые
+HCL policies остаются External/read-only и не переписываются автоматически.
 
-Для готового образа:
+## Reverse proxy и TLS
 
-```bash
-docker compose pull
-docker compose up -d --no-build
-```
-
-Для локальной сборки текущего исходного кода замените `VAULT_CONSOLE_IMAGE` на `vault-console:local` и выполните:
-
-```bash
-docker compose up -d --build
-```
-
-## Caddy
-
-Если Caddy подключён к `caddy_net`, он может обращаться к контейнеру по Docker DNS имени:
+Контейнер слушает порт `8080`. Пример Caddy:
 
 ```caddyfile
 vault-console.example.com {
@@ -204,477 +168,99 @@ vault-console.example.com {
 }
 ```
 
-Готовый пример находится в `deploy/Caddyfile.example`. При такой схеме браузер работает с одним TLS origin, а Vault остаётся внутри Docker network.
+Готовый файл: [`deploy/Caddyfile.example`](deploy/Caddyfile.example). При
+одном HTTPS origin запросы `/v1/*` идут в Vault внутри Docker network, поэтому
+дополнительный CORS не нужен.
 
-## HTTPS между UI и Vault
+Если `VAULT_UPSTREAM` использует HTTPS с private CA:
 
-Для `VAULT_UPSTREAM=https://...` сертификат Vault должен быть действителен для имени из URL. Если используется private CA:
+1. положите публичный PEM CA с расширением `.crt` в
+   `deploy/ca-certificates/`;
+2. оставьте существующий read-only mount этого каталога из `compose.yml`;
+3. пересоздайте контейнер.
 
-1. Положите публичный PEM-сертификат CA с расширением `.crt` в `deploy/ca-certificates/`.
-2. Подключите каталог в контейнер:
+Не помещайте туда private keys или credentials. Отключение проверки TLS не
+поддерживается. Подробнее:
+[`deploy/ca-certificates/README.md`](deploy/ca-certificates/README.md).
 
-   ```yaml
-   volumes:
-     - ./deploy/ca-certificates:/etc/vault-console/ca-certificates:ro
-   ```
+## Основные сценарии
 
-3. Пересоздайте контейнер Vault Console.
+### Вход
 
-Подробности находятся в `deploy/ca-certificates/README.md`. Приватные ключи и Vault credentials в этот каталог помещать нельзя. Отключение проверки TLS не поддерживается.
+Доступны Vault token и `userpass`. Сессия действует в текущей вкладке, а
+renewable token можно продлить вручную из её меню.
 
-## Отдельный origin и CORS
+### KV v2
 
-При прямом обращении браузера к Vault с другого origin разрешите точный адрес UI:
+Explorer показывает доступные mounts, папки и secrets. Можно:
+
+- создавать KV v2 mounts при наличии прав;
+- искать в текущей папке или рекурсивно по metadata `LIST`;
+- читать и редактировать вложенный JSON;
+- сравнивать, удалять, восстанавливать и уничтожать версии;
+- выполнять массовый soft delete или явный permanent destroy.
+
+Soft delete обратим и предлагает короткий Undo. Destroy version и Delete
+metadata необратимы и требуют явного подтверждения. Всегда проверяйте path и
+номер версии перед применением.
+
+### Access Center
+
+Раздел объединяет Users, Groups, Roles и Policies. Он позволяет создавать
+`userpass`-пользователей, генерировать пароль, назначать Identity groups,
+визуальные роли и прямой KV-доступ.
+
+Изменения выполняются через Review: UI показывает будущие операции и проверяет
+актуальное состояние с Vault перед Apply. External resources и неподдерживаемый
+HCL доступны только для безопасного просмотра.
+
+### Навигация
+
+`Ctrl+K` или `⌘K` открывает Command palette. Тема, плотность таблиц,
+расположение Inspector и избранные пути настраиваются из интерфейса.
+
+## Сессия и данные в браузере
+
+- Vault token хранится в `sessionStorage` текущей вкладки до logout или expiry.
+- Пароль `userpass` не сохраняется.
+- Recent paths остаются в `sessionStorage`.
+- Для `userpass` избранное и тема могут сохраняться в `localStorage`.
+- Secret values, JSON keys и ответы Vault не сохраняются в истории навигации.
+
+Используйте HTTPS, доверенный образ, CSP и минимальные policies. Подробности и
+advisories находятся в [SECURITY.md](SECURITY.md).
+
+Nginx не пишет access log для `/v1/*`, чтобы logical paths и usernames не
+попадали в Docker logs. Для журнала операций настройте
+[Vault audit device](https://developer.hashicorp.com/vault/docs/audit).
+
+## Обновление
+
+Для локальной сборки:
 
 ```bash
-vault write sys/config/cors allowed_origins="https://console.example.com"
-vault read sys/config/cors
+git pull --ff-only
+docker compose build --pull vault-console
+docker compose up -d vault-console
+curl --fail http://127.0.0.1:8080/healthz
 ```
 
-Не используйте `*` в production. В рекомендуемой proxy-схеме через `/v1/*` отдельная настройка CORS не нужна.
-Для direct-origin режима также включите
-`VAULT_UI_ALLOW_CUSTOM_ADDRESS=true`; обычному same-origin deployment это не
-требуется.
-
-## Подготовка Vault
-
-Пример включения KV v2 и `userpass`:
+Для собственного опубликованного образа измените version tag, затем:
 
 ```bash
-vault secrets enable -path=applications -version=2 kv
-vault auth enable -path=userpass userpass
+docker compose pull vault-console
+docker compose up -d --no-build vault-console
 ```
-
-Раздел управления доступом показывается только пользователю с необходимыми административными capabilities. Базовый шаблон находится в `deploy/vault-console-admin-policy.hcl.example`:
-
-```bash
-vault policy write vault-console-admin deploy/vault-console-admin-policy.hcl.example
-```
-
-Перед применением проверьте и сузьте шаблон под своё окружение. Для нестандартного `userpass` mount замените пути `auth/userpass/...`. Не расширяйте их без необходимости до `auth/*`.
-
-Шаблон разрешает создание secrets engine через `sys/mounts/*` и поэтому
-является высокопривилегированным. Если mounts можно создавать только в
-выделенном префиксе, замените stanza на более узкий, например
-`sys/mounts/team/*`. Vault требует `sudo` вместе с `create`/`update` для
-[enable secrets engine](https://developer.hashicorp.com/vault/api-docs/system/mounts).
-
-Policy управления Vault Console не выдаёт доступ к данным существующих KV v2
-mounts. Оператору отдельно нужны ACL на требуемые `<mount>/data/*`,
-`<mount>/metadata` и `<mount>/metadata/*`, а если используются операции с
-версиями — на `<mount>/delete/*`, `<mount>/undelete/*` и
-`<mount>/destroy/*`. Vault остаётся источником истины: UI покажет только
-разрешённые mounts и действия.
-
-Роли, которыми управляет интерфейс, имеют prefix `vc-role-`, а прямая policy пользователя — `vc-user-<username>`. Сторонние HCL policies отображаются как External и не переписываются визуальным редактором, если их нельзя безопасно интерпретировать.
-
-### Access Center и effective access
-
-Глобальная навигация содержит один пункт **Access Center**. Внутри него
-расположены Users, Groups, Roles и Policies. Каталог Users загружает только
-список `userpass`-учёток; identity, группы и тела policies запрашиваются после
-открытия конкретного профиля. Username в URL дополняется параметром `mount`,
-поэтому одинаковые имена в разных auth mounts не смешиваются и корректно
-восстанавливаются после reload.
-
-Для полного read-only отчёта оператору нужны следующие права с заменой
-`userpass` на фактический auth mount:
-
-```hcl
-path "sys/auth" {
-  capabilities = ["read"]
-}
-
-path "auth/userpass/users" {
-  capabilities = ["list"]
-}
-
-path "auth/userpass/users/*" {
-  capabilities = ["read"]
-}
-
-path "identity/lookup/entity" {
-  capabilities = ["update"]
-}
-
-path "identity/group/id" {
-  capabilities = ["list"]
-}
-
-path "identity/group/id/*" {
-  capabilities = ["read"]
-}
-
-path "sys/policies/acl/*" {
-  capabilities = ["read"]
-}
-```
-
-Глобальный `list` на `sys/policies/acl` для уже известной attached policy не нужен:
-профиль читает только названия, полученные от учётки, entity и доступных
-групп, максимум по четыре тела одновременно. Он не перечисляет все policies
-Vault. Разделы Roles/Policies и мастер создания пользователя требуют
-дополнительные административные права из полного example policy.
-
-Полнота профиля обозначается текстом, а не только цветом:
-
-- **Complete** — все известные источники прочитаны и безопасно разобраны;
-- **Partial visibility** — есть external/unsupported/missing либо временно
-  недоступный источник, поэтому фактический доступ может быть шире;
-- **Limited by policy** — token текущего оператора получил `403` хотя бы для
-  одной части identity, groups или attached policy.
-
-Отказ одного источника не очищает профиль: успешно прочитанные учётка,
-managed policies и строки matrix остаются видимыми, а ошибочный источник
-получает отдельный Retry. Policy с prefix `vc-role-` и `vc-user-` разбираются
-в визуальную модель. Любая другая policy считается **External HCL**:
-читаемое тело можно раскрыть как обычный текст, но UI не интерпретирует его и
-не приписывает пользователю права из такого HCL.
-
-Матрица по умолчанию показывает **Policy paths** и не обходит KV mount.
-Уровни View, Edit, Manage versions и Owner вычисляются отдельно по data,
-metadata/list, delete, undelete и destroy endpoints; нестандартный набор
-помечается Custom, а явный `deny` имеет приоритет. Выбор строки раскрывает
-конкретные endpoint paths, capabilities, matched patterns и цепочку источника
-вида `group → role → policy`.
-
-Режим **All visible paths** запускается только явной кнопкой и использует
-только KV v2 metadata `LIST`. Он не вызывает `<mount>/data/*`, не читает JSON
-keys и secret values. `403`, ошибка отдельной ветки или лимит обхода оставляют
-покрытие частичным: неизвестная ветка не выдаётся за пустую или запрещённую.
-Для discovery нужны те же ограниченные metadata LIST capabilities, которые
-описаны в разделе «Поиск KV v2 путей».
-
-### Lifecycle пользователей, групп и ролей
-
-Vault Console 0.6.1 выполняет изменения доступа через полноэкранные staged
-workspace. До нажатия Apply ни один шаг мастера не пишет в Vault. Экран
-Review показывает будущие операции, добавленные и удалённые capabilities,
-момент вступления изменения в силу и отдельное подтверждение для опасных
-действий.
-
-Непосредственно перед записью UI:
-
-1. повторно читает изменяемые ресурсы;
-2. блокирует Apply как `stale`, если данные изменились после открытия
-   workspace;
-3. требует полную видимость зависимостей для опасного удаления или adoption;
-4. запрашивает `sys/capabilities-self` для точных API paths плана;
-5. выполняет операции в порядке зависимостей и проверяет результат повторным
-   чтением.
-
-Если Vault остановил многошаговый план посередине, UI не сообщает ложный
-успех: он показывает завершённые операции и recovery actions. Автоматический
-retry не запускается, пока оператор не перечитает состояние.
-
-#### Users
-
-Редактор существующего `userpass`-пользователя разделяет источники доступа:
-
-- internal Identity groups применяются к следующему запросу;
-- прямые managed roles в `token_policies` применяются при следующем login;
-- `vc-user-<username>` задаёт прямой визуальный KV-доступ пользователя.
-
-Username и auth mount неизменяемы. Расширенные параметры userpass
-(`token_ttl`, `token_max_ttl`, `token_explicit_max_ttl`, bound CIDRs, token
-type, period, number of uses и default-policy flag) показываются read-only и
-сохраняются при изменении policies. External token policies также остаются
-прикреплёнными.
-
-Кнопка lifecycle actions позволяет:
-
-- сгенерировать или задать новый пароль; старый пароль перестаёт работать,
-  но уже выпущенные tokens не отзываются;
-- disable/enable принадлежащую Vault Console Identity entity;
-- удалить login после точного подтверждения username.
-
-Для полностью managed Identity удаление сначала disables entity, затем
-удаляет userpass login и его alias, снимает прямое членство в доступных
-internal groups и оставляет минимальный disabled tombstone. Это блокирует
-Identity-derived access существующих tokens, но не является token revocation.
-Неиспользуемая managed policy `vc-user-<username>` удаляется только когда
-полностью видны её зависимости.
-
-Если Identity external, содержит external aliases/policies или зависимости
-видны не полностью, UI удаляет только userpass login и явно перечисляет всё,
-что сохранено. Полностью пустой tombstone можно позже permanently purge в
-разделе **Removed identities**; UI повторно проверяет отсутствие login,
-aliases, policies и memberships.
-
-#### Groups
-
-Раздел Groups создаёт только internal groups и помечает их metadata
-`managed_by=vault-console`, `schema=1`. В managed group можно менять имя,
-описание, прямых Identity members и managed role attachments. Nested groups
-и external policies показываются read-only и сохраняются без изменений.
-
-External group доступна для просмотра, но не для редактирования. Удалить
-managed group можно только после полного чтения зависимостей, когда в ней нет
-прямых entities, nested groups и parent groups.
-
-#### Roles и ownership
-
-Визуальная роль — ACL policy с именем `vc-role-<slug>` и первой строкой:
-
-```text
-# vault-console: {"schema":1,"kind":"role","description":"…"}
-```
-
-Редактор компилирует logical KV targets в детерминированный набор data,
-metadata, delete, undelete и destroy paths. Whole-mount или destructive grant
-требует точного ввода имени policy на Review.
-
-Policy с prefix `vc-role-`, каноническими KV rules, но без ownership header
-помечается **Unverified**. Её можно явно adopt: операция добавляет только
-header и description, не меняя capabilities. Unsupported HCL и policies без
-зарезервированного prefix остаются External/read-only. Managed role удаляется
-только при полной видимости и отсутствии ссылок из userpass accounts,
-Identity entities и groups.
-
-Закрытие dirty workspace, переход в другой раздел, Back/Forward и попытка
-обновить вкладку требуют подтверждения. После успешного Apply переход
-выполняется без второго prompt.
-
-### Версии и подтверждение удаления
-
-Soft delete текущей или выбранной версии обратим, поэтому диалог показывает
-точный logical path и version, но не требует перепечатывать path. После
-успешной операции в течение 10 секунд доступен однократный **Undo**; он
-вызывает undelete только для указанной версии. Если Undo отклонён Vault,
-ошибка остаётся в persistent notification, а остальные данные обновляются
-обычным повторным чтением.
-
-UI всегда отправляет зафиксированный номер версии через
-`POST <mount>/delete/<path>`. Он не использует `DELETE <mount>/data/<path>`:
-тот endpoint удаляет последнюю версию на момент выполнения и при конкурентной
-записи мог бы затронуть уже не ту версию, которую оператор видел в preview.
-
-`Destroy version` и `Delete metadata` необратимы. Для них кнопка остаётся
-заблокированной, пока оператор не введёт полный logical path в точности.
-Destroy всегда отправляет явно выбранный номер версии; UI не угадывает его и
-не предлагает Undo. Права на `<mount>/delete/*`, `<mount>/undelete/*`,
-`<mount>/destroy/*` и `<mount>/metadata/*` следует выдавать независимо по
-принципу least privilege.
-
-### Уведомления и обратимые действия
-
-Результаты действий показываются поверх workspace и не меняют его размеры.
-Успешные уведомления закрываются автоматически, а ошибки и частичные
-результаты остаются до явного закрытия. Одновременно может быть видно
-несколько независимых операций.
-
-Копирование path подтверждается коротким уведомлением и не раскрывает secret
-value. Кнопка **Undo** появляется только для операции, которую UI может
-безопасно обратить конкретным Vault API-вызовом. После завершения её
-10-секундного окна уведомление закрывается без фонового запроса. Permanent
-destroy, удаление metadata и локальная очистка истории не предлагают Undo.
-
-### Массовое выделение
-
-Чекбоксы Explorer выделяют только секреты: папки намеренно не участвуют в
-массовых действиях. Shift-клик выделяет непрерывный диапазон видимых строк,
-а чекбокс в заголовке добавляет или снимает только секреты, оставшиеся после
-фильтра. Уже выбранные, но скрытые фильтром строки сохраняются, и панель явно
-показывает их количество.
-
-Выделение ограничено текущими mount и папкой. Переход в другую папку или mount,
-а также `Esc` вне поля ввода и диалога очищает его. Это не глобальная очередь
-операций: выбранный путь не может незаметно перейти в другой ACL scope.
-
-Панель позволяет скопировать полные logical paths по одному на строку,
-массово добавить или убрать секреты из локального Favorites и запустить
-**Soft-delete latest**. Локальные действия не читают secret values и не
-меняют Vault.
-
-Перед массовым soft delete интерфейс одним запросом проверяет точные
-capabilities на `<mount>/delete/<path>`, `<mount>/metadata/<path>` и
-`<mount>/undelete/<path>`, затем не более чем четырьмя параллельными
-metadata-запросами фиксирует текущую версию каждого секрета. Preview отдельно
-показывает готовые, запрещённые, уже удалённые и недоступные пути. Ничего не
-удаляется до явного подтверждения.
-
-Выполнение также ограничено четырьмя одновременными запросами. Частичный
-результат не маскируется под успех: denied, missing и failed остаются в
-persistent notification. После успешных операций один 10-секундный **Undo**
-восстанавливает ровно зафиксированные версии и только для путей, где token
-имеет `update` на `undelete`. Путь без этого права можно удалить, но preview
-заранее помечает его как **No Undo permission**. После выполнения выделение
-очищается, чтобы операция не была случайно повторена.
-
-**Destroy versions…** использует отдельный необратимый flow. Preflight
-проверяет `read` на `<mount>/metadata/<path>` и `update` на
-`<mount>/destroy/<path>`, после чего показывает все ещё не уничтоженные
-версии. Ни одна версия не отмечается автоматически: номера выбираются
-оператором явно для каждого пути. Кнопка выполнения остаётся заблокированной,
-пока не выбрана хотя бы одна версия и не введено точное имя mount.
-
-Для каждого logical path UI отправляет один запрос только с отмеченными
-номерами версий, максимум по два запроса одновременно. Частичный результат
-остаётся в persistent notification. Permanent destroy не имеет Undo; после
-успеха выделение очищается.
-
-## Поиск KV v2 путей
-
-В Explorer доступны два режима:
-
-- **This folder** мгновенно фильтрует уже загруженный текущий уровень и не
-  выполняет дополнительных запросов к Vault;
-- **Entire mount** после двух введённых символов обходит видимые папки через
-  KV v2 metadata `LIST`. Поиск работает только по именам логических путей:
-  data keys и secret values не читаются и не индексируются.
-
-Обход ограничен четырьмя параллельными `LIST`, 5000 новыми path entries и
-2000 запросами на один проход. При достижении лимита UI показывает частичное
-покрытие и явную кнопку **Continue scan**. Ошибка доступа к отдельной папке не
-скрывает уже найденные результаты. Индекс живёт только в памяти вкладки до
-пяти минут и очищается вместе с authenticated workspace.
-
-Очистка строки или возврат к **This folder** останавливает активный обход.
-`403` для prefix отображается как неполное покрытие policy, а `404` означает
-уже отсутствующий prefix и не выдаётся за ошибку доступа.
-
-Для mount `applications` рекурсивному поиску нужны только следующие
-дополнительные права:
-
-```hcl
-path "applications/metadata" {
-  capabilities = ["list"]
-}
-
-path "applications/metadata/*" {
-  capabilities = ["list"]
-}
-```
-
-Выдавайте их только на нужный prefix. Vault возвращает имена в разрешённом
-`LIST`-scope даже когда чтение соответствующих secret data запрещено, поэтому
-широкий `metadata/*` может раскрыть структуру и названия путей. Подробности:
-[KV v2 API](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2).
-
-## Избранное и недавние пути
-
-Звезда в строке Explorer или заголовке Inspector добавляет папку либо секрет
-в **Favorites**. **Recent** содержит до 20 последних секретов, данные которых
-Vault успешно разрешил прочитать; неуспешный или запрещённый запрос туда не
-попадает. В боковой панели показываются до восьми первых элементов каждого
-списка.
-
-Избранное содержит не более 100 путей. Для `userpass` оно сохраняется между
-вкладками в `localStorage`, отдельно для комбинации Vault server и username.
-Эта комбинация используется только как вход SHA-256: в имени storage key
-остаётся укороченный hash. Для token-аутентификации стабильной идентичности
-нет, поэтому избранное хранится только в `sessionStorage` текущей вкладки.
-Recent всегда остаётся в `sessionStorage` и очищается при новом входе, logout
-или expiry.
-
-Навигационные записи содержат только mount, логический path, тип
-`folder`/`secret` и локальную временную метку. Token, пароль, secret keys,
-secret values и ответы Vault в них не записываются. Пользователь может удалить
-обе локальные истории командой **Clear recent & favorite paths** в меню
-сессии. Помните, что сами имена путей могут быть чувствительной
-метаинформацией; при общем браузерном профиле используйте эту очистку.
-
-## Тема интерфейса
-
-В меню текущей сессии доступны три режима: **System**, **Light** и **Dark**.
-Режим System следует настройке `prefers-color-scheme` операционной системы и
-меняется без обновления страницы. Выбранный режим действует также на экран
-входа и JSON-редактор.
-
-Предпочтение хранится в `localStorage` браузера под отдельным ключом. Кроме
-темы, там могут находиться только описанные выше `userpass` favorites. Token
-остаётся в `sessionStorage` текущей вкладки, а пароли, secret values и ответы
-Vault туда не записываются. Если браузер блокирует `localStorage`, тема и
-избранное продолжат работать в памяти текущей вкладки, но не сохранятся после
-её закрытия.
-
-## Плотность таблиц
-
-В меню сессии и Command palette доступны режимы **Comfortable** и **Compact**.
-Compact уменьшает только desktop-ритм строк Explorer, чтобы в большой папке
-помещалось больше путей. На мобильном viewport интерактивные области остаются
-не меньше 44 px независимо от выбранного режима.
-
-Плотность хранится отдельно от темы в versioned `localStorage` record. В
-хранилище попадает только название режима; Vault paths, token и secret data
-туда не записываются. При запрете `localStorage` UI начинает с Comfortable и
-разрешает временно переключить режим в памяти текущей страницы.
-
-## Command palette и клавиатура
-
-Нажмите `⌘K` в macOS или `Ctrl+K` в Windows/Linux либо кнопку поиска в верхней
-панели. Palette открывается без запроса к Vault и позволяет:
-
-- перейти к видимому KV v2 mount;
-- открыть Favorite, Recent или уже проиндексированный path активного mount;
-- запустить, продолжить либо отменить рекурсивное индексирование активного
-  mount командой **Search entire …** / **Continue searching …** /
-  **Cancel search …**;
-- открыть доступный раздел Users, Groups, Roles или Policy Explorer;
-- открыть создание KV v2 mount и обновить список mounts;
-- переключить System, Light или Dark appearance.
-
-Начните печатать для фильтрации, используйте `↑`/`↓` для выбора, `Enter` для
-выполнения, `Home`/`End` для перехода к краям списка и `Esc` для закрытия.
-После закрытия фокус возвращается на вызвавший элемент. Palette не обходит
-mounts при открытии: индексирование запускается только явной командой и только
-для активного mount. Cached folders и secrets имеют разные типы результата,
-дубликаты из Favorite, Recent и индекса объединяются, а неполное покрытие
-подписывается в строке команды. При очень большом наборе одновременно
-показываются первые 100 совпадений — уточните запрос, чтобы сузить список.
-
-Недоступные по известным capabilities разделы не добавляются, а локально
-недоступные варианты показывают причину; Vault остаётся финальным источником
-проверки прав при выполнении операции.
-
-## Мобильная навигация
-
-На экранах уже `640px` постоянный sidebar заменяется кнопкой меню в верхней
-панели. Она открывает левый modal drawer с полными названиями mounts, Favorites,
-Recent и доступных разделов Access Control. Переход по пункту закрывает drawer;
-его также можно закрыть кнопкой, `Esc` или нажатием на backdrop. Пока drawer
-открыт, фокус остаётся внутри него, а прокрутка страницы заблокирована.
-
-Основные мобильные интерактивные области имеют размер не меньше `44×44px`.
-Это правило действует не только для navigation targets, но и для действий
-инспектора, дерева JSON, сравнения версий, уведомлений и мастера создания
-пользователя; режим Compact уменьшает их только на desktop. Контейнер
-использует dynamic viewport height и safe-area insets, а HTML включает
-`viewport-fit=cover`, поэтому верхняя панель, drawer и нижний край workspace
-не должны перекрываться browser chrome, вырезом или home indicator. Desktop
-sidebar и его компактный режим начинают работать с breakpoint `640px`.
-
-## Глубокие logical paths
-
-Breadcrumbs показывают mount и до четырёх сегментов без сворачивания. Для
-более глубокого пути UI оставляет первый и два последних сегмента, а середину
-заменяет кнопкой `…` с указанием числа скрытых частей для screen reader.
-Нажатие раскрывает полный путь; отдельная кнопка снова сворачивает середину.
-
-Строка не переносится и не увеличивает высоту Explorer header. На узком
-экране её можно прокрутить горизонтально; каждый сегмент остаётся отдельной
-клавиатурной и touch-доступной ссылкой на соответствующую папку.
-
-## Состояния загрузки
-
-Загрузка списков mounts, папок, пользователей, групп, policies и detail-панелей
-показывается skeleton-блоками, повторяющими будущую структуру контента. Текст
-состояния остаётся доступен через `role=status` для assistive technologies.
-Спиннер используется только для короткого действия с уже видимым контекстом,
-например submit, renew или capability check.
 
 ## Локальная разработка
-
-Требуются Node.js 22+ и npm:
 
 ```bash
 npm ci
 VITE_VAULT_ADDR=http://127.0.0.1:8200 npm run dev
 ```
 
-Откройте `http://localhost:3000`. `VITE_VAULT_ADDR` задаёт начальный адрес Vault в форме входа; token и пароль в `.env.local` размещать нельзя.
-
-Проверки:
+Требуются Node.js 22+ и npm. Откройте `http://localhost:3000`; не сохраняйте
+credentials в `.env.local`. Проверки:
 
 ```bash
 npm run quality
@@ -683,40 +269,9 @@ npm run test:vault
 npm run test:e2e
 ```
 
-Интеграционные проверки требуют Docker. Перед первым E2E-запуском может потребоваться `npx playwright install chromium`.
-
-`npm run test:e2e` сам создаёт одноразовые Docker network, Vault и production
-контейнер UI, проверяет security headers и отсутствие публичных source maps,
-а затем запускает 17 Chromium-сценариев. Матрица включает token и `userpass`,
-reload/deep links, partial ACL для metadata и LIST prefixes, рекурсивный поиск,
-Command palette, тему и плотность, Favorites/Recent, создание mount и
-пользователя, provenance-aware Access Center для direct/group/per-user и
-external policies, ограниченный операторский token, отсутствие data reads при
-matrix discovery, создание и применение managed role/group/user lifecycle,
-защиту dirty workspace и client-side navigation, вложенный JSON,
-exact-version lifecycle при конкурентной записи, bulk-операции версий,
-глубокие breadcrumbs и responsive viewport’ы от 320 до 1440 px. Одноразовые
-token, policy, mount, identity и secret fixtures удаляются вместе с
-контейнерами после прогона.
-
-Если Docker daemon недоступен, структуру browser suite без запуска контейнеров
-можно проверить командой:
-
-```bash
-npm run test:e2e:playwright -- --list
-```
-
-## Обновление
-
-После публикации новой версии измените tag образа в Compose и выполните:
-
-```bash
-docker compose pull vault-console
-docker compose up -d --no-build vault-console
-docker compose ps vault-console
-```
-
-Для воспроизводимого развертывания используйте фиксированный version tag, а не `latest`.
+Интеграционные и браузерные проверки создают одноразовый Vault и требуют
+Docker. Для первого E2E-запуска может понадобиться
+`npx playwright install chromium`.
 
 ## Диагностика
 
@@ -727,17 +282,15 @@ curl --fail http://127.0.0.1:8080/healthz
 curl -i http://127.0.0.1:8080/v1/sys/health
 ```
 
-Если UI открывается, но Vault недоступен, проверьте:
+| Симптом | Что проверить |
+| --- | --- |
+| UI не запускается | Docker logs, занятость порта и `/healthz` |
+| Vault недоступен | `VAULT_UPSTREAM`, общую network, DNS-имя сервиса и sealed state |
+| HTTPS upstream не работает | Имя в сертификате и подключённый private CA |
+| Раздел или действие отсутствует | Capabilities текущего token на точные API paths |
+| После login пустой Explorer | Права на `sys/internal/ui/mounts` и KV metadata/data |
+| `403` в Inspector | Policy оператора; revoked token автоматически завершит сессию |
 
-- что Vault распечатан и отвечает;
-- что `VAULT_UPSTREAM` разрешается внутри общей Docker network;
-- что имя в HTTPS URL присутствует в сертификате;
-- что private CA смонтирован и доверен;
-- что token или `userpass`-пользователь имеет права на нужные API paths.
-
-При неожиданной ошибке экрана кнопка **Copy safe diagnostics** копирует только
-версию UI, обобщённый route/operation, HTTP status, длительность, число retry,
-Vault request ID и класс viewport. Конкретные Vault paths, username, token,
-пароли, secret keys/values и тела запросов/ответов туда не включаются.
-
-Vault Console не заменяет Vault audit devices, TLS, backup и операционный контроль. Создание пользователя состоит из нескольких Vault API calls: интерфейс выполняет безопасный retry и best-effort rollback, но Vault не предоставляет транзакцию для всей операции.
+Vault Console не заменяет Vault audit devices, TLS, backups и операционный
+контроль. При ошибке многошаговой операции UI показывает выполненные шаги и
+recovery actions; перечитайте состояние Vault перед повторным Apply.
