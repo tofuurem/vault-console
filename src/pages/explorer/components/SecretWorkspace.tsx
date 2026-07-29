@@ -167,7 +167,7 @@ export default function SecretWorkspace({
                 <>
                   <span role="status" aria-live="polite" className="sr-only">{copyStatus}</span>
                   <Button size="sm" onClick={() => void copyJson()}><i className="ri-file-copy-line" aria-hidden="true" /> Copy JSON</Button>
-                  <Button size="sm" onClick={() => setRevealAll((current) => !current)}><i className={`${revealAll ? 'ri-eye-off-line' : 'ri-eye-line'}`} aria-hidden="true" /> {revealAll ? 'Mask values' : 'Reveal values'}</Button>
+                  <Button size="sm" aria-pressed={revealAll} onClick={() => setRevealAll((current) => !current)}><i className={`${revealAll ? 'ri-eye-off-line' : 'ri-eye-line'}`} aria-hidden="true" /> {revealAll ? 'Mask values' : 'Reveal values'}</Button>
                   {canEdit && <Button size="sm" variant="primary" onClick={enterEdit}><i className="ri-edit-line" aria-hidden="true" /> Edit secret</Button>}
                 </>
               ) : (

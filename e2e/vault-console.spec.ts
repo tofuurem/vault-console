@@ -504,9 +504,28 @@ test('reads and edits nested JSON without flattening it', async ({ page }) => {
   await page.getByText('nested', { exact: true }).first().click();
   await expect(page.getByText('service', { exact: true })).toBeVisible();
   await expect(page.getByText('object', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Open inspector full screen' }).click();
+  const inspector = page.getByRole('complementary', { name: 'Secret inspector' });
+  await inspector.getByRole('button', { name: 'View secret full screen' }).click();
 
   const workspace = page.getByRole('dialog', { name: 'applications/nested' });
+  await expect(workspace).toBeVisible();
+  await expect(workspace.getByText('real-vault-nested-value', { exact: true })).toHaveCount(0);
+  await workspace.getByRole('button', {
+    name: 'Reveal service/credentials/access',
+  }).click();
+  await expect(workspace.getByText('real-vault-nested-value', { exact: true })).toBeVisible();
+  await expect(workspace.getByRole('button', {
+    name: 'Reveal service/ports/[0]',
+  })).toHaveAttribute('aria-pressed', 'false');
+
+  await workspace.getByRole('tab', { name: 'JSON' }).click();
+  await expect(workspace.getByText(/"access": "••••••••"/)).toBeVisible();
+  await workspace.getByRole('button', { name: 'Reveal values' }).click();
+  await expect(workspace.getByText(/"access": "real-vault-nested-value"/)).toBeVisible();
+
+  await workspace.getByRole('button', { name: 'Close secret workspace' }).click();
+  await expect(workspace).toHaveCount(0);
+  await inspector.getByRole('button', { name: 'View secret full screen' }).click();
   await expect(workspace).toBeVisible();
   await expect(workspace.getByText('real-vault-nested-value', { exact: true })).toHaveCount(0);
   await workspace.getByRole('button', { name: 'Edit secret' }).click();

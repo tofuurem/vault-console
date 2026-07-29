@@ -86,11 +86,12 @@ function SecretTreeNode({
             <span className={`min-w-[120px] flex-1 break-all font-mono ${visible ? 'whitespace-pre-wrap text-foreground-800' : 'select-none tracking-[0.12em] text-foreground-400'}`}>
               {visible ? printablePrimitive(value) : '••••••••'}
             </span>
-            <div className="ml-auto flex shrink-0 items-center gap-0.5 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+            <div className="ml-auto flex shrink-0 items-center gap-0.5">
               <Tooltip content={visible ? 'Hide value' : 'Reveal value'}>
                 <button
                   type="button"
                   aria-label={`${visible ? 'Hide' : 'Reveal'} ${path}`}
+                  aria-pressed={visible}
                   onClick={() => onToggleReveal(path)}
                   disabled={revealAll}
                   className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-200 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:cursor-not-allowed disabled:opacity-40 sm:h-6 sm:w-6"
@@ -142,6 +143,12 @@ export default function SecretDataTree({ data, revealAll = false }: SecretDataTr
   const [revealed, setRevealed] = useState<ReadonlySet<string>>(new Set());
   const [copiedPath, setCopiedPath] = useState('');
   const copyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setRevealed(new Set());
+    setCopiedPath('');
+    if (copyTimeout.current) clearTimeout(copyTimeout.current);
+  }, [data]);
 
   useEffect(() => () => {
     if (copyTimeout.current) clearTimeout(copyTimeout.current);

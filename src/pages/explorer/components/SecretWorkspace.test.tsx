@@ -58,6 +58,17 @@ describe('SecretWorkspace', () => {
     expect(screen.queryByText('alpha-value')).not.toBeInTheDocument();
     expect(screen.getAllByText('••••••••').length).toBeGreaterThan(0);
 
+    const revealAccess = screen.getByRole('button', {
+      name: 'Reveal service/credentials/access',
+    });
+    expect(revealAccess).toBeVisible();
+    expect(revealAccess).toHaveAttribute('aria-pressed', 'false');
+    await user.click(revealAccess);
+    expect(screen.getByText('alpha-value')).toBeVisible();
+    expect(screen.getByRole('button', {
+      name: 'Reveal service/ports/[0]',
+    })).toHaveAttribute('aria-pressed', 'false');
+
     const treeTab = screen.getByRole('tab', { name: 'Tree' });
     treeTab.focus();
     await user.keyboard('{ArrowRight}');
@@ -66,6 +77,48 @@ describe('SecretWorkspace', () => {
 
     await user.click(screen.getByRole('button', { name: 'Reveal values' }));
     expect(screen.getByText(/"access": "alpha-value"/)).toBeVisible();
+  });
+
+  it('masks individually revealed tree data when the secret changes', async () => {
+    const user = userEvent.setup();
+    const props: ComponentProps<typeof SecretWorkspace> = {
+      open: true,
+      initialMode: 'view',
+      secret,
+      canEdit: false,
+      onClose: vi.fn(),
+      onSave: vi.fn(async () => undefined),
+    };
+    const view = render(<SecretWorkspace {...props} />);
+
+    await user.click(screen.getByRole('button', {
+      name: 'Reveal service/credentials/access',
+    }));
+    expect(screen.getByText('alpha-value')).toBeVisible();
+
+    view.rerender(
+      <SecretWorkspace
+        {...props}
+        secret={{
+          ...secret,
+          data: {
+            service: {
+              credentials: { access: 'beta-value' },
+              ports: [443],
+              enabled: false,
+            },
+          },
+          metadata: { ...secret.metadata, version: 12 },
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText('beta-value')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', {
+        name: 'Reveal service/credentials/access',
+      })).toHaveAttribute('aria-pressed', 'false');
+    });
   });
 
   it('saves a nested object from the full-height editor', async () => {
