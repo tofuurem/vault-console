@@ -46,7 +46,7 @@ export default function LoginPage() {
   const session = useVaultSession();
   const checkHealth = session.checkHealth;
   const requestRef = useRef<AbortController | null>(null);
-  const [authTab, setAuthTab] = useState<AuthTab>('token');
+  const [authTab, setAuthTab] = useState<AuthTab>('userpass');
   const [serverUrl, setServerUrl] = useState(
     runtimeConfig.allowCustomVaultAddress ? DEFAULT_VAULT_ADDRESS : window.location.origin,
   );
@@ -60,8 +60,6 @@ export default function LoginPage() {
   const [serverError, setServerError] = useState('');
   const [token, setToken] = useState('');
   const [userpassPath, setUserpassPath] = useState(runtimeConfig.userpassMount);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const destination = postLoginDestination(location.state);
 
   const beginRequest = useCallback(() => {
@@ -131,9 +129,19 @@ export default function LoginPage() {
 
   const handleUserpassLogin = async (event: FormEvent) => {
     event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const usernameInput = form.elements.namedItem('username');
+    const passwordInput = form.elements.namedItem('password');
+    if (!(usernameInput instanceof HTMLInputElement)
+      || !(passwordInput instanceof HTMLInputElement)) {
+      setErrorMessage('The userpass login form is unavailable. Reload the page and try again.');
+      return;
+    }
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
     const normalized = validatedServerUrl();
     if (!normalized) return;
-    if (!userpassPath.trim() || !username.trim() || !password) {
+    if (!userpassPath.trim() || !username || !password) {
       setErrorMessage(runtimeConfig.allowCustomUserpassMount
         ? 'Enter the auth mount, username, and password.'
         : 'Enter the username and password.');
@@ -145,15 +153,15 @@ export default function LoginPage() {
       await session.signInWithUserpass({
         serverUrl: normalized,
         mount: userpassPath.trim(),
-        username: username.trim(),
+        username,
         password,
       }, controller.signal);
-      setPassword('');
       navigate(destination, { replace: true });
     } catch (cause) {
       const error = normalizeVaultError(cause);
       if (error.code !== 'aborted') setErrorMessage(serverErrorMessage(error));
-      setPassword('');
+    } finally {
+      passwordInput.value = '';
     }
   };
 
@@ -287,7 +295,46 @@ export default function LoginPage() {
             </div>
           )}
 
-          {authTab === 'token' ? (
+          <form
+            id="userpass-panel"
+            name="vault-userpass-login"
+            method="post"
+            autoComplete="on"
+            role="tabpanel"
+            aria-labelledby="userpass-tab"
+            hidden={authTab !== 'userpass'}
+            inert={authTab !== 'userpass'}
+            onSubmit={(event) => void handleUserpassLogin(event)}
+            className="space-y-3"
+          >
+            <Input
+              id="userpass-username"
+              name="username"
+              label="Username"
+              type="text"
+              placeholder="ops-team"
+              autoComplete="username"
+              icon="ri-user-line"
+              required
+              autoFocus
+            />
+            <Input
+              id="userpass-password"
+              name="password"
+              label="Password"
+              type="password"
+              placeholder="••••••••••••"
+              autoComplete="current-password"
+              icon="ri-lock-line"
+              required
+            />
+            <Button type="submit" variant="primary" className="mt-1 w-full" size="lg" loading={isAuthenticating}>
+              <i className="ri-login-box-line text-sm" aria-hidden="true" />
+              Sign in
+            </Button>
+          </form>
+
+          {authTab === 'token' && (
             <form
               id="token-panel"
               name="vault-token-login"
@@ -311,43 +358,6 @@ export default function LoginPage() {
                 autoFocus
               />
               <Button type="submit" variant="primary" className="w-full" size="lg" loading={isAuthenticating}>
-                <i className="ri-login-box-line text-sm" aria-hidden="true" />
-                Sign in
-              </Button>
-            </form>
-          ) : (
-            <form
-              id="userpass-panel"
-              name="vault-userpass-login"
-              autoComplete="on"
-              role="tabpanel"
-              aria-labelledby="userpass-tab"
-              onSubmit={(event) => void handleUserpassLogin(event)}
-              className="space-y-3"
-            >
-              <Input
-                id="userpass-username"
-                name="username"
-                label="Username"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                placeholder="ops-team"
-                autoComplete="section-vaultuserpass username"
-                icon="ri-user-line"
-                autoFocus
-              />
-              <Input
-                id="userpass-password"
-                name="password"
-                label="Password"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="••••••••••••"
-                autoComplete="section-vaultuserpass current-password"
-                icon="ri-lock-line"
-              />
-              <Button type="submit" variant="primary" className="mt-1 w-full" size="lg" loading={isAuthenticating}>
                 <i className="ri-login-box-line text-sm" aria-hidden="true" />
                 Sign in
               </Button>

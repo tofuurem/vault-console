@@ -55,6 +55,15 @@ function kvGateway(): KvV2Gateway {
   };
 }
 
+function assignNativeValue(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    'value',
+  )?.set;
+  if (!setter) throw new Error('Native input value setter is unavailable.');
+  setter.call(input, value);
+}
+
 describe('LoginPage', () => {
   it('uses the fixed same-origin Vault proxy without asking for deployment details', async () => {
     const gateway = new LoginGateway();
@@ -115,6 +124,7 @@ describe('LoginPage', () => {
     await user.click(screen.getByText('Advanced connection settings'));
     await user.clear(screen.getByLabelText('Vault server'));
     await user.type(screen.getByLabelText('Vault server'), 'https://vault.example.test:8200');
+    await user.click(screen.getByRole('tab', { name: 'Token' }));
     const token = screen.getByLabelText('Vault token');
     expect(token).toHaveAttribute('name', 'vault-token');
     expect(token).toHaveAttribute('type', 'password');
@@ -149,6 +159,7 @@ describe('LoginPage', () => {
     await user.click(screen.getByText('Advanced connection settings'));
     await user.clear(screen.getByLabelText('Vault server'));
     await user.type(screen.getByLabelText('Vault server'), 'https://vault.example.test:8200');
+    await user.click(screen.getByRole('tab', { name: 'Token' }));
     await user.type(screen.getByLabelText('Vault token'), 'hvs.operator');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
@@ -159,7 +170,7 @@ describe('LoginPage', () => {
     });
   });
 
-  it('supports userpass at a custom mount and removes the password after use', async () => {
+  it('keeps a browser-native userpass form stable and accepts native autofill values', async () => {
     const user = userEvent.setup();
     const gateway = new LoginGateway();
     window.history.replaceState({}, '', '/login');
@@ -172,30 +183,42 @@ describe('LoginPage', () => {
       }}
     />);
 
+    expect(screen.getByRole('tab', {
+      name: 'Username & password',
+    })).toHaveAttribute('aria-selected', 'true');
+    const username = screen.getByLabelText('Username') as HTMLInputElement;
+    const password = screen.getByLabelText('Password') as HTMLInputElement;
+    const userpassForm = username.closest('form');
+
+    expect(username).toHaveAttribute('name', 'username');
+    expect(username).toHaveAttribute('type', 'text');
+    expect(username).toHaveAttribute('autocomplete', 'username');
+    expect(username).toBeRequired();
+    expect(password).toHaveAttribute('name', 'password');
+    expect(password).toHaveAttribute('type', 'password');
+    expect(password).toHaveAttribute('autocomplete', 'current-password');
+    expect(password).toBeRequired();
+    expect(userpassForm).toBe(password.closest('form'));
+    expect(userpassForm).toHaveAttribute('name', 'vault-userpass-login');
+    expect(userpassForm).toHaveAttribute('method', 'post');
+    expect(userpassForm).toHaveAttribute('autocomplete', 'on');
+
+    await user.click(screen.getByRole('tab', { name: 'Token' }));
+    expect(userpassForm).toHaveAttribute('hidden');
+    expect(screen.getByLabelText('Vault token')).toBeVisible();
     await user.click(screen.getByRole('tab', { name: 'Username & password' }));
+    expect(screen.getByLabelText('Username')).toBe(username);
+    expect(screen.getByLabelText('Password')).toBe(password);
+    expect(userpassForm).not.toHaveAttribute('hidden');
+
     await user.click(screen.getByText('Advanced connection settings'));
     await user.clear(screen.getByLabelText('Vault server'));
     await user.type(screen.getByLabelText('Vault server'), 'https://vault.example.test:8200');
     await user.clear(screen.getByLabelText('Auth mount path'));
     await user.type(screen.getByLabelText('Auth mount path'), 'team/userpass');
-    const username = screen.getByLabelText('Username');
-    const password = screen.getByLabelText('Password');
-    expect(username).toHaveAttribute('name', 'username');
-    expect(username).toHaveAttribute(
-      'autocomplete',
-      'section-vaultuserpass username',
-    );
-    expect(password).toHaveAttribute('name', 'password');
-    expect(password).toHaveAttribute('type', 'password');
-    expect(password).toHaveAttribute(
-      'autocomplete',
-      'section-vaultuserpass current-password',
-    );
-    expect(username.closest('form')).toBe(password.closest('form'));
-    expect(username.closest('form')).toHaveAttribute('name', 'vault-userpass-login');
-    expect(username.closest('form')).toHaveAttribute('autocomplete', 'on');
-    await user.type(username, 'alice');
-    await user.type(password, 'not-persisted');
+
+    assignNativeValue(username, 'alice');
+    assignNativeValue(password, 'not-persisted');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(window.location.pathname).toBe('/explorer'));
@@ -203,5 +226,23 @@ describe('LoginPage', () => {
     expect(credentials).toMatchObject({ mount: 'team/userpass', username: 'alice' });
     expect(credentials.password.reveal()).toBe('not-persisted');
     expect(screen.queryByDisplayValue('not-persisted')).not.toBeInTheDocument();
+  });
+
+  it('clears a natively autofilled password after a failed userpass login', async () => {
+    const user = userEvent.setup();
+    const gateway = new LoginGateway();
+    gateway.loginUserpass.mockRejectedValueOnce(new Error('Access denied'));
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={gateway} />);
+
+    const username = screen.getByLabelText('Username') as HTMLInputElement;
+    const password = screen.getByLabelText('Password') as HTMLInputElement;
+    assignNativeValue(username, 'alice');
+    assignNativeValue(password, 'wrong-password');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    await waitFor(() => expect(gateway.loginUserpass).toHaveBeenCalledOnce());
+    await waitFor(() => expect(password).toHaveValue(''));
+    expect(username).toHaveValue('alice');
   });
 });

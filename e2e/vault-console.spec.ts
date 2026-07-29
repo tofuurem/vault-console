@@ -13,6 +13,7 @@ async function login(page: import('@playwright/test').Page, token = vaultToken) 
   await page.goto('/login');
   await expect(page.getByLabel('Vault server')).toHaveCount(0);
   await expect(page.getByText('Vault is ready')).toBeVisible();
+  await page.getByRole('tab', { name: 'Token' }).click();
   await page.getByLabel('Vault token').fill(token!);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();
@@ -33,6 +34,7 @@ test('rejects invalid tokens and expires active or restored revoked sessions', a
   );
 
   await page.goto('/login');
+  await page.getByRole('tab', { name: 'Token' }).click();
   await page.getByLabel('Vault token').fill('invalid-e2e-vault-token');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(/\/login$/);
@@ -171,19 +173,26 @@ test('collapses and expands a deeply linked logical path without losing the rout
 
 test('signs in with userpass without persisting the password and signs out cleanly', async ({ page }) => {
   await page.goto('/login');
-  await page.getByRole('tab', { name: 'Username & password' }).click();
+  await expect(page.getByRole('tab', {
+    name: 'Username & password',
+  })).toHaveAttribute('aria-selected', 'true');
   const username = page.getByLabel('Username', { exact: true });
   const password = page.getByLabel('Password', { exact: true });
   await expect(username).toHaveAttribute('name', 'username');
-  await expect(username).toHaveAttribute(
-    'autocomplete',
-    'section-vaultuserpass username',
-  );
+  await expect(username).toHaveAttribute('autocomplete', 'username');
+  await expect(username).toHaveAttribute('required', '');
   await expect(password).toHaveAttribute('name', 'password');
-  await expect(password).toHaveAttribute(
-    'autocomplete',
-    'section-vaultuserpass current-password',
-  );
+  await expect(password).toHaveAttribute('autocomplete', 'current-password');
+  await expect(password).toHaveAttribute('required', '');
+
+  await username.evaluate((input) => {
+    input.setAttribute('data-e2e-native-node', 'stable');
+  });
+  await page.getByRole('tab', { name: 'Token' }).click();
+  await expect(page.getByLabel('Vault token')).toBeVisible();
+  await page.getByRole('tab', { name: 'Username & password' }).click();
+  await expect(username).toHaveAttribute('data-e2e-native-node', 'stable');
+
   await username.fill('e2e-login');
   await password.fill('e2e-password');
   await page.getByRole('button', { name: 'Sign in' }).click();

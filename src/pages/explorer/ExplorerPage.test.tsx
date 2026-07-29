@@ -86,6 +86,7 @@ function kvGateway(options: { denied?: boolean } = {}): KvV2Gateway {
 }
 
 async function login(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('tab', { name: 'Token' }));
   await user.type(screen.getByLabelText('Vault token'), 'hvs.reader');
   await user.click(screen.getByRole('button', { name: 'Sign in' }));
 }

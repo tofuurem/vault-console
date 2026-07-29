@@ -211,6 +211,7 @@ async function loginAndOpenUsers(
 ) {
   window.history.replaceState({}, '', '/login');
   render(<App authGateway={authGateway()} kvV2Gateway={kv} accessControlGateway={access} />);
+  await user.click(screen.getByRole('tab', { name: 'Token' }));
   await user.type(screen.getByLabelText('Vault token'), 'hvs.admin');
   await user.click(screen.getByRole('button', { name: 'Sign in' }));
   await screen.findByRole('heading', { name: 'Applications' });
