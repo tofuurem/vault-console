@@ -13,12 +13,12 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community: рабо
 
 ## Возможности
 
-- **KV v2:** mounts, папки, рекурсивный поиск путей, версии, вложенный JSON,
-  soft delete, undelete, destroy и массовые операции.
+- **KV v2:** mounts, папки, рекурсивный поиск, версии, полноэкранный и
+  per-value просмотр, вложенный JSON, delete/undelete/destroy и bulk-операции.
 - **Управление доступом:** пользователи `userpass`, Identity groups,
   визуальные роли и ACL policies с Review перед применением.
-- **Рабочий интерфейс:** полноэкранный JSON-редактор, настраиваемый Inspector,
-  Command palette, избранное, недавние пути, светлая и тёмная темы.
+- **Рабочий интерфейс:** нативный autofill для `userpass`, настраиваемый
+  Inspector, Command palette, избранное, недавние пути и две темы.
 - **Least privilege:** интерфейс показывает только доступные текущему Vault
   token разделы и действия; окончательное решение всегда принимает Vault.
 
@@ -56,9 +56,9 @@ curl --fail http://127.0.0.1:8080/healthz
 ## Безопасность
 
 Vault остаётся единственным источником авторизации. Token хранится только в
-`sessionStorage` текущей вкладки, пароль `userpass` не сохраняется. Не
-передавайте token, пароль, unseal key или recovery key через Git, `.env`,
-Compose environment или reverse-proxy headers.
+`sessionStorage` текущей вкладки. Vault Console не сохраняет пароль `userpass`;
+его сохранением и autofill может управлять браузер. Не передавайте credentials,
+unseal key или recovery key через Git, `.env`, Compose или proxy headers.
 
 Используйте HTTPS, доверенный образ и минимальные Vault policies. Проект
-проверен с HashiCorp Vault Community `1.21.3`.
+проверен с HashiCorp Vault Community `1.21.3` и `2.0.3`.

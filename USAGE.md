@@ -17,7 +17,7 @@
 
 ## Требования
 
-- HashiCorp Vault с доступным HTTP API; проект проверен с Community `1.21.3`;
+- HashiCorp Vault с доступным HTTP API; проверено с Community `1.21.3` и `2.0.3`;
 - существующий KV v2 mount или права на его создание;
 - `userpass` auth method для управления пользователями;
 - Docker и Docker Compose v2;
@@ -187,8 +187,9 @@ vault-console.example.com {
 
 ### Вход
 
-Доступны Vault token и `userpass`. Сессия действует в текущей вкладке, а
-renewable token можно продлить вручную из её меню.
+По умолчанию открывается `userpass` с нативным browser autofill; Vault token
+доступен в соседней вкладке. Сессия действует в текущей вкладке, а renewable
+token можно продлить вручную из её меню.
 
 ### KV v2
 
@@ -223,7 +224,8 @@ HCL доступны только для безопасного просмотр
 ## Сессия и данные в браузере
 
 - Vault token хранится в `sessionStorage` текущей вкладки до logout или expiry.
-- Пароль `userpass` не сохраняется.
+- Vault Console не сохраняет пароль `userpass`; password manager браузера
+  может сохранить его по выбору пользователя.
 - Recent paths остаются в `sessionStorage`.
 - Для `userpass` избранное и тема могут сохраняться в `localStorage`.
 - Secret values, JSON keys и ответы Vault не сохраняются в истории навигации.

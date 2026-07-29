@@ -197,7 +197,7 @@ export default function LoginPage() {
               <h1 id="login-heading" className="text-lg font-semibold tracking-tight text-foreground-900">Vault Console</h1>
             </div>
           </div>
-          <p className="text-xs leading-5 text-foreground-500">Sign in directly to the Vault server configured for this console. The session token stays scoped to this tab; passwords are never stored.</p>
+          <p className="text-xs leading-5 text-foreground-500">Sign in directly to the Vault server configured for this console. The session token stays scoped to this tab; the console never stores your password.</p>
         </header>
 
         {(runtimeConfig.allowCustomVaultAddress || runtimeConfig.allowCustomUserpassMount) && (
@@ -368,7 +368,7 @@ export default function LoginPage() {
         <footer className="flex items-center justify-center gap-2 border-t border-background-200 bg-background-100 px-6 py-3 text-[10px] text-foreground-400">
           <i className="ri-shield-check-line text-success-600" aria-hidden="true" />
           {session.sessionPersistenceAvailable
-            ? 'Token stays in this tab until sign out or expiry; passwords are never stored'
+            ? 'Token stays in this tab; password storage follows your browser settings'
             : 'Session restore is unavailable; credentials remain in memory only'}
         </footer>
       </section>

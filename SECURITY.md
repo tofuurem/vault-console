@@ -33,7 +33,7 @@ metadata. Use a Vault audit device for the authoritative operation trail.
 
 ### GHSA-qwww-vcr4-c8h2 — not reachable
 
-Reviewed: 2026-07-27
+Reviewed: 2026-07-29
 
 `npm audit --omit=dev` reports the React Router advisory
 [GHSA-qwww-vcr4-c8h2](https://github.com/advisories/GHSA-qwww-vcr4-c8h2)
@@ -56,7 +56,7 @@ router release is available.
 
 ### GHSA-mh99-v99m-4gvg — build tooling only
 
-Reviewed: 2026-07-27
+Reviewed: 2026-07-29
 
 The full development-tree audit reports the `brace-expansion` denial-of-service
 advisory through ESLint and TypeScript ESLint glob matching. It is absent from
