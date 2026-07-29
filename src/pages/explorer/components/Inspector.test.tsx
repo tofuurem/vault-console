@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -74,6 +74,101 @@ describe('Inspector partial KV access', () => {
 
     await user.click(screen.getByRole('tab', { name: 'Metadata' }));
     expect(screen.getByText('Secret metadata is not allowed')).toBeVisible();
+  });
+
+  it('opens the read-only workspace independently from edit permission', async () => {
+    const user = userEvent.setup();
+    const onView = vi.fn();
+    renderInspector({ secret, history }, {
+      onView,
+      onEdit: vi.fn(),
+      permissions: { ...permissions, canEdit: false },
+    });
+
+    const view = screen.getByRole('button', { name: 'View secret full screen' });
+    expect(view).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Edit secret' })).not.toBeInTheDocument();
+
+    await user.click(view);
+    expect(onView).toHaveBeenCalledOnce();
+  });
+
+  it('reveals primitive and container values independently, then resets for another path', async () => {
+    const user = userEvent.setup();
+    const nestedSecret: KvV2Secret = {
+      ...secret,
+      data: {
+        API_KEY: 'memory-only-value',
+        CONFIG: {
+          token: 'nested-memory-value',
+          enabled: true,
+        },
+      },
+    };
+    const view = render(
+      <Inspector
+        state={{ status: 'success', data: { secret: nestedSecret, history } }}
+        mount="applications"
+        path="billing/database"
+        onRetry={vi.fn()}
+        permissions={permissions}
+      />,
+    );
+
+    const revealApiKey = screen.getByRole('button', { name: 'Reveal API_KEY' });
+    const revealConfig = screen.getByRole('button', { name: 'Reveal CONFIG' });
+    expect(revealApiKey).toHaveAttribute('aria-pressed', 'false');
+    expect(revealConfig).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByText('memory-only-value')).not.toBeInTheDocument();
+    expect(screen.queryByText(/nested-memory-value/)).not.toBeInTheDocument();
+
+    await user.click(revealApiKey);
+    expect(screen.getByText('memory-only-value')).toBeVisible();
+    expect(screen.queryByText(/nested-memory-value/)).not.toBeInTheDocument();
+    expect(revealApiKey).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Copy CONFIG' }));
+    expect(screen.queryByText(/nested-memory-value/)).not.toBeInTheDocument();
+
+    await user.click(revealConfig);
+    const preview = screen.getByText(/nested-memory-value/);
+    expect(preview).toBeVisible();
+    expect(preview.closest('pre')).toHaveClass('max-h-48', 'overflow-auto');
+
+    view.rerender(
+      <Inspector
+        state={{ status: 'success', data: { secret: nestedSecret, history } }}
+        mount="applications"
+        path="billing/other"
+        onRetry={vi.fn()}
+        permissions={permissions}
+      />,
+    );
+    expect(screen.queryByText('memory-only-value')).not.toBeInTheDocument();
+    expect(screen.queryByText(/nested-memory-value/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reveal API_KEY' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
+  it('automatically masks an individually revealed Inspector value', () => {
+    vi.useFakeTimers();
+    try {
+      renderInspector({ secret, history });
+      fireEvent.click(screen.getByRole('button', { name: 'Reveal API_KEY' }));
+      expect(screen.getByText('memory-only-value')).toBeVisible();
+
+      act(() => vi.advanceTimersByTime(8_000));
+
+      expect(screen.queryByText('memory-only-value')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reveal API_KEY' })).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows version history while scoping a data denial to the Data tab', async () => {

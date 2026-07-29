@@ -333,6 +333,24 @@ describe('ExplorerPage', () => {
     ));
   });
 
+  it('opens the existing full-screen viewer without entering edit mode', async () => {
+    const user = userEvent.setup();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway()} kvV2Gateway={kvGateway()} />);
+    await login(user);
+    await user.click((await screen.findAllByText('nested'))[0]);
+    await screen.findByText('service');
+
+    await user.click(screen.getByRole('button', { name: 'View secret full screen' }));
+
+    const workspace = await screen.findByRole('dialog', {
+      name: 'applications/nested',
+    });
+    expect(within(workspace).getByRole('button', { name: 'Reveal values' })).toBeVisible();
+    expect(within(workspace).queryByLabelText('Secret JSON editor')).not.toBeInTheDocument();
+    expect(within(workspace).queryByText('nested-memory-value')).not.toBeInTheDocument();
+  });
+
   it('soft-deletes without typed friction and restores the exact version once', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();

@@ -6,13 +6,14 @@ import Badge from '@/components/base/Badge';
 import Tabs from '@/components/base/Tabs';
 import Tooltip from '@/components/base/Tooltip';
 import type { VaultError } from '@/domain/vault/errors';
-import { isSecretJsonObject, secretContainerSize, secretValueType } from '@/domain/vault/secret-json';
+import { secretContainerSize, secretValueType } from '@/domain/vault/secret-json';
 
 interface InspectorProps {
   readonly state: VaultQueryState<KvSecretDetails>;
   readonly mount: string;
   readonly path: string | null;
   readonly onRetry: () => void;
+  readonly onView?: () => void;
   readonly onEdit?: () => void;
   readonly permissions?: KvActionPermissions;
   readonly onCompare?: () => void;
@@ -34,9 +35,11 @@ function printableValue(value: unknown): string {
 }
 
 function MaskedValue({
+  label,
   value,
   onClipboardFeedback,
 }: {
+  readonly label: string;
   readonly value: unknown;
   readonly onClipboardFeedback?: (success: boolean) => void;
 }) {
@@ -45,6 +48,13 @@ function MaskedValue({
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const printable = printableValue(value);
+  const type = secretValueType(value);
+  const container = type === 'array' || type === 'object';
+
+  useEffect(() => {
+    setRevealed(false);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  }, [value]);
 
   useEffect(() => () => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -52,8 +62,12 @@ function MaskedValue({
   }, []);
 
   const reveal = () => {
-    setRevealed((current) => !current);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (revealed) {
+      setRevealed(false);
+      return;
+    }
+    setRevealed(true);
     timeoutRef.current = setTimeout(() => setRevealed(false), 8_000);
   };
   const copy = async () => {
@@ -70,18 +84,37 @@ function MaskedValue({
   };
 
   return (
-    <div className="group flex min-w-0 items-start gap-1.5">
-      <span className={`min-w-0 flex-1 break-all font-mono text-xs ${revealed ? 'whitespace-pre-wrap text-foreground-800' : 'select-none text-foreground-400'}`}>
-        {revealed ? printable : '•'.repeat(Math.min(Math.max(printable.length, 8), 24))}
-      </span>
-      <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
-        <Tooltip content={revealed ? 'Hide value' : 'Reveal for 8 seconds'}>
-          <button type="button" aria-label={revealed ? 'Hide value' : 'Reveal value'} onClick={reveal} className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6">
+    <div className="flex min-w-0 items-start gap-1.5">
+      <div className="min-w-0 flex-1">
+        {revealed && container ? (
+          <pre className="max-h-48 overflow-auto whitespace-pre rounded bg-background-100 p-2 font-mono text-[11px] leading-5 text-foreground-800"><code>{printable}</code></pre>
+        ) : container ? (
+          <div className="flex min-w-0 items-center gap-1.5 text-xs text-foreground-500">
+            <i className={type === 'array' ? 'ri-brackets-line' : 'ri-braces-line'} aria-hidden="true" />
+            <span className="font-mono">{type}</span>
+            <span className="text-foreground-300">·</span>
+            <span>{secretContainerSize(value)} {secretContainerSize(value) === 1 ? 'item' : 'items'}</span>
+          </div>
+        ) : (
+          <span className={`block min-w-0 break-all font-mono text-xs ${revealed ? 'whitespace-pre-wrap text-foreground-800' : 'select-none text-foreground-400'}`}>
+            {revealed ? printable : '•'.repeat(Math.min(Math.max(printable.length, 8), 24))}
+          </span>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-0.5">
+        <Tooltip content={revealed ? `Hide ${label}` : `Reveal ${label} for 8 seconds`}>
+          <button
+            type="button"
+            aria-label={`${revealed ? 'Hide' : 'Reveal'} ${label}`}
+            aria-pressed={revealed}
+            onClick={reveal}
+            className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6"
+          >
             <i className={`${revealed ? 'ri-eye-off-line' : 'ri-eye-line'} text-xs`} aria-hidden="true" />
           </button>
         </Tooltip>
         <Tooltip content={copied ? 'Copied' : 'Copy value'}>
-          <button type="button" aria-label="Copy value" onClick={() => void copy()} className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6">
+          <button type="button" aria-label={`Copy ${label}`} onClick={() => void copy()} className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6">
             <i className={`${copied ? 'ri-check-line text-success-600' : 'ri-file-copy-line'} text-xs`} aria-hidden="true" />
           </button>
         </Tooltip>
@@ -91,25 +124,21 @@ function MaskedValue({
 }
 
 function InspectorValue({
+  label,
   value,
   onClipboardFeedback,
 }: {
+  readonly label: string;
   readonly value: unknown;
   readonly onClipboardFeedback?: (success: boolean) => void;
 }) {
-  if (Array.isArray(value) || isSecretJsonObject(value)) {
-    const type = secretValueType(value);
-    const size = secretContainerSize(value);
-    return (
-      <div className="flex min-w-0 items-center gap-1.5 text-xs text-foreground-500">
-        <i className={type === 'array' ? 'ri-brackets-line' : 'ri-braces-line'} aria-hidden="true" />
-        <span className="font-mono">{type}</span>
-        <span className="text-foreground-300">·</span>
-        <span>{size} {size === 1 ? 'item' : 'items'}</span>
-      </div>
-    );
-  }
-  return <MaskedValue value={value} onClipboardFeedback={onClipboardFeedback} />;
+  return (
+    <MaskedValue
+      label={label}
+      value={value}
+      onClipboardFeedback={onClipboardFeedback}
+    />
+  );
 }
 
 function formatTime(value: string): string {
@@ -246,6 +275,7 @@ export default function Inspector({
   mount,
   path,
   onRetry,
+  onView,
   onEdit,
   permissions,
   onCompare,
@@ -348,6 +378,18 @@ export default function Inspector({
                   </button>
                 </Tooltip>
               )}
+              {onView && (
+                <Tooltip content="View secret full screen">
+                  <button
+                    type="button"
+                    aria-label="View secret full screen"
+                    onClick={onView}
+                    className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"
+                  >
+                    <i className="ri-eye-line" aria-hidden="true" />
+                  </button>
+                </Tooltip>
+              )}
               {onEdit && permissions?.canEdit && <button type="button" onClick={onEdit} className="h-11 rounded-md bg-primary-500 px-3 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2">Edit secret</button>}
             </div>
           </div>
@@ -356,9 +398,9 @@ export default function Inspector({
             <div className="grid grid-cols-[minmax(90px,120px)_1fr] border-b border-background-200 bg-background-100 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-500"><span>Key</span><span>Value</span></div>
             <div className="divide-y divide-background-100">
               {Object.entries(secret.data).map(([key, value]) => (
-                <div key={key} className="grid grid-cols-[minmax(90px,120px)_1fr] px-2.5 py-2">
+                <div key={`${mount}\u001f${path}\u001f${secret.metadata.version}\u001f${key}`} className="grid grid-cols-[minmax(90px,120px)_1fr] px-2.5 py-2">
                   <span className="break-all pr-2 font-mono text-xs font-medium text-foreground-700">{key}</span>
-                  <InspectorValue value={value} onClipboardFeedback={onClipboardFeedback} />
+                  <InspectorValue label={key} value={value} onClipboardFeedback={onClipboardFeedback} />
                 </div>
               ))}
             </div>

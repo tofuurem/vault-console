@@ -39,6 +39,7 @@ interface ExplorerMainProps {
   readonly onRefresh: () => void;
   readonly onRetrySecret: () => void;
   readonly onCreateSecret?: () => void;
+  readonly onViewSecret?: () => void;
   readonly onEditSecret?: () => void;
   readonly permissions?: KvActionPermissions;
   readonly onCompare?: () => void;
@@ -83,6 +84,7 @@ export default function ExplorerMain({
   onRefresh,
   onRetrySecret,
   onCreateSecret,
+  onViewSecret,
   onEditSecret,
   permissions,
   onCompare,
@@ -244,6 +246,10 @@ export default function ExplorerMain({
           mount={mount}
           path={selectedPath}
           onRetry={onRetrySecret}
+          onView={onViewSecret ? () => {
+            exitFullScreen();
+            onViewSecret();
+          } : undefined}
           onEdit={onEditSecret ? () => {
             exitFullScreen();
             onEditSecret();
