@@ -78,6 +78,11 @@ vault_exec kv put applications/bulk-one STATE=first >/dev/null
 vault_exec kv put applications/bulk-one STATE=second >/dev/null
 vault_exec kv put applications/bulk-two STATE=first >/dev/null
 vault_exec kv put applications/bulk-two STATE=second >/dev/null
+vault_exec kv put applications/permanent-single STATE=delete-me >/dev/null
+vault_exec kv put applications/permanent-bulk-one STATE=delete-me >/dev/null
+vault_exec kv put applications/permanent-bulk-two STATE=delete-me >/dev/null
+vault_exec kv put applications/metadata-roundtrip STATE=keep-me >/dev/null
+vault_exec kv put applications/write-only-existing LEGACY=replace-me >/dev/null
 
 docker exec \
   --interactive \
@@ -363,6 +368,27 @@ HCL
 
 partial_list_token="$(vault_exec token create -no-default-policy -policy=e2e-partial-list -ttl=10m -field=token)"
 
+docker exec \
+  --interactive \
+  --env VAULT_ADDR=http://127.0.0.1:8200 \
+  --env "VAULT_TOKEN=${root_token}" \
+  "${vault_container}" vault policy write e2e-write-only - >/dev/null <<'HCL'
+path "sys/internal/ui/mounts" {
+  capabilities = ["read"]
+}
+
+path "sys/capabilities-self" {
+  capabilities = ["update"]
+}
+
+path "applications/data/write-only-existing" {
+  capabilities = ["create", "update"]
+}
+HCL
+
+write_only_token="$(vault_exec token create -no-default-policy -policy=e2e-write-only -ttl=10m -field=token)"
+self_service_token="$(vault_exec token create -policy=e2e-userpass -ttl=10m -renewable=true -field=token)"
+
 docker compose up --detach --build
 
 console_origin="http://127.0.0.1:${console_port}"
@@ -416,6 +442,8 @@ E2E_PARTIAL_LIST_VAULT_TOKEN="${partial_list_token}" \
 E2E_RESTRICTED_ACCESS_TOKEN="${restricted_access_token}" \
 E2E_REVOCABLE_VAULT_TOKEN="${revocable_token}" \
 E2E_RESTORED_REVOCABLE_VAULT_TOKEN="${restored_revocable_token}" \
+E2E_WRITE_ONLY_VAULT_TOKEN="${write_only_token}" \
+E2E_SELF_SERVICE_VAULT_TOKEN="${self_service_token}" \
 npm run test:e2e:playwright
 
 api_log_marker="vault-console-api-log-marker-${test_id}"

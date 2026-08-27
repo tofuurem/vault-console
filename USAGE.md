@@ -161,6 +161,49 @@ path "applications/metadata/team/*" {
 Права на запись и версии выдавайте отдельно по соответствующим KV v2 API
 paths. `LIST` раскрывает имена путей, даже если чтение data запрещено.
 
+Готовый daily-KV шаблон находится в
+[`deploy/vault-console-kv-daily-policy.hcl.example`](deploy/vault-console-kv-daily-policy.hcl.example).
+Основные действия требуют разных точных capabilities:
+
+| Действие | Vault API path | Capability |
+| --- | --- | --- |
+| Читать/писать secret | `applications/data/team/*` | `read`, `create`, `update` |
+| Soft-delete фактическую latest-версию | `applications/data/team/*` | `delete` |
+| Навигация и metadata | `applications/metadata/team/*` | `list`, `read` |
+| Редактировать metadata ключа | `applications/metadata/team/*` | `update` |
+| Полностью удалить ключ | `applications/metadata/team/*` | `delete` |
+| Delete выбранных версий | `applications/delete/team/*` | `update` |
+| Undelete выбранных версий | `applications/undelete/team/*` | `update` |
+| Необратимо destroy выбранные версии | `applications/destroy/team/*` | `update` |
+| Читать/менять defaults всего mount | `applications/config` | `read`, `update` |
+
+Полное удаление metadata удаляет сам ключ, все его версии, custom metadata и
+историю без возможности восстановления. Оно не равно soft delete latest или
+destroy отдельных версий. Для bulk-удаления UI проверяет каждый exact path,
+ограничивает параллелизм и требует фразу `DELETE N KEYS`.
+
+Для пользователя, которому разрешена только полная запись известного секрета,
+можно не выдавать `LIST` и `read`:
+
+```hcl
+path "sys/internal/ui/mounts" {
+  capabilities = ["read"]
+}
+
+path "sys/capabilities-self" {
+  capabilities = ["update"]
+}
+
+path "applications/data/team/rotated-token" {
+  capabilities = ["create", "update"]
+}
+```
+
+Такой пользователь открывает secret через `Open exact path`. Если metadata
+читается, UI фиксирует CAS на свежей current version. Без metadata read
+безопасный default — `Create only (CAS 0)`; `Write without CAS` требует
+отдельного выбора и подтверждения полной замены неизвестного документа.
+
 Интерфейс управляет визуальными ролями с prefix `vc-role-` и прямыми
 пользовательскими policies `vc-user-<username>`. Сторонние или неподдерживаемые
 HCL policies остаются External/read-only и не переписываются автоматически.
@@ -213,22 +256,37 @@ vault-console.example.com {
 
 По умолчанию открывается `userpass` с нативным browser autofill; Vault token
 доступен в соседней вкладке. Сессия действует в текущей вкладке, а renewable
-token можно продлить вручную из её меню.
+token можно продлить вручную из её меню. `Copy token` передаёт значение прямо
+в Clipboard API и не выводит его в DOM или toast. `Revoke token` вызывает
+Vault `revoke-self` и может отозвать дочерние tokens, leases и dynamic secrets;
+обычный `Sign out` очищает только текущую вкладку.
+
+Self-service действия обычно приходят из Vault policy `default`. Для
+`-no-default-policy` token выдайте их явно:
+
+```hcl
+path "auth/token/lookup-self" { capabilities = ["read"] }
+path "auth/token/renew-self" { capabilities = ["update"] }
+path "auth/token/revoke-self" { capabilities = ["update"] }
+```
 
 ### KV v2
 
 Explorer показывает доступные mounts, папки и secrets. Можно:
 
 - создавать KV v2 mounts при наличии прав;
-- искать в текущей папке или рекурсивно по metadata `LIST`;
+- искать в текущей папке или рекурсивно по metadata `LIST`, а без `LIST`
+  открывать известный exact path;
 - просматривать отдельные значения или весь секрет в полноэкранных Tree/JSON;
-- редактировать вложенный JSON;
-- сравнивать, удалять, восстанавливать и уничтожать версии;
-- выполнять массовый soft delete или явный permanent destroy.
+- редактировать вложенный JSON и выполнять явную write-only замену;
+- сравнивать, soft-delete, undelete и permanently destroy версии;
+- просматривать и редактировать metadata ключа и defaults KV v2 mount;
+- полностью удалять один ключ или подтверждённый набор ключей.
 
-Soft delete обратим и предлагает короткий Undo. Destroy version и Delete
-metadata необратимы и требуют явного подтверждения. Всегда проверяйте path и
-номер версии перед применением.
+Soft delete обратим и предлагает короткий Undo. Для latest-операции Vault
+удаляет версию, которая является current в момент выполнения; UI перечитывает
+metadata и привязывает Undo к фактически затронутому номеру. Destroy version и
+Delete key permanently необратимы и требуют явного подтверждения.
 
 ### Access Center
 
@@ -240,10 +298,13 @@ metadata необратимы и требуют явного подтвержд�
 актуальное состояние с Vault перед Apply. External resources и неподдерживаемый
 HCL доступны только для безопасного просмотра.
 
+Release `0.8.0` не меняет поведение или scope Access Center.
+
 ### Навигация
 
-`Ctrl+K` или `⌘K` открывает Command palette. Тема, плотность таблиц,
-расположение Inspector и избранные пути настраиваются из интерфейса.
+`Ctrl+K` или `⌘K` открывает Command palette. Тема, расположение Inspector и
+избранные пути настраиваются из интерфейса. Таблицы используют один
+comfortable layout; переключатель Compact/Comfortable удалён.
 
 ## Сессия и данные в браузере
 
@@ -259,6 +320,11 @@ browser preferences. Версия `0.7.1` автоматически перен�
 `vault-console` keys при первом открытии `/`, чтобы они не пересекались с
 зарезервированными token keys штатного Vault UI. Миграция не читает и не
 переносит токены.
+
+При первом открытии `0.8.0` удаляются только устаревшие density records
+`vc-console:workspace-preferences:v1` и
+`vault-console:workspace-preferences:v1`. Тема, Inspector, favorites, recents и
+любые browser keys штатного Vault UI сохраняются.
 
 Сессии двух интерфейсов намеренно независимы. Вход в Vault Console на `/` не
 авторизует вкладку штатного UI на `/ui/`; войдите в нативный UI отдельно. Если
@@ -290,6 +356,12 @@ curl --fail http://127.0.0.1:8080/healthz
 docker compose pull vault-console
 docker compose up -d --no-build vault-console
 ```
+
+Обновление `0.7.1` → `0.8.0` не требует миграции Vault data. После rollout
+проверьте `/healthz`, вход token/userpass, exact-path read и одну разрешённую
+metadata capability. При необходимости можно вернуть контейнер `0.7.1`; уже
+выполненные permanent delete, revoke-self и другие Vault mutations откат образа
+не отменяет.
 
 ## Локальная разработка
 

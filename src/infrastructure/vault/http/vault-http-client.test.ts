@@ -116,6 +116,30 @@ describe('VaultHttpClient', () => {
     ).rejects.toMatchObject({ code: 'authorization', status: 403 });
   });
 
+  it('classifies Vault KV check-and-set mismatches as conflicts even with HTTP 400', async () => {
+    const client = new VaultHttpClient(
+      vi.fn<VaultFetch>().mockResolvedValue(
+        new Response(JSON.stringify({
+          request_id: 'cas-conflict-request',
+          errors: ['check-and-set parameter did not match the current version'],
+        }), { status: 400, headers: { 'Content-Type': 'application/json' } }),
+      ),
+    );
+
+    const error = await client.request('https://vault.example.test', 'secret/data/app', {
+      method: 'POST',
+      body: { data: { secret: 'do-not-retain' }, options: { cas: 0 } },
+    }).catch((value: unknown) => value);
+
+    expect(error).toMatchObject({
+      code: 'conflict',
+      status: 400,
+      diagnostic: { requestId: 'cas-conflict-request' },
+    });
+    expect(JSON.stringify(error)).not.toContain('do-not-retain');
+    expect(JSON.stringify(error)).not.toContain('check-and-set parameter');
+  });
+
   it('keeps status-based handling for non-JSON error responses', async () => {
     const client = new VaultHttpClient(
       vi.fn<VaultFetch>().mockResolvedValue(

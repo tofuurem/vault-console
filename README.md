@@ -14,12 +14,15 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community: рабо
 
 ## Возможности
 
-- **KV v2:** mounts, папки, рекурсивный поиск, версии, полноэкранный и
-  per-value просмотр, вложенный JSON, delete/undelete/destroy и bulk-операции.
+- **KV v2:** mounts, папки, exact-path и рекурсивный поиск, вложенный JSON,
+  версии, metadata/config, write-only CAS и одиночные или bulk-операции вплоть
+  до полного удаления ключа.
 - **Управление доступом:** пользователи `userpass`, Identity groups,
   визуальные роли и ACL policies с Review перед применением.
 - **Рабочий интерфейс:** нативный autofill для `userpass`, настраиваемый
-  Inspector, Command palette, избранное, недавние пути и две темы.
+  Inspector, Command palette, избранное, недавние пути и светлая/тёмная тема.
+- **Текущая сессия:** безопасное копирование token в clipboard, renew,
+  revoke-self и отдельный локальный sign-out.
 - **Least privilege:** интерфейс показывает только доступные текущему Vault
   token разделы и действия; окончательное решение всегда принимает Vault.
 
@@ -62,6 +65,8 @@ zero-noise-registry.registry.twcstorage.ru/vault-console:0.7.1@sha256:a915252d72
 - [SECURITY.md](SECURITY.md) — модель безопасности и dependency advisories.
 - [Admin policy example](deploy/vault-console-admin-policy.hcl.example) —
   полный шаблон прав оператора, который необходимо сузить под окружение.
+- [Daily KV policy example](deploy/vault-console-kv-daily-policy.hcl.example) —
+  точные KV v2 paths для ежедневного чтения, записи и lifecycle-операций.
 
 ## Безопасность
 

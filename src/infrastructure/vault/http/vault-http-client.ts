@@ -49,17 +49,27 @@ function responseRequestId(response: Response): string | undefined {
 interface VaultErrorResponseSummary {
   readonly requestId?: string;
   readonly invalidToken: boolean;
+  readonly casConflict: boolean;
+}
+
+function vaultErrorLines(value: unknown): readonly string[] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return [];
+  const errors = (value as { errors?: unknown }).errors;
+  if (!Array.isArray(errors)) return [];
+  return errors.flatMap((error) => (
+    typeof error === 'string'
+      ? error.split('\n').map((line) => line.trim().replace(/^\*+\s*/, '').trim().toLowerCase())
+      : []
+  ));
 }
 
 function isInvalidTokenError(value: unknown): boolean {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-  const errors = (value as { errors?: unknown }).errors;
-  if (!Array.isArray(errors)) return false;
-  return errors.some((error) => (
-    typeof error === 'string'
-    && error.split('\n').some((line) => (
-      line.trim().replace(/^\*+\s*/, '').trim().toLowerCase() === 'invalid token'
-    ))
+  return vaultErrorLines(value).includes('invalid token');
+}
+
+function isCasConflictError(value: unknown): boolean {
+  return vaultErrorLines(value).some((line) => (
+    line === 'check-and-set parameter did not match the current version'
   ));
 }
 
@@ -69,9 +79,10 @@ async function errorResponseSummary(response: Response): Promise<VaultErrorRespo
     return {
       ...(typeof payload.request_id === 'string' ? { requestId: payload.request_id } : {}),
       invalidToken: isInvalidTokenError(payload),
+      casConflict: isCasConflictError(payload),
     };
   } catch {
-    return { invalidToken: false };
+    return { invalidToken: false, casConflict: false };
   }
 }
 
@@ -183,6 +194,12 @@ export class VaultHttpClient {
         const requestId = responseRequestId(response) ?? summary.requestId;
         if (summary.invalidToken) {
           throw new VaultError('session-expired', {
+            status: response.status,
+            diagnostic: diagnosticFor(options, startedAt, response, requestId),
+          });
+        }
+        if (summary.casConflict) {
+          throw new VaultError('conflict', {
             status: response.status,
             diagnostic: diagnosticFor(options, startedAt, response, requestId),
           });

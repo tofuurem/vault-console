@@ -432,19 +432,33 @@ export default function ExplorerPage() {
       directoryPath: targetDirectoryPath,
     } = destructiveTarget;
     try {
-      if (action.kind === 'delete-latest') await kvGateway.deleteLatestSecret(session, targetMount, targetPath);
+      let affectedVersion = action.kind === 'delete-key' ? undefined : action.version;
+      if (action.kind === 'delete-latest') {
+        await kvGateway.deleteLatestSecret(session, targetMount, targetPath);
+        try {
+          const freshMetadata = await kvGateway.readSecretMetadata(
+            session,
+            targetMount,
+            targetPath,
+          );
+          affectedVersion = freshMetadata.currentVersion;
+        } catch {
+          // The delete itself succeeded. Keep the displayed snapshot version if
+          // a follow-up metadata read becomes unavailable.
+        }
+      }
       if (action.kind === 'delete-version') await kvGateway.deleteVersions(session, targetMount, targetPath, [action.version]);
       if (action.kind === 'destroy-version') await kvGateway.destroyVersions(session, targetMount, targetPath, [action.version]);
       if (action.kind === 'delete-key') await kvGateway.deleteMetadata(session, targetMount, targetPath);
       if (action.kind === 'delete-latest' || action.kind === 'delete-version') {
         toast.action(
-          `Version ${action.version} of ${targetMount}/${targetPath} was soft-deleted.`,
+          `Version ${affectedVersion} of ${targetMount}/${targetPath} was soft-deleted.`,
           {
             label: 'Undo',
             onAction: () => void undoDeletedVersion(
               targetMount,
               targetPath,
-              action.version,
+              affectedVersion!,
             ),
           },
         );

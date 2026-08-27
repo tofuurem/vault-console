@@ -1,0 +1,56 @@
+# Daily KV v2 policy example for the applications/team prefix.
+# Replace both the mount and prefix, then remove every capability the operator
+# does not need. LIST reveals logical key names inside the granted scope.
+
+path "sys/internal/ui/mounts" {
+  capabilities = ["read"]
+}
+
+# Optional capability preflight. Vault remains authoritative for every call.
+path "sys/capabilities-self" {
+  capabilities = ["update"]
+}
+
+path "applications/data/team/*" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+
+path "applications/metadata/team" {
+  capabilities = ["list"]
+}
+
+path "applications/metadata/team/*" {
+  capabilities = ["read", "list", "update", "delete"]
+}
+
+path "applications/delete/team/*" {
+  capabilities = ["update"]
+}
+
+path "applications/undelete/team/*" {
+  capabilities = ["update"]
+}
+
+path "applications/destroy/team/*" {
+  capabilities = ["update"]
+}
+
+# Mount-wide defaults affect every key under applications/. Grant separately
+# from the team prefix when the operator may administer retention defaults.
+path "applications/config" {
+  capabilities = ["read", "update"]
+}
+
+# Normally inherited from Vault's default policy. Keep these explicit only for
+# tokens created with -no-default-policy that need the session menu actions.
+path "auth/token/lookup-self" {
+  capabilities = ["read"]
+}
+
+path "auth/token/renew-self" {
+  capabilities = ["update"]
+}
+
+path "auth/token/revoke-self" {
+  capabilities = ["update"]
+}

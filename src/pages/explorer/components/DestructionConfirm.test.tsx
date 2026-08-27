@@ -29,6 +29,7 @@ describe('DestructionConfirm', () => {
 
     expect(screen.queryByLabelText(/Type applications\/billing\/database/)).not.toBeInTheDocument();
     expect(screen.getByText(/reversible soft delete/i)).toBeVisible();
+    expect(screen.queryByText(/· v7/)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Delete current version' }));
     expect(onConfirm).toHaveBeenCalledWith(action);
   });

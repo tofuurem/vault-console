@@ -6,6 +6,8 @@ const partialListVaultToken = process.env.E2E_PARTIAL_LIST_VAULT_TOKEN;
 const restrictedAccessToken = process.env.E2E_RESTRICTED_ACCESS_TOKEN;
 const revocableVaultToken = process.env.E2E_REVOCABLE_VAULT_TOKEN;
 const restoredRevocableVaultToken = process.env.E2E_RESTORED_REVOCABLE_VAULT_TOKEN;
+const writeOnlyVaultToken = process.env.E2E_WRITE_ONLY_VAULT_TOKEN;
+const selfServiceVaultToken = process.env.E2E_SELF_SERVICE_VAULT_TOKEN;
 
 test.skip(!vaultToken, 'E2E_VAULT_TOKEN is supplied by the disposable real-Vault harness.');
 
@@ -229,6 +231,45 @@ test('signs in with userpass without persisting the password and signs out clean
   expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
 });
 
+test('copies, renews, and revokes the current token without density controls', async ({ page }) => {
+  test.skip(
+    !selfServiceVaultToken,
+    'E2E_SELF_SERVICE_VAULT_TOKEN is supplied by the disposable real-Vault harness.',
+  );
+  await login(page, selfServiceVaultToken);
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], {
+    origin: new URL(page.url()).origin,
+  });
+
+  await page.getByRole('button', { name: /^Session menu/ }).click();
+  await expect(page.getByText('Table density')).toHaveCount(0);
+  await expect(page.getByText('Compact', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Comfortable', { exact: true })).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText(selfServiceVaultToken!);
+
+  await page.getByRole('button', { name: 'Copy token' }).click();
+  await expect(page.getByRole('button', { name: 'Token copied' })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(selfServiceVaultToken);
+  await expect(page.locator('body')).not.toContainText(selfServiceVaultToken!);
+
+  await page.getByRole('button', { name: 'Renew token' }).click();
+  await expect(page.getByText("Session renewed with Vault's returned TTL.")).toBeVisible();
+  await page.getByRole('button', { name: 'Revoke token…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Revoke current token' });
+  await expect(dialog).toContainText('This changes state in Vault');
+  await dialog.getByRole('button', { name: 'Revoke token' }).click();
+
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('alert')).toContainText(
+    'Token revoked. Sign in with another Vault token or userpass account.',
+  );
+  const lookup = await page.request.post('/v1/auth/token/lookup', {
+    headers: { 'X-Vault-Token': vaultToken! },
+    data: { token: selfServiceVaultToken },
+  });
+  expect(lookup.ok()).toBe(false);
+});
+
 test('reads secret data when metadata history is denied', async ({ page }) => {
   test.skip(!limitedVaultToken, 'E2E_LIMITED_VAULT_TOKEN is supplied by the disposable real-Vault harness.');
   await login(page, limitedVaultToken);
@@ -244,6 +285,48 @@ test('reads secret data when metadata history is denied', async ({ page }) => {
     headers: { 'X-Vault-Token': limitedVaultToken! },
   });
   expect(metadata.status()).toBe(403);
+});
+
+test('opens an exact path and replaces a write-only secret with an explicit strategy', async ({ page }) => {
+  test.skip(
+    !writeOnlyVaultToken,
+    'E2E_WRITE_ONLY_VAULT_TOKEN is supplied by the disposable real-Vault harness.',
+  );
+  await login(page, writeOnlyVaultToken);
+
+  await expect(page.getByText('This folder is outside your Vault policy')).toBeVisible();
+  await page.getByLabel('Secret path relative to applications').fill('write-only-existing');
+  await page.getByRole('button', { name: 'Open exact path' }).click();
+  await expect(page).toHaveURL(/secret=write-only-existing/);
+  await expect(page.getByText('Write-only access is available')).toBeVisible();
+  await page.getByRole('button', { name: 'Write new version…' }).click();
+
+  const drawer = page.getByRole('dialog', { name: 'Write secret without read access' });
+  await drawer.getByLabel('Secret key').first().fill('REPLACEMENT');
+  await drawer.getByLabel('Value for REPLACEMENT').fill('written-without-read');
+  await drawer.getByRole('button', { name: 'Review write' }).click();
+  await expect(drawer.getByText('Create only · CAS 0')).toBeVisible();
+  await drawer.getByRole('button', { name: 'Write complete secret' }).click();
+  await expect(drawer.getByRole('alert')).toContainText('The CAS check failed');
+
+  await drawer.getByRole('button', { name: 'Back' }).click();
+  await drawer.getByLabel('Write without CAS').check();
+  await drawer.getByRole('button', { name: 'Review write' }).click();
+  const write = drawer.getByRole('button', { name: 'Write complete secret' });
+  await expect(write).toBeDisabled();
+  await drawer.getByLabel(/I understand that this can replace/).check();
+  await write.click();
+  await expect(page.getByText(
+    'Wrote applications/write-only-existing as version 2 with no CAS.',
+  )).toBeVisible();
+
+  const response = await page.request.get('/v1/applications/data/write-only-existing', {
+    headers: { 'X-Vault-Token': vaultToken! },
+  });
+  expect(response.ok()).toBe(true);
+  expect((await response.json()).data.data).toEqual({
+    REPLACEMENT: 'written-without-read',
+  });
 });
 
 test('creates and opens a KV v2 mount through real Vault', async ({ page }) => {
@@ -583,6 +666,77 @@ test('reads and edits nested JSON without flattening it', async ({ page }) => {
   expect(body.data.data).toEqual(nextData);
 });
 
+test('round-trips key metadata and KV v2 mount defaults through fresh editors', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('button', { name: 'Inspect secret metadata-roundtrip' }).click();
+  const inspector = page.getByRole('complementary', { name: 'Secret inspector' });
+  await inspector.getByRole('tab', { name: 'Metadata' }).click();
+  await expect(inspector.getByText('Created', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Updated', { exact: true })).toBeVisible();
+  await inspector.getByRole('button', { name: 'Edit key metadata' }).click();
+
+  const metadataDrawer = page.getByRole('dialog', { name: 'Edit key metadata' });
+  await expect(metadataDrawer.getByText(/Loaded fresh from Vault/)).toBeVisible();
+  await metadataDrawer.getByLabel('Maximum versions').fill('6');
+  await metadataDrawer.getByLabel('Delete version after').fill('1h');
+  await metadataDrawer.getByLabel('Require check-and-set').check();
+  await metadataDrawer.getByLabel('Custom metadata key').fill('owner');
+  await metadataDrawer.getByLabel('Custom metadata value for owner').fill('security');
+  await metadataDrawer.getByRole('button', { name: 'Save key metadata' }).click();
+  await expect(page.getByText(
+    'Updated key metadata for applications/metadata-roundtrip.',
+  )).toBeVisible();
+
+  const metadata = await page.request.get('/v1/applications/metadata/metadata-roundtrip', {
+    headers: { 'X-Vault-Token': vaultToken! },
+  });
+  expect(metadata.ok()).toBe(true);
+  expect((await metadata.json()).data).toMatchObject({
+    max_versions: 6,
+    cas_required: true,
+    delete_version_after: '1h0m0s',
+    custom_metadata: { owner: 'security' },
+  });
+
+  const baselineResponse = await page.request.get('/v1/applications/config', {
+    headers: { 'X-Vault-Token': vaultToken! },
+  });
+  expect(baselineResponse.ok()).toBe(true);
+  const baseline = (await baselineResponse.json()).data;
+  try {
+    await page.getByRole('button', { name: 'Configure mount' }).click();
+    const mountDrawer = page.getByRole('dialog', { name: 'Configure KV v2 mount' });
+    await expect(mountDrawer.getByText(/Loaded fresh from Vault/)).toBeVisible();
+    await mountDrawer.getByLabel('Default maximum versions').fill('12');
+    await mountDrawer.getByLabel('Default delete delay').fill('90m');
+    await mountDrawer.getByRole('button', { name: 'Save mount configuration' }).click();
+    await expect(page.getByText(
+      'Updated KV v2 mount configuration for applications.',
+    )).toBeVisible();
+
+    const config = await page.request.get('/v1/applications/config', {
+      headers: { 'X-Vault-Token': vaultToken! },
+    });
+    expect(config.ok()).toBe(true);
+    expect((await config.json()).data).toMatchObject({
+      max_versions: 12,
+      cas_required: false,
+      delete_version_after: '1h30m0s',
+    });
+  } finally {
+    const restore = await page.request.post('/v1/applications/config', {
+      headers: { 'X-Vault-Token': vaultToken! },
+      data: {
+        max_versions: baseline.max_versions,
+        cas_required: baseline.cas_required,
+        delete_version_after: baseline.delete_version_after,
+      },
+    });
+    expect(restore.ok()).toBe(true);
+  }
+});
+
 test('compares, deletes, undeletes, and permanently destroys real KV versions', async ({ page }) => {
   await login(page);
 
@@ -614,7 +768,7 @@ test('compares, deletes, undeletes, and permanently destroys real KV versions', 
   await expect(softDelete.getByLabel('Type applications/lifecycle to confirm')).toHaveCount(0);
   await softDelete.getByRole('button', { name: 'Delete current version' }).click();
   await expect(page.getByText(
-    'Version 3 of applications/lifecycle was soft-deleted.',
+    'Version 4 of applications/lifecycle was soft-deleted.',
   )).toBeVisible();
   await expect(inspector.getByText('Deleted', { exact: true })).toBeVisible();
 
@@ -623,16 +777,16 @@ test('compares, deletes, undeletes, and permanently destroys real KV versions', 
   });
   expect(metadataAfterDelete.ok()).toBe(true);
   const metadataAfterDeleteBody = await metadataAfterDelete.json();
-  expect(metadataAfterDeleteBody.data.versions['3'].deletion_time).not.toBe('');
-  expect(metadataAfterDeleteBody.data.versions['4'].deletion_time).toBe('');
+  expect(metadataAfterDeleteBody.data.versions['3'].deletion_time).toBe('');
+  expect(metadataAfterDeleteBody.data.versions['4'].deletion_time).not.toBe('');
 
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.getByText(
-    'Restored version 3 of applications/lifecycle.',
+    'Restored version 4 of applications/lifecycle.',
   )).toBeVisible();
   await expect(inspector.getByText('Current', { exact: true })).toBeVisible();
   await page.getByRole('button', {
-    name: 'Dismiss Restored version 3 of applications/lifecycle. notification',
+    name: 'Dismiss Restored version 4 of applications/lifecycle. notification',
   }).click();
 
   await inspector.getByRole('button', { name: 'Version actions for version 1' }).click();
@@ -715,6 +869,40 @@ test('soft-deletes, undoes, and explicitly destroys selected real Vault versions
     const body = await metadata.json();
     expect(body.data.versions['1'].destroyed).toBe(true);
     expect(body.data.versions['2'].deletion_time).toBe('');
+  }
+});
+
+test('permanently deletes one key and a confirmed selection from real Vault', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('button', {
+    name: 'Delete key permanently permanent-single',
+  }).click();
+  const single = page.getByRole('dialog', { name: 'Delete key permanently' });
+  await single.getByLabel('Type applications/permanent-single to confirm')
+    .fill('applications/permanent-single');
+  await single.getByRole('button', { name: 'Delete key permanently' }).click();
+  await expect(page.getByText(
+    'Permanently deleted applications/permanent-single.',
+  )).toBeVisible();
+  const deletedSingle = await page.request.get('/v1/applications/metadata/permanent-single', {
+    headers: { 'X-Vault-Token': vaultToken! },
+  });
+  expect(deletedSingle.status()).toBe(404);
+
+  await page.getByRole('checkbox', { name: 'Select secret permanent-bulk-one' }).click();
+  await page.getByRole('checkbox', { name: 'Select secret permanent-bulk-two' }).click();
+  await page.getByRole('button', { name: 'Delete keys permanently…' }).click();
+  const bulk = page.getByRole('dialog', { name: 'Delete selected keys permanently' });
+  await bulk.getByLabel('Type DELETE 2 KEYS to confirm').fill('DELETE 2 KEYS');
+  await bulk.getByRole('button', { name: 'Delete 2 keys permanently' }).click();
+  await expect(page.getByText('Permanently deleted 2 keys.')).toBeVisible();
+
+  for (const path of ['permanent-bulk-one', 'permanent-bulk-two']) {
+    const deleted = await page.request.get(`/v1/applications/metadata/${path}`, {
+      headers: { 'X-Vault-Token': vaultToken! },
+    });
+    expect(deleted.status()).toBe(404);
   }
 });
 

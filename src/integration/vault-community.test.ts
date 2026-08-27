@@ -281,6 +281,115 @@ runAgainstVault('Vault Community integration', () => {
     ).rejects.toMatchObject({ code: 'session-expired', status: 403 });
   });
 
+  it('round-trips KV v2 write, retention, deletion, and mount configuration endpoints', async () => {
+    const path = 'endpoint-contract/secret';
+    const lifecyclePath = 'endpoint-contract/version-ops';
+
+    await expect(
+      kv.writeSecret(rootSession, kvMount, path, { state: 'first' }, { type: 'create-only' }),
+    ).resolves.toBe(1);
+    await expect(
+      kv.writeSecret(rootSession, kvMount, path, { state: 'second' }, { type: 'check-and-set', version: 1 }),
+    ).resolves.toBe(2);
+    await expect(
+      kv.writeSecret(rootSession, kvMount, path, { state: 'stale' }, { type: 'check-and-set', version: 1 }),
+    ).rejects.toMatchObject({ code: 'conflict' });
+
+    await kv.updateSecretMetadata(rootSession, kvMount, path, {
+      maxVersions: 7,
+      casRequired: false,
+      deleteVersionAfter: '45m',
+      customMetadata: {
+        owner: 'platform',
+        environment: 'integration',
+      },
+    });
+    await expect(kv.readSecretMetadata(rootSession, kvMount, path)).resolves.toMatchObject({
+      currentVersion: 2,
+      oldestVersion: 0,
+      maxVersions: 7,
+      casRequired: false,
+      deleteVersionAfter: '45m0s',
+      customMetadata: {
+        owner: 'platform',
+        environment: 'integration',
+      },
+    });
+
+    await kv.writeSecret(
+      rootSession,
+      kvMount,
+      lifecyclePath,
+      { state: 'first' },
+      { type: 'create-only' },
+    );
+    await kv.writeSecret(
+      rootSession,
+      kvMount,
+      lifecyclePath,
+      { state: 'second' },
+      { type: 'check-and-set', version: 1 },
+    );
+    await kv.deleteLatestSecret(rootSession, kvMount, lifecyclePath);
+    let history = await kv.readSecretMetadata(rootSession, kvMount, lifecyclePath);
+    expect(history.versions.find(({ version }) => version === 2)?.deletionTime).toBeTruthy();
+    expect(history.versions.find(({ version }) => version === 1)?.deletionTime).toBeUndefined();
+
+    await kv.undeleteVersions(rootSession, kvMount, lifecyclePath, [2]);
+    history = await kv.readSecretMetadata(rootSession, kvMount, lifecyclePath);
+    expect(history.versions.find(({ version }) => version === 2)?.deletionTime).toBeUndefined();
+
+    await kv.deleteVersions(rootSession, kvMount, lifecyclePath, [1]);
+    await kv.destroyVersions(rootSession, kvMount, lifecyclePath, [1]);
+    history = await kv.readSecretMetadata(rootSession, kvMount, lifecyclePath);
+    expect(history.versions.find(({ version }) => version === 1)).toMatchObject({
+      destroyed: true,
+    });
+
+    const originalConfig = await kv.readMountConfig(rootSession, kvMount);
+    try {
+      await kv.updateMountConfig(rootSession, kvMount, {
+        maxVersions: 11,
+        casRequired: false,
+        deleteVersionAfter: '2h',
+      });
+      await expect(kv.readMountConfig(rootSession, kvMount)).resolves.toEqual({
+        maxVersions: 11,
+        casRequired: false,
+        deleteVersionAfter: '2h0m0s',
+      });
+    } finally {
+      await kv.updateMountConfig(rootSession, kvMount, originalConfig);
+    }
+
+    await kv.deleteMetadata(rootSession, kvMount, path);
+    await kv.deleteMetadata(rootSession, kvMount, lifecyclePath);
+    await expect(
+      kv.readSecretMetadata(rootSession, kvMount, path),
+    ).rejects.toMatchObject({ code: 'not-found' });
+    await expect(kv.listPaths(rootSession, kvMount, 'endpoint-contract')).resolves.toEqual([]);
+  });
+
+  it('renews and revokes the calling token through self-service endpoints', async () => {
+    const created = await setupRequest('auth/token/create', 'POST', {
+      policies: ['default'],
+      ttl: '5m',
+      renewable: true,
+    }) as { auth: { client_token: string } };
+    const childSession = await auth.validateToken(
+      vaultAddress!,
+      vaultToken(created.auth.client_token),
+    );
+
+    await expect(auth.renewSelf(childSession)).resolves.toMatchObject({
+      renewable: true,
+    });
+    await auth.revokeSelf(childSession);
+    await expect(
+      auth.validateToken(vaultAddress!, childSession.token),
+    ).rejects.toMatchObject({ code: 'session-expired', status: 403 });
+  });
+
   it('creates an identity-backed user and enforces canonical KV v2 access', async () => {
     const userpass = (await access.listAuthMounts(rootSession))
       .find((mount) => mount.path === userpassMount);

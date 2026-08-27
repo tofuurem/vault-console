@@ -12,6 +12,13 @@ Credentials must never be committed, placed in environment variables, or
 forwarded by the reverse proxy. Vault remains the source of authorization.
 See [USAGE.md](USAGE.md) for the deployment and storage model.
 
+The current token is retained in tab-scoped `sessionStorage`. Copy token calls
+the sensitive-value reveal function only inside the clipboard action; the raw
+token is not placed in React state, markup, toast text, diagnostics, or proxy
+logs. Sign out only clears local session state. Revoke token calls Vault
+`auth/token/revoke-self` and can also revoke child tokens, leases, and dynamic
+secrets created by the calling token.
+
 ## Vault response and proxy metadata
 
 Reviewed: 2026-07-27
@@ -23,11 +30,32 @@ upstream error text is not retained or exposed. A generic 403 remains an
 authorization result so that valid no-default and least-privilege tokens can
 continue to use their permitted paths.
 
+Vault KV v2 reports check-and-set mismatches as HTTP 400. Vault Console only
+reclassifies the exact structured `check-and-set parameter did not match the
+current version` marker as a conflict and never retains the upstream error
+body. Other HTTP 400 responses remain invalid requests.
+
 Vault path segments are validated before URL construction. Dot segments,
 controls, and ambiguous empty segments are rejected without echoing the path in
 the error. The default Nginx `/v1/*` proxy location has access logging disabled
 because mount names, logical secret paths, and usernames are sensitive
 metadata. Use a Vault audit device for the authoritative operation trail.
+
+## Destructive and write-only KV operations
+
+Reviewed: 2026-08-27
+
+Soft-delete latest, explicit version delete, version destroy, and metadata
+delete are separate operations with separate Vault endpoints and capabilities.
+Deleting metadata permanently removes the key, all versions, custom metadata,
+and history. Permanent single and bulk actions require typed confirmation;
+bulk execution has an exact-path preflight and bounded concurrency.
+
+Write-only editing never pretends to preserve unread fields. It sends a full
+replacement document and defaults to create-only CAS 0 when metadata is not
+readable. Unconditional replacement requires a separate strategy choice and a
+second acknowledgement. Metadata and mount-configuration editors require a
+fresh readable snapshot before they can save the complete supported settings.
 
 ## Reviewed dependency advisories
 

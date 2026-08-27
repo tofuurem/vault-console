@@ -23,7 +23,7 @@ interface DestructionConfirmProps {
 const copy = {
   'delete-latest': {
     title: 'Soft-delete current version',
-    description: 'The current version becomes unreadable, but it can be undeleted later.',
+    description: 'The version Vault considers current when this request executes becomes unreadable, but it can be undeleted later.',
     button: 'Delete current version',
   },
   'delete-version': {
@@ -73,7 +73,7 @@ export default function DestructionConfirm({ open, onClose, mount, path, action,
   return (
     <Modal open={open} onClose={close} title={content.title} width="md">
       <div className="space-y-4 p-4">
-        <div className="flex items-start gap-3"><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${permanent ? 'bg-danger-100' : 'bg-warning-100'}`}><i className={`ri-alert-line text-sm ${permanent ? 'text-danger-600' : 'text-warning-700'}`} aria-hidden="true" /></div><div><p className="text-sm leading-5 text-foreground-700">{content.description}</p><p className="mt-2 break-all font-mono text-xs text-foreground-800">{fullPath}{action.kind === 'delete-key' ? '' : ` · v${action.version}`}</p></div></div>
+        <div className="flex items-start gap-3"><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${permanent ? 'bg-danger-100' : 'bg-warning-100'}`}><i className={`ri-alert-line text-sm ${permanent ? 'text-danger-600' : 'text-warning-700'}`} aria-hidden="true" /></div><div><p className="text-sm leading-5 text-foreground-700">{content.description}</p><p className="mt-2 break-all font-mono text-xs text-foreground-800">{fullPath}{action.kind === 'delete-version' || action.kind === 'destroy-version' ? ` · v${action.version}` : ''}</p></div></div>
         {error && <div role="alert" className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</div>}
         {permanent ? (
           <>
