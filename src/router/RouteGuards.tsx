@@ -42,7 +42,7 @@ interface RequireSessionProps {
 }
 
 export function RequireSession({ children, accessControl = false }: RequireSessionProps) {
-  const { status, accessControlPermission } = useVaultSession();
+  const { status, accessControlPermission, revocation } = useVaultSession();
   const location = useLocation();
 
   if (status === 'restoring') return <RestoringSession />;
@@ -52,7 +52,11 @@ export function RequireSession({ children, accessControl = false }: RequireSessi
         to="/login"
         replace
         state={{
-          reason: status === 'expired' ? 'expired' : 'required',
+          reason: status === 'expired'
+            ? 'expired'
+            : revocation.status === 'succeeded'
+              ? 'revoked'
+              : 'required',
           from: `${location.pathname}${location.search}${location.hash}`,
         }}
       />

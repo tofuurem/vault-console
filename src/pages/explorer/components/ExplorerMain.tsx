@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { NavigationPath } from '@/application/navigation-history/navigation-history';
-import type { WorkspaceDensity } from '@/application/preferences/workspace-preferences';
 import { useKvSearch, type KvSearchMountState } from '@/application/vault/search/KvSearchContext';
 import { rankKvPathMatches } from '@/application/vault/search/search-ranking';
 import type { KvSecretDetails, VaultQueryState } from '@/application/vault/useKvExplorerData';
@@ -41,6 +40,7 @@ interface ExplorerMainProps {
   readonly onRetrySecret: () => void;
   readonly onCreateSecret?: () => void;
   readonly onOpenExactPath?: (path: string) => void;
+  readonly onConfigureMount?: () => void;
   readonly onViewSecret?: () => void;
   readonly onEditSecret?: () => void;
   readonly onWriteOnlySecret?: () => void;
@@ -51,6 +51,7 @@ interface ExplorerMainProps {
   readonly onUndelete?: (version: number) => void;
   readonly onDestroyVersion?: (version: number) => void;
   readonly onDeleteMetadata?: () => void;
+  readonly onEditMetadata?: () => void;
   readonly onDeletePermanently?: (path: string) => void;
   readonly isFavorite?: (path: NavigationPath) => boolean;
   readonly onToggleFavorite?: (path: NavigationPath) => void;
@@ -62,7 +63,6 @@ interface ExplorerMainProps {
   readonly onBulkDestroy?: (paths: readonly string[]) => void;
   readonly onBulkPermanentDelete?: (paths: readonly string[]) => void;
   readonly selectionClearKey?: number;
-  readonly density?: WorkspaceDensity;
 }
 
 function entriesFromKeys(currentPath: string, keys: readonly string[]): readonly KvDirectoryEntry[] {
@@ -90,6 +90,7 @@ export default function ExplorerMain({
   onRetrySecret,
   onCreateSecret,
   onOpenExactPath,
+  onConfigureMount,
   onViewSecret,
   onEditSecret,
   onWriteOnlySecret,
@@ -100,6 +101,7 @@ export default function ExplorerMain({
   onUndelete,
   onDestroyVersion,
   onDeleteMetadata,
+  onEditMetadata,
   onDeletePermanently,
   isFavorite,
   onToggleFavorite,
@@ -108,7 +110,6 @@ export default function ExplorerMain({
   onBulkDestroy,
   onBulkPermanentDelete,
   selectionClearKey = 0,
-  density = 'comfortable',
 }: ExplorerMainProps) {
   const selectionScope = `${mount}\u001f${currentPath}`;
   const [inspectorOpen, setInspectorOpen] = useState(true);
@@ -278,6 +279,7 @@ export default function ExplorerMain({
           onUndelete={onUndelete}
           onDestroyVersion={onDestroyVersion}
           onDeleteMetadata={onDeleteMetadata}
+          onEditMetadata={onEditMetadata}
           activeTab={inspectorTab}
           onTabChange={setInspectorTab}
           favorite={Boolean(selectedPath && isFavorite?.({
@@ -333,6 +335,11 @@ export default function ExplorerMain({
                   aria-expanded={exactPathOpen}
                 >
                   <i className="ri-route-line" aria-hidden="true" /> Open exact path
+                </Button>
+              )}
+              {onConfigureMount && (
+                <Button size="sm" onClick={onConfigureMount}>
+                  <i className="ri-settings-3-line" aria-hidden="true" /> Configure mount
                 </Button>
               )}
               {onCreateSecret && <Button size="sm" variant="primary" onClick={onCreateSecret}><i className="ri-add-line" aria-hidden="true" /> Create secret</Button>}
@@ -448,7 +455,6 @@ export default function ExplorerMain({
                     visibleSecretPaths,
                   }));
                 }}
-                density={density}
               />
             )
           )}

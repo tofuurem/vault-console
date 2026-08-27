@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   INSPECTOR_PREFERENCES_STORAGE_KEY,
   LOCAL_FAVORITES_STORAGE_PREFIX,
+  OBSOLETE_DENSITY_STORAGE_KEYS,
   THEME_STORAGE_KEY,
   VAULT_CONSOLE_LOCAL_STORAGE_KEYS,
-  WORKSPACE_PREFERENCES_STORAGE_KEY,
 } from './browser-storage-keys';
 import { migrateVaultConsoleLocalStorage } from './browser-storage-migration';
 
@@ -46,8 +46,9 @@ describe('Vault Console browser storage compatibility', () => {
     migrateVaultConsoleLocalStorage(window.localStorage);
 
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
-    expect(window.localStorage.getItem(WORKSPACE_PREFERENCES_STORAGE_KEY))
-      .toBe(JSON.stringify({ version: 1, density: 'compact' }));
+    for (const key of OBSOLETE_DENSITY_STORAGE_KEYS) {
+      expect(window.localStorage.getItem(key)).toBeNull();
+    }
     expect(window.localStorage.getItem(INSPECTOR_PREFERENCES_STORAGE_KEY))
       .toBe(JSON.stringify({ placement: 'right', bottomRatio: 0.5, rightWidth: 440 }));
     expect(window.localStorage.getItem(`${LOCAL_FAVORITES_STORAGE_PREFIX}${favoriteScope}`))
@@ -56,6 +57,22 @@ describe('Vault Console browser storage compatibility', () => {
 
     expect(Object.keys(window.localStorage).filter((key) => key.startsWith('vault-console')))
       .toEqual([]);
+  });
+
+  it('removes both obsolete density records without touching native Vault storage', () => {
+    const nativeTokenKey = 'vault-userpass☃cluster-id';
+    const nativeToken = JSON.stringify({ token: 'hvs.native' });
+    for (const key of OBSOLETE_DENSITY_STORAGE_KEYS) {
+      window.localStorage.setItem(key, JSON.stringify({ version: 1, density: 'compact' }));
+    }
+    window.localStorage.setItem(nativeTokenKey, nativeToken);
+
+    migrateVaultConsoleLocalStorage(window.localStorage);
+
+    for (const key of OBSOLETE_DENSITY_STORAGE_KEYS) {
+      expect(window.localStorage.getItem(key)).toBeNull();
+    }
+    expect(window.localStorage.getItem(nativeTokenKey)).toBe(nativeToken);
   });
 
   it('prefers an existing new value and remains idempotent', () => {

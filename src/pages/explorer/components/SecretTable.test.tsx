@@ -129,10 +129,9 @@ describe('SecretTable', () => {
     expect(onDeletePermanently).toHaveBeenCalledWith('database');
   });
 
-  it('compacts desktop rows without shrinking mobile touch targets', () => {
+  it('keeps one comfortable desktop layout and mobile touch targets', () => {
     render(
       <SecretTable
-        density="compact"
         entries={[{ kind: 'secret', name: 'database', path: 'database' }]}
         selectedPath={null}
         onNavigateToFolder={vi.fn()}
@@ -142,13 +141,13 @@ describe('SecretTable', () => {
       />,
     );
 
-    expect(screen.getByRole('table')).toHaveAttribute('data-density', 'compact');
+    expect(screen.getByRole('table')).not.toHaveAttribute('data-density');
     expect(screen.getByRole('button', {
       name: 'Inspect secret database',
-    })).toHaveClass('min-h-11', 'sm:min-h-7');
+    })).toHaveClass('min-h-11', 'sm:min-h-8');
     expect(screen.getByRole('button', {
       name: 'Pin secret database',
-    })).toHaveClass('h-11', 'w-11', 'sm:h-6', 'sm:w-6');
+    })).toHaveClass('h-11', 'w-11', 'sm:h-7', 'sm:w-7');
   });
 
   it('keeps the empty-state create action touch-sized on mobile', () => {

@@ -2,6 +2,7 @@ import {
   LEGACY_LOCAL_FAVORITES_STORAGE_PREFIX,
   LEGACY_LOCAL_STORAGE_KEY_MIGRATIONS,
   LOCAL_FAVORITES_STORAGE_PREFIX,
+  OBSOLETE_DENSITY_STORAGE_KEYS,
 } from './browser-storage-keys';
 
 export interface MigrationStorage {
@@ -46,6 +47,14 @@ export function migrateVaultConsoleLocalStorage(
   storage: MigrationStorage | null | undefined,
 ): void {
   if (!storage) return;
+
+  for (const obsoleteKey of OBSOLETE_DENSITY_STORAGE_KEYS) {
+    try {
+      storage.removeItem(obsoleteKey);
+    } catch {
+      // Obsolete view preferences are best-effort cleanup only.
+    }
+  }
 
   for (const [legacyKey, nextKey] of LEGACY_LOCAL_STORAGE_KEY_MIGRATIONS) {
     migrateKey(storage, legacyKey, nextKey);

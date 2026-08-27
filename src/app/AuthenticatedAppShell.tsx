@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { matchPath, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { useNavigationHistory } from '@/application/navigation-history/NavigationHistoryContext';
 import { NavigationHistoryProvider } from '@/application/navigation-history/NavigationHistoryProvider';
 import type { NavigationPath } from '@/application/navigation-history/navigation-history';
 import { useToast } from '@/application/notifications/ToastContext';
-import { useWorkspacePreferences } from '@/application/preferences/WorkspacePreferencesContext';
-import { WorkspacePreferencesProvider } from '@/application/preferences/WorkspacePreferencesProvider';
 import { useShortcutCommands, useShortcuts } from '@/application/shortcuts/ShortcutContext';
 import { ShortcutProvider } from '@/application/shortcuts/ShortcutProvider';
 import {
@@ -42,19 +41,17 @@ export default function AuthenticatedAppShell() {
   const vault = useVaultSession();
   const gateway = useKvV2Gateway();
   return (
-    <WorkspacePreferencesProvider>
-      <ShortcutProvider>
-        <NavigationHistoryProvider session={vault.session!}>
-          <KvSearchProvider
-            session={vault.session!}
-            gateway={gateway}
-            onSessionExpired={vault.expireSession}
-          >
-            <AuthenticatedWorkspace />
-          </KvSearchProvider>
-        </NavigationHistoryProvider>
-      </ShortcutProvider>
-    </WorkspacePreferencesProvider>
+    <ShortcutProvider>
+      <NavigationHistoryProvider session={vault.session!}>
+        <KvSearchProvider
+          session={vault.session!}
+          gateway={gateway}
+          onSessionExpired={vault.expireSession}
+        >
+          <AuthenticatedWorkspace />
+        </KvSearchProvider>
+      </NavigationHistoryProvider>
+    </ShortcutProvider>
   );
 }
 
@@ -63,11 +60,11 @@ function AuthenticatedWorkspace() {
   const location = useLocation();
   const vault = useVaultSession();
   const theme = useTheme();
-  const workspacePreferences = useWorkspacePreferences();
   const toast = useToast();
   const shortcuts = useShortcuts();
   const kvSearch = useKvSearch();
   const navigationHistory = useNavigationHistory();
+  const queryClient = useQueryClient();
   const session = vault.session!;
   const sessionClock = useSessionClock({
     expiresAt: session.expiresAt,
@@ -88,6 +85,11 @@ function AuthenticatedWorkspace() {
       toast.error(error.message, { title: 'Session renewal failed' });
     }
   }, [toast, vault]);
+  const revokeSession = useCallback(async () => {
+    await vault.revokeSession();
+    queryClient.clear();
+    navigate('/login', { replace: true, state: { reason: 'revoked' } });
+  }, [navigate, queryClient, vault]);
   const [mountsState, refreshMounts] = useKvMounts(session);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
@@ -207,20 +209,6 @@ function AuthenticatedWorkspace() {
       disabledReason: theme.preference === preference ? 'Currently selected.' : undefined,
       run: () => theme.setPreference(preference),
     })),
-    ...([
-      ['comfortable', 'Use comfortable table density', 'ri-layout-row-line'],
-      ['compact', 'Use compact table density', 'ri-list-check-3'],
-    ] as const).map(([density, label, icon]) => ({
-      id: `density-${density}`,
-      label,
-      group: 'View',
-      keywords: ['density', 'table', 'rows', 'spacing', density],
-      icon,
-      disabledReason: workspacePreferences.density === density
-        ? 'Currently selected.'
-        : undefined,
-      run: () => workspacePreferences.setDensity(density),
-    })),
   ], [
     mounts,
     navigate,
@@ -229,7 +217,6 @@ function AuthenticatedWorkspace() {
     refreshMounts,
     showAccessControl,
     theme,
-    workspacePreferences,
   ]);
   useShortcutCommands(commands);
 
@@ -244,10 +231,9 @@ function AuthenticatedWorkspace() {
         remainingLabel={sessionClock.remainingLabel}
         renewal={vault.renewal}
         onRenewSession={renewSession}
+        revocation={vault.revocation}
+        onRevokeSession={revokeSession}
         onOpenNavigation={() => setMobileNavigationOpen(true)}
-        density={workspacePreferences.density}
-        onDensityChange={workspacePreferences.setDensity}
-        densityPersistenceAvailable={workspacePreferences.persistenceAvailable}
       />
       <SessionExpiryBanner
         session={session}

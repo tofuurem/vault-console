@@ -133,17 +133,8 @@ test('persists dark appearance and finds a nested logical path across the mount'
   await expect(page.getByText('URL', { exact: true })).toBeVisible();
 });
 
-test('uses the command palette for density, favorites, and recent secret navigation', async ({ page }) => {
+test('uses favorites and recent paths from navigation and the command palette', async ({ page }) => {
   await login(page);
-
-  await page.keyboard.press('Control+K');
-  const paletteSearch = page.getByRole('combobox', { name: 'Search commands' });
-  await expect(paletteSearch).toBeFocused();
-  await paletteSearch.fill('compact density');
-  await page.getByRole('option', { name: /Use compact table density/ }).click();
-  await expect(page.getByRole('table')).toHaveAttribute('data-density', 'compact');
-  await page.reload();
-  await expect(page.getByRole('table')).toHaveAttribute('data-density', 'compact');
 
   await page.getByRole('button', { name: 'Pin secret shared' }).click();
   await expect(page.getByRole('button', {

@@ -12,10 +12,15 @@ const lightQuery = {
   addEventListener: vi.fn(),
   removeEventListener: vi.fn(),
 };
+const originalClipboard = navigator.clipboard;
 
 afterEach(() => {
   document.documentElement.removeAttribute('data-theme');
   document.documentElement.style.colorScheme = '';
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: originalClipboard,
+  });
 });
 
 describe('TopBar', () => {
@@ -123,9 +128,67 @@ describe('TopBar', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'Session menu for Alice' }));
-    expect(screen.getByText('4m 59s remaining · via userpass')).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Renew session' }));
+    expect(screen.getByText('4m 59s remaining')).toBeVisible();
+    expect(screen.getByText('userpass')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Renew token' }));
     expect(onRenewSession).toHaveBeenCalledOnce();
+  });
+
+  it('copies the raw token only inside the clipboard action and never renders it', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    render(
+      <ThemeProvider storage={null} colorSchemeQuery={lightQuery}>
+        <TopBar
+          session={{
+            serverUrl: 'https://vault.example.test',
+            token: vaultToken('hvs.memory-only-token'),
+            authMethod: 'token',
+            displayName: 'Alice',
+          }}
+          onSignOut={vi.fn()}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(document.body).not.toHaveTextContent('hvs.memory-only-token');
+    await user.click(screen.getByRole('button', { name: 'Session menu for Alice' }));
+    await user.click(screen.getByRole('button', { name: 'Copy token' }));
+
+    expect(writeText).toHaveBeenCalledWith('hvs.memory-only-token');
+    expect(screen.getByRole('button', { name: 'Token copied' })).toBeVisible();
+    expect(document.body).not.toHaveTextContent('hvs.memory-only-token');
+  });
+
+  it('opens a distinct server-side revoke confirmation', async () => {
+    const user = userEvent.setup();
+    const onRevokeSession = vi.fn(async () => undefined);
+    render(
+      <ThemeProvider storage={null} colorSchemeQuery={lightQuery}>
+        <TopBar
+          session={{
+            serverUrl: 'https://vault.example.test',
+            token: vaultToken('hvs.test'),
+            authMethod: 'token',
+            displayName: 'Alice',
+          }}
+          revocation={{ status: 'idle' }}
+          onRevokeSession={onRevokeSession}
+          onSignOut={vi.fn()}
+        />
+      </ThemeProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Session menu for Alice' }));
+    await user.click(screen.getByRole('button', { name: 'Revoke token…' }));
+    expect(screen.getByRole('dialog', { name: 'Revoke current token' })).toBeVisible();
+    expect(onRevokeSession).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Revoke token' }));
+    expect(onRevokeSession).toHaveBeenCalledOnce();
   });
 
   it('opens the touch-sized mobile navigation control', async () => {
@@ -152,31 +215,4 @@ describe('TopBar', () => {
     expect(onOpenNavigation).toHaveBeenCalledOnce();
   });
 
-  it('exposes a clearly labelled table-density control', async () => {
-    const user = userEvent.setup();
-    const onDensityChange = vi.fn();
-    render(
-      <ThemeProvider storage={null} colorSchemeQuery={lightQuery}>
-        <TopBar
-          session={{
-            serverUrl: 'https://vault.example.test',
-            token: vaultToken('hvs.test'),
-            authMethod: 'token',
-            displayName: 'Alice',
-          }}
-          density="comfortable"
-          onDensityChange={onDensityChange}
-          onSignOut={vi.fn()}
-        />
-      </ThemeProvider>,
-    );
-
-    await user.click(screen.getByRole('button', { name: 'Session menu for Alice' }));
-    expect(screen.getByRole('radio', { name: 'Comfortable' }))
-      .toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByRole('radio', { name: 'Comfortable' }))
-      .toHaveClass('h-11', 'sm:h-8');
-    await user.click(screen.getByRole('radio', { name: 'Compact' }));
-    expect(onDensityChange).toHaveBeenCalledWith('compact');
-  });
 });

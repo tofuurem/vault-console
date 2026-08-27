@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { VaultQueryState, KvSecretDetails } from '@/application/vault/useKvExplorerData';
 import type { KvActionPermissions } from '@/application/vault/useKvActionPermissions';
 import Badge from '@/components/base/Badge';
+import Button from '@/components/base/Button';
 import Tabs from '@/components/base/Tabs';
 import Tooltip from '@/components/base/Tooltip';
 import type { VaultError } from '@/domain/vault/errors';
@@ -23,6 +24,7 @@ interface InspectorProps {
   readonly onUndelete?: (version: number) => void;
   readonly onDestroyVersion?: (version: number) => void;
   readonly onDeleteMetadata?: () => void;
+  readonly onEditMetadata?: () => void;
   readonly activeTab?: string;
   readonly onTabChange?: (tab: string) => void;
   readonly favorite?: boolean;
@@ -288,6 +290,7 @@ export default function Inspector({
   onUndelete,
   onDestroyVersion,
   onDeleteMetadata,
+  onEditMetadata,
   activeTab: controlledTab,
   onTabChange,
   favorite = false,
@@ -486,14 +489,24 @@ export default function Inspector({
           <>
           <dl className="space-y-2">
             <div className="flex justify-between gap-3"><dt className="text-foreground-500">Logical path</dt><dd className="break-all text-right font-mono text-foreground-800">{mount}/{path}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-foreground-500">Created</dt><dd className="text-right text-foreground-800">{formatTime(history.createdTime)}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-foreground-500">Updated</dt><dd className="text-right text-foreground-800">{formatTime(history.updatedTime)}</dd></div>
             <div className="flex justify-between"><dt className="text-foreground-500">Current version</dt><dd className="font-mono text-foreground-800">{history.currentVersion}</dd></div>
             <div className="flex justify-between"><dt className="text-foreground-500">Oldest version</dt><dd className="font-mono text-foreground-800">{history.oldestVersion}</dd></div>
+            <div className="flex justify-between"><dt className="text-foreground-500">Maximum versions</dt><dd className="font-mono text-foreground-800">{history.maxVersions === 0 ? 'Mount default' : history.maxVersions}</dd></div>
+            <div className="flex justify-between"><dt className="text-foreground-500">Check-and-set required</dt><dd className="font-medium text-foreground-800">{history.casRequired ? 'Yes' : 'No'}</dd></div>
+            <div className="flex justify-between"><dt className="text-foreground-500">Delete version after</dt><dd className="font-mono text-foreground-800">{history.deleteVersionAfter === '0s' ? 'Disabled' : history.deleteVersionAfter}</dd></div>
           </dl>
           {Object.keys(history.customMetadata).length > 0 && (
             <div className="border-t border-background-200 pt-3">
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-foreground-500">Custom metadata</p>
               {Object.entries(history.customMetadata).map(([key, value]) => <p key={key} className="mb-1 flex justify-between gap-3"><span className="font-mono text-foreground-600">{key}</span><span className="text-foreground-800">{value}</span></p>)}
             </div>
+          )}
+          {permissions?.canReadMetadata && permissions.canUpdateMetadata && onEditMetadata && (
+            <Button size="sm" onClick={onEditMetadata}>
+              <i className="ri-edit-line" aria-hidden="true" /> Edit key metadata
+            </Button>
           )}
           </>
         ) : (

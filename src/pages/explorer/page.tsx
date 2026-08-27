@@ -12,7 +12,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuthenticatedShell } from '@/app/authenticated-shell';
 import { useNavigationHistory } from '@/application/navigation-history/NavigationHistoryContext';
 import { useToast } from '@/application/notifications/ToastContext';
-import { useWorkspacePreferences } from '@/application/preferences/WorkspacePreferencesContext';
 import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import type {
   BulkDestroyPreflight,
@@ -26,10 +25,18 @@ import type {
 } from '@/application/vault/bulk/bulk-delete-keys';
 import { useKvV2Gateway } from '@/application/vault/KvV2GatewayContext';
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
-import { kvActionPaths, useKvActionPermissions } from '@/application/vault/useKvActionPermissions';
+import {
+  kvActionPaths,
+  useKvActionPermissions,
+  useKvMountConfigPermissions,
+} from '@/application/vault/useKvActionPermissions';
 import { useKvDirectory, useKvSecretDetails } from '@/application/vault/useKvExplorerData';
 import type { VaultCapability } from '@/domain/vault/contracts';
-import type { KvV2WriteStrategy } from '@/domain/vault/kv-v2';
+import type {
+  KvV2MountConfig,
+  KvV2SecretMetadataInput,
+  KvV2WriteStrategy,
+} from '@/domain/vault/kv-v2';
 import {
   summarizeBulkOutcomes,
   type BulkItemOutcome,
@@ -45,7 +52,9 @@ import { mapWithConcurrency } from '@/shared/async/map-with-concurrency';
 import CreateSecretDrawer from './components/CreateSecretDrawer';
 import DestructionConfirm, { type KvDestructiveAction } from './components/DestructionConfirm';
 import ExplorerMain from './components/ExplorerMain';
+import KvMountConfigDrawer from './components/KvMountConfigDrawer';
 import SecretWorkspace, { type SecretWorkspaceMode } from './components/SecretWorkspace';
+import SecretMetadataDrawer from './components/SecretMetadataDrawer';
 import VersionComparison from './components/VersionComparison';
 import WriteOnlySecretDrawer from './components/WriteOnlySecretDrawer';
 
@@ -100,7 +109,6 @@ export default function ExplorerPage() {
   const { mountsState, refreshMounts } = useAuthenticatedShell();
   const vault = useVaultSession();
   const toast = useToast();
-  const workspacePreferences = useWorkspacePreferences();
   const queryClient = useQueryClient();
   const {
     recordRecent,
@@ -117,6 +125,8 @@ export default function ExplorerPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<SecretWorkspaceMode | null>(null);
   const [writeOnlyOpen, setWriteOnlyOpen] = useState(false);
+  const [metadataOpen, setMetadataOpen] = useState(false);
+  const [mountConfigOpen, setMountConfigOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [destructiveTarget, setDestructiveTarget] = useState<DestructiveUiState | null>(null);
   const [bulkSoftDelete, setBulkSoftDelete] = useState<BulkSoftDeleteUiState | null>(null);
@@ -131,6 +141,7 @@ export default function ExplorerPage() {
   const bulkDeletePreflightAbortRef = useRef<AbortController | null>(null);
   const [directory, refreshDirectory] = useKvDirectory(session, activeMount, activePath);
   const [permissionsState, refreshPermissions] = useKvActionPermissions(activeMount, selectedPath);
+  const [mountConfigPermissions] = useKvMountConfigPermissions(activeMount);
   const [details, refreshDetails] = useKvSecretDetails(
     session,
     activeMount,
@@ -153,16 +164,22 @@ export default function ExplorerPage() {
 
   useEffect(() => {
     setWriteOnlyOpen(false);
+    setMetadataOpen(false);
   }, [activeMount, selectedPath]);
+
+  useEffect(() => {
+    setMountConfigOpen(false);
+  }, [activeMount]);
 
   useEffect(() => {
     const errors = [
       directory.status === 'error' ? directory.error : undefined,
       details.status === 'error' ? details.error : undefined,
       permissionsState.status === 'error' ? permissionsState.error : undefined,
+      mountConfigPermissions.status === 'error' ? mountConfigPermissions.error : undefined,
     ];
     if (errors.some((error) => error?.code === 'session-expired')) vault.expireSession();
-  }, [details, directory, permissionsState, vault]);
+  }, [details, directory, mountConfigPermissions, permissionsState, vault]);
 
   const selectSecret = (path: string) => {
     navigate(explorerRoute(activeMount, directoryPathForSecret(path), path));
@@ -289,6 +306,37 @@ export default function ExplorerPage() {
       toast.success(`Wrote ${activeMount}/${selectedPath} as version ${version} with ${guard}.`);
     } catch (cause) {
       handleMutationError(cause, 'Write-only secret update failed');
+    }
+  };
+  const loadSecretMetadata = useCallback((
+    mount: string,
+    path: string,
+    signal: AbortSignal,
+  ) => kvGateway.readSecretMetadata(session, mount, path, signal), [kvGateway, session]);
+  const saveSecretMetadata = async (
+    mount: string,
+    path: string,
+    input: KvV2SecretMetadataInput,
+  ) => {
+    try {
+      await kvGateway.updateSecretMetadata(session, mount, path, input);
+      await refreshPath(mount, path);
+      toast.success(`Updated key metadata for ${mount}/${path}.`);
+    } catch (cause) {
+      handleMutationError(cause, 'Key metadata update failed');
+    }
+  };
+  const loadMountConfig = useCallback((
+    mount: string,
+    signal: AbortSignal,
+  ) => kvGateway.readMountConfig(session, mount, signal), [kvGateway, session]);
+  const saveMountConfig = async (mount: string, input: KvV2MountConfig) => {
+    try {
+      await kvGateway.updateMountConfig(session, mount, input);
+      await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.mountConfig(mount) });
+      toast.success(`Updated KV v2 mount configuration for ${mount}.`);
+    } catch (cause) {
+      handleMutationError(cause, 'KV mount configuration update failed');
     }
   };
   const loadVersion = useCallback(async (version: number) => {
@@ -815,6 +863,11 @@ export default function ExplorerPage() {
       onRetrySecret={refreshDetails}
       onCreateSecret={() => setCreateOpen(true)}
       onOpenExactPath={selectSecret}
+      onConfigureMount={mountConfigPermissions.status === 'success'
+        && mountConfigPermissions.data.canRead
+        && mountConfigPermissions.data.canUpdate
+        ? () => setMountConfigOpen(true)
+        : undefined}
       onViewSecret={selectedDetails?.secret ? () => setWorkspaceMode('view') : undefined}
       onEditSecret={selectedDetails?.secret ? () => setWorkspaceMode('edit') : undefined}
       onWriteOnlySecret={selectedPermissions?.canCreate || selectedPermissions?.canUpdate
@@ -829,11 +882,15 @@ export default function ExplorerPage() {
       onDeleteMetadata={() => {
         if (selectedPath) void beginPermanentDelete(selectedPath);
       }}
+      onEditMetadata={selectedDetails?.history
+        && selectedPermissions?.canReadMetadata
+        && selectedPermissions.canUpdateMetadata
+        ? () => setMetadataOpen(true)
+        : undefined}
       onDeletePermanently={(path) => void beginPermanentDelete(path)}
       isFavorite={isFavorite}
       onToggleFavorite={toggleFavorite}
       selectionClearKey={selectionClearKey}
-      density={workspacePreferences.density}
       onBulkSoftDelete={(paths) => void beginBulkSoftDelete(paths)}
       onBulkDestroy={(paths) => void beginBulkDestroy(paths)}
       onBulkPermanentDelete={(paths) => void beginBulkDeleteKeys(paths)}
@@ -866,6 +923,21 @@ export default function ExplorerPage() {
         currentVersion={selectedDetails?.history?.currentVersion}
         onClose={() => setWriteOnlyOpen(false)}
         onSave={writeOnlySecret}
+      />
+      <SecretMetadataDrawer
+        open={metadataOpen}
+        mount={activeMount}
+        path={selectedPath}
+        onClose={() => setMetadataOpen(false)}
+        onLoad={loadSecretMetadata}
+        onSave={saveSecretMetadata}
+      />
+      <KvMountConfigDrawer
+        open={mountConfigOpen}
+        mount={activeMount}
+        onClose={() => setMountConfigOpen(false)}
+        onLoad={loadMountConfig}
+        onSave={saveMountConfig}
       />
       <SecretWorkspace
         open={workspaceMode !== null}

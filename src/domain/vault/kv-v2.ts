@@ -25,6 +25,10 @@ export type KvV2MountConfig = KvV2RetentionSettings;
 // duration and documents `0s` as the disabled value.
 const VAULT_DURATION = /^(?:0s|(?:\d+(?:\.\d+)?(?:ns|us|µs|ms|s|m|h))+)$/u;
 
+export function isVaultDuration(value: string): boolean {
+  return VAULT_DURATION.test(value);
+}
+
 export function kvV2WriteOptions(
   strategy: KvV2WriteStrategy,
 ): KvV2WriteOptions | undefined {
@@ -42,7 +46,7 @@ export function validateKvV2Retention<T extends KvV2RetentionSettings>(
   if (!Number.isInteger(input.maxVersions) || input.maxVersions < 0) {
     throw new VaultError('invalid-request');
   }
-  if (!VAULT_DURATION.test(input.deleteVersionAfter)) {
+  if (!isVaultDuration(input.deleteVersionAfter)) {
     throw new VaultError('invalid-request');
   }
   if ('customMetadata' in input) {

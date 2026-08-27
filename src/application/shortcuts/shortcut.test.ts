@@ -57,10 +57,10 @@ describe('shortcut matching', () => {
   it('matches commands when all query terms appear in different parts of the search text', () => {
     const commands: readonly ShortcutCommand[] = [
       {
-        id: 'compact',
-        label: 'Use compact table density',
-        group: 'View',
-        keywords: ['density', 'table', 'rows', 'spacing', 'compact'],
+        id: 'system',
+        label: 'Use system appearance',
+        group: 'Appearance',
+        keywords: ['theme', 'color', 'operating', 'system'],
         run: () => undefined,
       },
       {
@@ -72,8 +72,8 @@ describe('shortcut matching', () => {
       },
     ];
 
-    expect(rankShortcutCommands(commands, 'compact density').map(({ id }) => id))
-      .toEqual(['compact']);
-    expect(rankShortcutCommands(commands, 'density missing')).toEqual([]);
+    expect(rankShortcutCommands(commands, 'operating system').map(({ id }) => id))
+      .toEqual(['system']);
+    expect(rankShortcutCommands(commands, 'system missing')).toEqual([]);
   });
 });

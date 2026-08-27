@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import type { WorkspaceDensity } from '@/application/preferences/workspace-preferences';
 import { useTheme } from '@/application/theme/ThemeContext';
-import type { VaultSessionRenewalState } from '@/application/vault/VaultSessionContext';
+import type {
+  VaultSessionRenewalState,
+  VaultSessionRevocationState,
+} from '@/application/vault/VaultSessionContext';
 import type { VaultHealth, VaultSession } from '@/domain/vault/contracts';
+import RevokeSessionDialog from './RevokeSessionDialog';
 
 interface TopBarProps {
   session: VaultSession;
@@ -13,10 +16,9 @@ interface TopBarProps {
   remainingLabel?: string;
   renewal?: VaultSessionRenewalState;
   onRenewSession?: () => Promise<void>;
+  revocation?: VaultSessionRevocationState;
+  onRevokeSession?: () => Promise<void>;
   onOpenNavigation?: () => void;
-  density?: WorkspaceDensity;
-  onDensityChange?: (density: WorkspaceDensity) => void;
-  densityPersistenceAvailable?: boolean;
 }
 
 export default function TopBar({
@@ -28,12 +30,13 @@ export default function TopBar({
   remainingLabel = 'No fixed expiry',
   renewal = { status: 'idle' },
   onRenewSession,
+  revocation = { status: 'idle' },
+  onRevokeSession,
   onOpenNavigation,
-  density = 'comfortable',
-  onDensityChange,
-  densityPersistenceAvailable = true,
 }: TopBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [revokeOpen, setRevokeOpen] = useState(false);
+  const [copyStatus, setCopyStatus] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
   const theme = useTheme();
 
@@ -49,7 +52,25 @@ export default function TopBar({
 
   const identity = session.displayName || (session.authMethod === 'token' ? 'token session' : 'userpass user');
 
+  const copyToken = async () => {
+    try {
+      await navigator.clipboard.writeText(session.token.reveal());
+      setCopyStatus('Token copied');
+    } catch {
+      setCopyStatus('Clipboard unavailable');
+    }
+  };
+
+  const renewalLabel = renewal.status === 'succeeded'
+    ? 'Last renewal succeeded'
+    : renewal.status === 'failed'
+      ? 'Last renewal failed'
+      : renewal.status === 'renewing'
+        ? 'Renewing now'
+        : 'Not renewed in this session';
+
   return (
+    <>
     <div
       className="flex min-h-11 shrink-0 items-center justify-between gap-2 border-b border-background-200 bg-background-50 px-2 sm:h-11 sm:px-4"
       style={{
@@ -117,12 +138,16 @@ export default function TopBar({
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 top-full z-50 mt-1 w-60 max-w-[calc(100vw-16px)] rounded-md border border-background-300 bg-background-50 py-1 shadow-sm">
+            <div className="absolute right-0 top-full z-50 mt-1 w-72 max-w-[calc(100vw-16px)] rounded-md border border-background-300 bg-background-50 py-1 shadow-sm">
               <div className="px-3 py-2 border-b border-background-200">
                 <div className="text-xs font-medium text-foreground-900">{identity}</div>
-                <div className="text-[11px] text-foreground-500 mt-0.5">
-                  {remainingLabel} · via {session.authMethod}
-                </div>
+                <dl className="mt-2 space-y-1 text-[10px]">
+                  <div className="flex justify-between gap-3"><dt className="text-foreground-400">Authentication</dt><dd className="font-medium text-foreground-700">{session.authMethod}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-foreground-400">Vault address</dt><dd className="max-w-44 truncate font-mono text-foreground-700" title={session.serverUrl}>{session.serverUrl}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-foreground-400">Expires</dt><dd className="text-right font-medium text-foreground-700">{remainingLabel}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-foreground-400">Renewable</dt><dd className="font-medium text-foreground-700">{session.renewable === true ? 'Yes' : 'No'}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-foreground-400">Renewal</dt><dd className="text-right font-medium text-foreground-700">{renewalLabel}</dd></div>
+                </dl>
                 {renewal.status === 'succeeded' && (
                   <p className="mt-1 text-[10px] font-medium text-success-700">
                     Session renewed with Vault&apos;s returned TTL.
@@ -167,40 +192,14 @@ export default function TopBar({
                   </p>
                 )}
               </fieldset>
-              {onDensityChange && (
-                <fieldset className="border-b border-background-200 px-3 py-2">
-                  <legend className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-400">
-                    Table density
-                  </legend>
-                  <div className="grid grid-cols-2 gap-1" role="radiogroup" aria-label="Table density">
-                    {([
-                      ['comfortable', 'ri-layout-row-line', 'Comfortable'],
-                      ['compact', 'ri-list-check-3', 'Compact'],
-                    ] as const).map(([value, icon, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        role="radio"
-                        aria-checked={density === value}
-                        onClick={() => onDensityChange(value)}
-                        className={`flex h-11 items-center justify-center gap-1 rounded border text-[10px] font-medium transition-colors sm:h-8 ${
-                          density === value
-                            ? 'border-primary-300 bg-primary-100 text-primary-700'
-                            : 'border-background-200 text-foreground-500 hover:bg-background-100 hover:text-foreground-800'
-                        }`}
-                      >
-                        <i className={`${icon} text-xs`} aria-hidden="true" />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  {!densityPersistenceAvailable && (
-                    <p className="mt-1.5 text-[10px] leading-4 text-warning-700">
-                      Density applies only until the page closes.
-                    </p>
-                  )}
-                </fieldset>
-              )}
+              <button
+                type="button"
+                onClick={() => void copyToken()}
+                className="flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground-700 hover:bg-background-100 sm:min-h-0"
+              >
+                <i className={`${copyStatus === 'Token copied' ? 'ri-check-line text-success-600' : 'ri-file-copy-line'} text-sm`} aria-hidden="true" />
+                {copyStatus || 'Copy token'}
+              </button>
               {session.renewable === true && onRenewSession && (
                 <button
                   type="button"
@@ -212,7 +211,20 @@ export default function TopBar({
                     className={`${renewal.status === 'renewing' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} text-sm`}
                     aria-hidden="true"
                   />
-                  {renewal.status === 'renewing' ? 'Renewing session…' : 'Renew session'}
+                  {renewal.status === 'renewing' ? 'Renewing token…' : 'Renew token'}
+                </button>
+              )}
+              {onRevokeSession && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setRevokeOpen(true);
+                  }}
+                  className="flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-danger-700 hover:bg-danger-50 sm:min-h-0"
+                >
+                  <i className="ri-shield-cross-line text-sm" aria-hidden="true" />
+                  Revoke token…
                 </button>
               )}
               {onClearNavigationData && (
@@ -234,12 +246,19 @@ export default function TopBar({
                 className="flex min-h-11 w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground-700 hover:bg-background-100 sm:min-h-0"
               >
                 <i className="ri-logout-box-r-line text-sm" aria-hidden="true" />
-                Sign out
+                <span><span className="block">Sign out</span><span className="block text-[9px] text-foreground-400">Clear this browser tab only</span></span>
               </button>
             </div>
           )}
         </div>
       </div>
     </div>
+    <RevokeSessionDialog
+      open={revokeOpen}
+      revocation={revocation}
+      onClose={() => setRevokeOpen(false)}
+      onConfirm={onRevokeSession ?? (async () => undefined)}
+    />
+    </>
   );
 }

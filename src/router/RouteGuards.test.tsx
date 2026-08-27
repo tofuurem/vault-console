@@ -92,6 +92,17 @@ describe('RouteGuards', () => {
     expect(screen.getByText(/protected.*secret=team%2Fapi.*versions/)).toBeVisible();
   });
 
+  it('preserves a successful revoke notice while redirecting to login', () => {
+    render(
+      <GuardHarness
+        value={context({ revocation: { status: 'succeeded' } })}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Login route' })).toBeVisible();
+    expect(screen.getByText(/"reason":"revoked"/)).toBeVisible();
+  });
+
   it('keeps non-admin sessions out of access control', () => {
     render(
       <GuardHarness

@@ -55,7 +55,9 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState(
     (location.state as { reason?: string } | null)?.reason === 'expired'
       ? 'Your Vault session expired. Sign in again.'
-      : '',
+      : (location.state as { reason?: string } | null)?.reason === 'revoked'
+        ? 'Token revoked. Sign in with another Vault token or userpass account.'
+        : '',
   );
   const [serverError, setServerError] = useState('');
   const [token, setToken] = useState('');

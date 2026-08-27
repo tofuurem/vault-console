@@ -287,6 +287,27 @@ describe('Inspector partial KV access', () => {
     expect(onDeleteMetadata).toHaveBeenCalledOnce();
   });
 
+  it('shows complete key metadata and only edits with read plus update access', async () => {
+    const user = userEvent.setup();
+    const onEditMetadata = vi.fn();
+    renderInspector({ secret, history }, {
+      permissions: {
+        ...permissions,
+        canReadMetadata: true,
+        canUpdateMetadata: true,
+      },
+      onEditMetadata,
+    });
+
+    await user.click(screen.getByRole('tab', { name: 'Metadata' }));
+    expect(screen.getByText('Maximum versions').nextSibling).toHaveTextContent('10');
+    expect(screen.getByText('Check-and-set required').nextSibling).toHaveTextContent('No');
+    expect(screen.getByText('Delete version after').nextSibling).toHaveTextContent('Disabled');
+    expect(screen.getByText('owner').nextSibling).toHaveTextContent('billing');
+    await user.click(screen.getByRole('button', { name: 'Edit key metadata' }));
+    expect(onEditMetadata).toHaveBeenCalledOnce();
+  });
+
   it('pins the selected secret from the data header', async () => {
     const user = userEvent.setup();
     const onToggleFavorite = vi.fn();

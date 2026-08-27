@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import App from '@/App';
 import { RECENT_PATHS_STORAGE_KEY } from '@/application/navigation-history/navigation-history';
-import { WORKSPACE_PREFERENCES_STORAGE_KEY } from '@/application/preferences/workspace-preferences';
 import type {
   KvV2Gateway,
   UserpassLogin,
@@ -26,6 +25,7 @@ const session: VaultSession = {
 function authGateway(options: {
   metadataRead?: boolean;
   mountAdmin?: boolean;
+  mountConfig?: boolean;
   writeOnly?: boolean;
 } = {}): VaultAuthGateway {
   return {
@@ -41,6 +41,8 @@ function authGateway(options: {
           ? ['create', 'update', 'sudo']
           : path.startsWith('sys/') || path.startsWith('identity/')
           ? ['deny']
+          : path === 'applications/config' && options.mountConfig
+            ? ['read', 'update']
           : path.includes('/data/')
             ? options.writeOnly
               ? ['create', 'update']
@@ -48,7 +50,7 @@ function authGateway(options: {
             : path.includes('/metadata/')
               ? options.metadataRead === false || options.writeOnly
                 ? ['list']
-                : ['read', 'list', 'delete']
+                : ['read', 'list', 'update', 'delete']
               : ['update'],
       ]),
     ) as VaultCapabilityMap),
@@ -124,38 +126,26 @@ async function replaceEditorContent(
 }
 
 describe('ExplorerPage', () => {
-  it('persists density from the session menu and exposes it in the command palette', async () => {
+  it('uses one comfortable table layout without density controls or commands', async () => {
     const user = userEvent.setup();
     window.history.replaceState({}, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={kvGateway()} />);
     await login(user);
     await screen.findByRole('heading', { name: 'Application secrets' });
 
-    expect(await screen.findByRole('table')).toHaveAttribute(
-      'data-density',
-      'comfortable',
-    );
+    expect(await screen.findByRole('table')).not.toHaveAttribute('data-density');
     await user.click(screen.getByRole('button', {
       name: 'Session menu for reader',
     }));
-    await user.click(screen.getByRole('radio', { name: 'Compact' }));
-    expect(screen.getByRole('table')).toHaveAttribute('data-density', 'compact');
-    expect(JSON.parse(
-      window.localStorage.getItem(WORKSPACE_PREFERENCES_STORAGE_KEY)!,
-    )).toEqual({ version: 1, density: 'compact' });
+    expect(screen.queryByRole('radiogroup', { name: 'Table density' }))
+      .not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Open command palette' }));
     await user.type(
       screen.getByRole('combobox', { name: 'Search commands' }),
-      'comfortable',
+      'table density',
     );
-    await user.click(await screen.findByRole('option', {
-      name: /Use comfortable table density/,
-    }));
-    expect(screen.getByRole('table')).toHaveAttribute(
-      'data-density',
-      'comfortable',
-    );
+    expect(screen.queryByRole('option')).not.toBeInTheDocument();
   });
 
   it('creates a KV v2 mount, refreshes the sidebar, and opens it without a page reload', async () => {
@@ -251,6 +241,28 @@ describe('ExplorerPage', () => {
     expect(window.location.search).toBe('?secret=shared');
   });
 
+  it('revokes the current token in Vault and returns to login with a notice', async () => {
+    const user = userEvent.setup();
+    const auth = authGateway();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={auth} kvV2Gateway={kvGateway()} />);
+    await login(user);
+    await screen.findByRole('heading', { name: 'Application secrets' });
+
+    await user.click(screen.getByRole('button', { name: 'Session menu for reader' }));
+    await user.click(screen.getByRole('button', { name: 'Revoke token…' }));
+    await user.click(screen.getByRole('button', { name: 'Revoke token' }));
+
+    await waitFor(() => expect(auth.revokeSelf).toHaveBeenCalledWith(
+      session,
+      expect.any(AbortSignal),
+    ));
+    expect(await screen.findByText(
+      'Token revoked. Sign in with another Vault token or userpass account.',
+    )).toBeVisible();
+    expect(window.location.pathname).toBe('/login');
+  });
+
   it('renders authorization failures next to the denied folder', async () => {
     const user = userEvent.setup();
     window.history.replaceState({}, '', '/login');
@@ -330,6 +342,68 @@ describe('ExplorerPage', () => {
     )).toBeVisible();
     expect(gateway.readSecret).not.toHaveBeenCalled();
     expect(gateway.readSecretMetadata).not.toHaveBeenCalled();
+  });
+
+  it('fresh-loads and updates complete key metadata', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
+    await login(user);
+
+    await user.click((await screen.findAllByText('shared'))[0]);
+    await screen.findByText('API_KEY');
+    await user.click(screen.getByRole('tab', { name: 'Metadata' }));
+    await user.click(screen.getByRole('button', { name: 'Edit key metadata' }));
+    expect(await screen.findByText(/Loaded fresh from Vault/)).toBeVisible();
+    expect(gateway.readSecretMetadata).toHaveBeenCalledTimes(2);
+
+    await user.clear(screen.getByLabelText('Maximum versions'));
+    await user.type(screen.getByLabelText('Maximum versions'), '20');
+    await user.click(screen.getByRole('button', { name: 'Save key metadata' }));
+
+    await waitFor(() => expect(gateway.updateSecretMetadata).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'shared',
+      {
+        maxVersions: 20,
+        casRequired: false,
+        deleteVersionAfter: '0s',
+        customMetadata: {},
+      },
+    ));
+    expect(await screen.findByText('Updated key metadata for applications/shared.')).toBeVisible();
+  });
+
+  it('reads and updates the supported KV v2 mount configuration', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway({ mountConfig: true })} kvV2Gateway={gateway} />);
+    await login(user);
+    await screen.findByRole('heading', { name: 'Application secrets' });
+
+    await user.click(await screen.findByRole('button', { name: 'Configure mount' }));
+    expect(await screen.findByText(/Only KV v2 data-retention defaults/)).toBeVisible();
+    await user.clear(screen.getByLabelText('Default maximum versions'));
+    await user.type(screen.getByLabelText('Default maximum versions'), '30');
+    await user.clear(screen.getByLabelText('Default delete delay'));
+    await user.type(screen.getByLabelText('Default delete delay'), '168h');
+    await user.click(screen.getByRole('button', { name: 'Save mount configuration' }));
+
+    await waitFor(() => expect(gateway.updateMountConfig).toHaveBeenCalledWith(
+      session,
+      'applications',
+      {
+        maxVersions: 30,
+        casRequired: false,
+        deleteVersionAfter: '168h',
+      },
+    ));
+    expect(await screen.findByText(
+      'Updated KV v2 mount configuration for applications.',
+    )).toBeVisible();
   });
 
   it('creates with CAS 0 and edits from the exact loaded version', async () => {
