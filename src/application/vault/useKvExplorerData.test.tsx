@@ -40,8 +40,13 @@ const secret: KvV2Secret = {
 };
 
 const history: KvV2SecretHistory = {
+  createdTime: '2026-07-21T12:00:00Z',
+  updatedTime: '2026-07-21T12:00:00Z',
   currentVersion: 3,
   oldestVersion: 1,
+  maxVersions: 0,
+  casRequired: false,
+  deleteVersionAfter: '0s',
   customMetadata: {},
   versions: [
     { version: 3, createdTime: '2026-07-21T12:00:00Z', destroyed: false },
@@ -54,8 +59,12 @@ function gateway(): KvV2Gateway {
     createKvV2Mount: vi.fn(),
     listPaths: vi.fn(async () => ['billing/', 'shared']),
     readSecret: vi.fn(async () => secret),
-    readSecretHistory: vi.fn(async () => history),
+    readSecretMetadata: vi.fn(async () => history),
     writeSecret: vi.fn(),
+    updateSecretMetadata: vi.fn(),
+    readMountConfig: vi.fn(),
+    updateMountConfig: vi.fn(),
+    deleteLatestSecret: vi.fn(),
     deleteVersions: vi.fn(),
     undeleteVersions: vi.fn(),
     destroyVersions: vi.fn(),
@@ -111,7 +120,7 @@ describe('KV explorer queries', () => {
 
   it('keeps version history available without exposing a deleted current version', async () => {
     const deletedGateway = gateway();
-    deletedGateway.readSecretHistory = vi.fn(async () => ({
+    deletedGateway.readSecretMetadata = vi.fn(async () => ({
       ...history,
       versions: [{ ...history.versions[0], deletionTime: '2026-07-21T13:00:00Z' }],
     }));
@@ -124,7 +133,7 @@ describe('KV explorer queries', () => {
 
   it('keeps readable secret data when version history is forbidden', async () => {
     const dataOnlyGateway = gateway();
-    dataOnlyGateway.readSecretHistory = vi.fn(async () => {
+    dataOnlyGateway.readSecretMetadata = vi.fn(async () => {
       throw new VaultError('authorization', { status: 403 });
     });
 
@@ -153,7 +162,7 @@ describe('KV explorer queries', () => {
     deniedGateway.readSecret = vi.fn(async () => {
       throw new VaultError('authorization', { status: 403 });
     });
-    deniedGateway.readSecretHistory = vi.fn(async () => {
+    deniedGateway.readSecretMetadata = vi.fn(async () => {
       throw new VaultError('authorization', { status: 403 });
     });
 
@@ -164,7 +173,7 @@ describe('KV explorer queries', () => {
 
   it('treats a session expiry as global even if the parallel data read completed', async () => {
     const expiringGateway = gateway();
-    expiringGateway.readSecretHistory = vi.fn(async () => {
+    expiringGateway.readSecretMetadata = vi.fn(async () => {
       throw new VaultError('session-expired', { status: 401 });
     });
 
@@ -191,7 +200,7 @@ describe('KV explorer queries', () => {
     await waitFor(() => expect(screen.getByTestId('secret')).toHaveTextContent('billing/database:vundefined'));
     expect(screen.getByTestId('history-error')).toHaveTextContent('authorization');
     expect(dataOnlyGateway.readSecret).toHaveBeenCalledOnce();
-    expect(dataOnlyGateway.readSecretHistory).not.toHaveBeenCalled();
+    expect(dataOnlyGateway.readSecretMetadata).not.toHaveBeenCalled();
   });
 
   it('deduplicates identical requests across mounted consumers', async () => {
@@ -209,7 +218,7 @@ describe('KV explorer queries', () => {
     expect(sharedGateway.listMounts).toHaveBeenCalledOnce();
     expect(sharedGateway.listPaths).toHaveBeenCalledOnce();
     expect(sharedGateway.readSecret).toHaveBeenCalledOnce();
-    expect(sharedGateway.readSecretHistory).toHaveBeenCalledOnce();
+    expect(sharedGateway.readSecretMetadata).toHaveBeenCalledOnce();
   });
 
   it('keeps cached data visible while a manual refresh is in flight', async () => {

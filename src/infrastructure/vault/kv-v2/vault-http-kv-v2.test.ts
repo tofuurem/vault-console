@@ -143,25 +143,48 @@ describe('VaultKvV2Adapter', () => {
     );
   });
 
-  it('writes with CAS and returns the created version', async () => {
-    const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(jsonResponse({ data: { version: 4 } }));
+  it('writes with typed CAS strategies and returns the created version', async () => {
+    const fetchRequest = vi.fn<VaultFetch>()
+      .mockResolvedValueOnce(jsonResponse({ data: { version: 4 } }))
+      .mockResolvedValueOnce(jsonResponse({ data: { version: 5 } }));
     const gateway = new VaultKvV2Adapter(new VaultHttpClient(fetchRequest));
 
-    await expect(gateway.writeSecret(session, 'secret', 'apps/db', { password: 'value' }, 3)).resolves.toBe(4);
+    await expect(gateway.writeSecret(
+      session,
+      'secret',
+      'apps/db',
+      { password: 'value' },
+      { type: 'check-and-set', version: 3 },
+    )).resolves.toBe(4);
+    await expect(gateway.writeSecret(
+      session,
+      'secret',
+      'apps/db',
+      { password: 'replacement' },
+      { type: 'unconditional' },
+    )).resolves.toBe(5);
     expect(fetchRequest.mock.calls[0][1]?.method).toBe('POST');
     expect(fetchRequest.mock.calls[0][1]?.body).toBe(
       JSON.stringify({ data: { password: 'value' }, options: { cas: 3 } }),
     );
+    expect(fetchRequest.mock.calls[1][1]?.body).toBe(
+      JSON.stringify({ data: { password: 'replacement' } }),
+    );
   });
 
-  it('parses version history in newest-first order', async () => {
+  it('parses rich key metadata in newest-first version order', async () => {
     const gateway = new VaultKvV2Adapter(
       new VaultHttpClient(
         vi.fn<VaultFetch>().mockResolvedValue(
           jsonResponse({
             data: {
+              created_time: '2026-07-20T12:00:00Z',
+              updated_time: '2026-07-21T12:00:00Z',
               current_version: 2,
               oldest_version: 1,
+              max_versions: 12,
+              cas_required: true,
+              delete_version_after: '24h',
               custom_metadata: null,
               versions: {
                 '1': { created_time: '2026-07-20T12:00:00Z', deletion_time: '', destroyed: false },
@@ -173,31 +196,88 @@ describe('VaultKvV2Adapter', () => {
       ),
     );
 
-    const history = await gateway.readSecretHistory(session, 'secret', 'apps/db');
+    const history = await gateway.readSecretMetadata(session, 'secret', 'apps/db');
 
     expect(history.versions.map((version) => version.version)).toEqual([2, 1]);
     expect(history.versions[0].deletionTime).toBe('later');
+    expect(history).toMatchObject({
+      createdTime: '2026-07-20T12:00:00Z',
+      updatedTime: '2026-07-21T12:00:00Z',
+      maxVersions: 12,
+      casRequired: true,
+      deleteVersionAfter: '24h',
+    });
   });
 
-  it('uses exact-version endpoints for delete, undelete, destroy, and metadata deletion', async () => {
+  it('uses distinct latest, exact-version, and metadata deletion endpoints', async () => {
     const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(jsonResponse(null, 204));
     const gateway = new VaultKvV2Adapter(new VaultHttpClient(fetchRequest));
 
+    await gateway.deleteLatestSecret(session, 'secret', 'apps/db');
     await gateway.deleteVersions(session, 'secret', 'apps/db', [1]);
     await gateway.undeleteVersions(session, 'secret', 'apps/db', [1]);
     await gateway.destroyVersions(session, 'secret', 'apps/db', [1]);
     await gateway.deleteMetadata(session, 'secret', 'apps/db');
 
     expect(fetchRequest.mock.calls.map(([, request]) => request?.method)).toEqual([
+      'DELETE',
       'POST',
       'POST',
       'PUT',
       'DELETE',
     ]);
-    expect(fetchRequest.mock.calls.slice(0, 3).map(([, request]) => request?.body)).toEqual([
+    expect(fetchRequest.mock.calls.slice(1, 4).map(([, request]) => request?.body)).toEqual([
       JSON.stringify({ versions: [1] }),
       JSON.stringify({ versions: [1] }),
       JSON.stringify({ versions: [1] }),
     ]);
+    expect(String(fetchRequest.mock.calls[0][0])).toBe(
+      'https://vault.example.test/v1/secret/data/apps/db',
+    );
+  });
+
+  it('reads and updates key metadata and mount configuration', async () => {
+    const fetchRequest = vi.fn<VaultFetch>()
+      .mockResolvedValueOnce(jsonResponse({
+        data: {
+          max_versions: 8,
+          cas_required: false,
+          delete_version_after: '12h',
+        },
+      }))
+      .mockResolvedValue(jsonResponse(null, 204));
+    const gateway = new VaultKvV2Adapter(new VaultHttpClient(fetchRequest));
+
+    await expect(gateway.readMountConfig(session, 'secret')).resolves.toEqual({
+      maxVersions: 8,
+      casRequired: false,
+      deleteVersionAfter: '12h',
+    });
+    await gateway.updateMountConfig(session, 'secret', {
+      maxVersions: 9,
+      casRequired: true,
+      deleteVersionAfter: '24h',
+    });
+    await gateway.updateSecretMetadata(session, 'secret', 'apps/db', {
+      maxVersions: 3,
+      casRequired: false,
+      deleteVersionAfter: '0s',
+      customMetadata: { owner: 'platform' },
+    });
+
+    expect(String(fetchRequest.mock.calls[0][0])).toBe(
+      'https://vault.example.test/v1/secret/config',
+    );
+    expect(fetchRequest.mock.calls[1][1]?.body).toBe(JSON.stringify({
+      max_versions: 9,
+      cas_required: true,
+      delete_version_after: '24h',
+    }));
+    expect(fetchRequest.mock.calls[2][1]?.body).toBe(JSON.stringify({
+      max_versions: 3,
+      cas_required: false,
+      delete_version_after: '0s',
+      custom_metadata: { owner: 'platform' },
+    }));
   });
 });

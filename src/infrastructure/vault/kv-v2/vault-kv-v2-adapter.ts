@@ -8,6 +8,13 @@ import type {
 } from '../../../domain/vault/contracts';
 import { VaultError } from '../../../domain/vault/errors';
 import {
+  kvV2WriteOptions,
+  validateKvV2Retention,
+  type KvV2MountConfig,
+  type KvV2SecretMetadataInput,
+  type KvV2WriteStrategy,
+} from '../../../domain/vault/kv-v2';
+import {
   kvMountPathError,
   normalizeKvMountPath,
   type CreateKvV2Mount,
@@ -156,22 +163,22 @@ export class VaultKvV2Adapter implements KvV2Gateway {
     mount: string,
     path: string,
     data: Readonly<Record<string, unknown>>,
-    cas: number,
+    strategy: KvV2WriteStrategy,
     signal?: AbortSignal,
   ): Promise<number> {
-    if (!Number.isInteger(cas) || cas < 0) throw new VaultError('invalid-request');
+    const options = kvV2WriteOptions(strategy);
     const response = asObject(
       await this.client.request(session.serverUrl, kvPath(mount, 'data', path), {
         method: 'POST',
         token: session.token,
-        body: { data, options: { cas } },
+        body: options ? { data, options } : { data },
         signal,
       }),
     );
     return asNumber(asObject(response.data).version);
   }
 
-  async readSecretHistory(
+  async readSecretMetadata(
     session: VaultSession,
     mount: string,
     path: string,
@@ -187,13 +194,90 @@ export class VaultKvV2Adapter implements KvV2Gateway {
     const versions = asObject(data.versions);
 
     return {
+      createdTime: asString(data.created_time),
+      updatedTime: asString(data.updated_time),
       currentVersion: asNumber(data.current_version),
       oldestVersion: asNumber(data.oldest_version),
+      maxVersions: asNumber(data.max_versions),
+      casRequired: asBoolean(data.cas_required),
+      deleteVersionAfter: asString(data.delete_version_after),
       customMetadata: optionalStringRecord(data.custom_metadata),
       versions: Object.entries(versions)
         .map(([version, metadata]) => parseVersionMetadata(Number(version), metadata))
         .sort((left, right) => right.version - left.version),
     };
+  }
+
+  async updateSecretMetadata(
+    session: VaultSession,
+    mount: string,
+    path: string,
+    input: KvV2SecretMetadataInput,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    validateKvV2Retention(input);
+    await this.client.request(session.serverUrl, kvPath(mount, 'metadata', path), {
+      method: 'POST',
+      token: session.token,
+      body: {
+        max_versions: input.maxVersions,
+        cas_required: input.casRequired,
+        delete_version_after: input.deleteVersionAfter,
+        custom_metadata: input.customMetadata,
+      },
+      signal,
+    });
+  }
+
+  async readMountConfig(
+    session: VaultSession,
+    mount: string,
+    signal?: AbortSignal,
+  ): Promise<KvV2MountConfig> {
+    const response = asObject(
+      await this.client.request(session.serverUrl, kvPath(mount, 'config'), {
+        token: session.token,
+        signal,
+      }),
+    );
+    const data = asObject(response.data);
+    return validateKvV2Retention({
+      maxVersions: asNumber(data.max_versions),
+      casRequired: asBoolean(data.cas_required),
+      deleteVersionAfter: asString(data.delete_version_after),
+    });
+  }
+
+  async updateMountConfig(
+    session: VaultSession,
+    mount: string,
+    input: KvV2MountConfig,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    validateKvV2Retention(input);
+    await this.client.request(session.serverUrl, kvPath(mount, 'config'), {
+      method: 'POST',
+      token: session.token,
+      body: {
+        max_versions: input.maxVersions,
+        cas_required: input.casRequired,
+        delete_version_after: input.deleteVersionAfter,
+      },
+      signal,
+    });
+  }
+
+  async deleteLatestSecret(
+    session: VaultSession,
+    mount: string,
+    path: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.client.request(session.serverUrl, kvPath(mount, 'data', path), {
+      method: 'DELETE',
+      token: session.token,
+      signal,
+    });
   }
 
   async deleteVersions(

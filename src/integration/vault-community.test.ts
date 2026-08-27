@@ -250,7 +250,7 @@ runAgainstVault('Vault Community integration', () => {
       auth.validateToken(vaultAddress!, vaultToken(`invalid-${suffix}`)),
     ).rejects.toMatchObject({ code: 'session-expired', status: 403 });
 
-    await kv.writeSecret(rootSession, kvMount, 'token-check/demo', { status: 'ok' }, 0);
+    await kv.writeSecret(rootSession, kvMount, 'token-check/demo', { status: 'ok' }, { type: 'create-only' });
     await access.writePolicy(rootSession, {
       name: tokenPolicy,
       policy: [
@@ -314,8 +314,8 @@ runAgainstVault('Vault Community integration', () => {
     ) ?? undefined;
     expect(managedEntity?.metadata).toMatchObject({ managed_by: 'vault-console' });
     await waitForEntityMembership(group!.id, true);
-    await kv.writeSecret(rootSession, kvMount, 'allowed/demo', { status: 'ok' }, 0);
-    await kv.writeSecret(rootSession, kvMount, 'forbidden/demo', { status: 'blocked' }, 0);
+    await kv.writeSecret(rootSession, kvMount, 'allowed/demo', { status: 'ok' }, { type: 'create-only' });
+    await kv.writeSecret(rootSession, kvMount, 'forbidden/demo', { status: 'blocked' }, { type: 'create-only' });
 
     const userSession = await auth.loginUserpass({
       serverUrl: vaultAddress!,
@@ -327,7 +327,7 @@ runAgainstVault('Vault Community integration', () => {
       data: { status: 'ok' },
     });
     await expect(kv.listPaths(userSession, kvMount, 'allowed')).resolves.toContain('demo');
-    await expect(kv.readSecretHistory(userSession, kvMount, 'allowed/demo')).resolves.toMatchObject({
+    await expect(kv.readSecretMetadata(userSession, kvMount, 'allowed/demo')).resolves.toMatchObject({
       currentVersion: 1,
     });
     await expect(kv.readSecret(userSession, kvMount, 'forbidden/demo')).rejects.toBeInstanceOf(
@@ -535,7 +535,7 @@ runAgainstVault('Vault Community integration', () => {
       kv.readSecret(sessionBeforeEdit, kvMount, 'allowed/demo'),
     ).resolves.toMatchObject({ data: { status: 'ok' } });
 
-    await kv.writeSecret(rootSession, kvMount, 'direct/demo', { source: 'direct' }, 0);
+    await kv.writeSecret(rootSession, kvMount, 'direct/demo', { source: 'direct' }, { type: 'create-only' });
     const snapshot = await loadUserLifecycleSnapshot(access, rootSession, {
       mount: userpassMount,
       mountAccessor: userpassAccessor,

@@ -1,5 +1,10 @@
 import type { VaultPassword, VaultToken } from './sensitive-value';
 import type { CreateKvV2Mount } from './kv-mount';
+import type {
+  KvV2MountConfig,
+  KvV2SecretMetadataInput,
+  KvV2WriteStrategy,
+} from './kv-v2';
 
 export type VaultAuthMethod = 'token' | 'userpass';
 
@@ -51,6 +56,7 @@ export interface VaultAuthGateway {
   validateToken(serverUrl: string, token: VaultToken, signal?: AbortSignal): Promise<VaultSession>;
   loginUserpass(input: UserpassLogin, signal?: AbortSignal): Promise<VaultSession>;
   renewSelf(session: VaultSession, signal?: AbortSignal): Promise<VaultSessionLease>;
+  revokeSelf(session: VaultSession, signal?: AbortSignal): Promise<void>;
   getCapabilities(session: VaultSession, paths: readonly string[], signal?: AbortSignal): Promise<VaultCapabilityMap>;
 }
 
@@ -77,8 +83,13 @@ export interface KvV2VersionMetadata {
 }
 
 export interface KvV2SecretHistory {
+  readonly createdTime: string;
+  readonly updatedTime: string;
   readonly currentVersion: number;
   readonly oldestVersion: number;
+  readonly maxVersions: number;
+  readonly casRequired: boolean;
+  readonly deleteVersionAfter: string;
   readonly customMetadata: Readonly<Record<string, string>>;
   readonly versions: readonly KvV2VersionMetadata[];
 }
@@ -100,10 +111,25 @@ export interface KvV2Gateway {
     mount: string,
     path: string,
     data: Readonly<Record<string, unknown>>,
-    cas: number,
+    strategy: KvV2WriteStrategy,
     signal?: AbortSignal,
   ): Promise<number>;
-  readSecretHistory(session: VaultSession, mount: string, path: string, signal?: AbortSignal): Promise<KvV2SecretHistory>;
+  readSecretMetadata(session: VaultSession, mount: string, path: string, signal?: AbortSignal): Promise<KvV2SecretHistory>;
+  updateSecretMetadata(
+    session: VaultSession,
+    mount: string,
+    path: string,
+    input: KvV2SecretMetadataInput,
+    signal?: AbortSignal,
+  ): Promise<void>;
+  readMountConfig(session: VaultSession, mount: string, signal?: AbortSignal): Promise<KvV2MountConfig>;
+  updateMountConfig(
+    session: VaultSession,
+    mount: string,
+    input: KvV2MountConfig,
+    signal?: AbortSignal,
+  ): Promise<void>;
+  deleteLatestSecret(session: VaultSession, mount: string, path: string, signal?: AbortSignal): Promise<void>;
   deleteVersions(session: VaultSession, mount: string, path: string, versions: readonly number[], signal?: AbortSignal): Promise<void>;
   undeleteVersions(session: VaultSession, mount: string, path: string, versions: readonly number[], signal?: AbortSignal): Promise<void>;
   destroyVersions(session: VaultSession, mount: string, path: string, versions: readonly number[], signal?: AbortSignal): Promise<void>;

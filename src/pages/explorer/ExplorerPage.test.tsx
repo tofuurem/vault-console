@@ -29,6 +29,7 @@ function authGateway(options: { metadataRead?: boolean; mountAdmin?: boolean } =
     validateToken: vi.fn(async (_serverUrl: string, _token: VaultToken) => session),
     loginUserpass: vi.fn(async (_input: UserpassLogin) => session),
     renewSelf: vi.fn(async () => ({ renewable: false })),
+    revokeSelf: vi.fn(async () => undefined),
     getCapabilities: vi.fn(async (_session, paths): Promise<VaultCapabilityMap> => Object.fromEntries(
       paths.map((path) => [
         path,
@@ -68,9 +69,14 @@ function kvGateway(options: { denied?: boolean } = {}): KvV2Gateway {
         : { API_KEY: version === 1 ? 'old-memory-only-value' : 'memory-only-value' },
       metadata: { createdTime: '2026-07-21T12:00:00Z', version: version ?? 2, customMetadata: {}, destroyed: false },
     })),
-    readSecretHistory: vi.fn(async () => ({
+    readSecretMetadata: vi.fn(async () => ({
+      createdTime: '2026-07-20T12:00:00Z',
+      updatedTime: '2026-07-21T12:00:00Z',
       currentVersion: 2,
       oldestVersion: 1,
+      maxVersions: 0,
+      casRequired: false,
+      deleteVersionAfter: '0s',
       customMetadata: {},
       versions: [
         { version: 2, createdTime: '2026-07-21T12:00:00Z', destroyed: false },
@@ -78,6 +84,14 @@ function kvGateway(options: { denied?: boolean } = {}): KvV2Gateway {
       ],
     })),
     writeSecret: vi.fn(async () => 3),
+    updateSecretMetadata: vi.fn(async () => undefined),
+    readMountConfig: vi.fn(async () => ({
+      maxVersions: 0,
+      casRequired: false,
+      deleteVersionAfter: '0s',
+    })),
+    updateMountConfig: vi.fn(async () => undefined),
+    deleteLatestSecret: vi.fn(async () => undefined),
     deleteVersions: vi.fn(async () => undefined),
     undeleteVersions: vi.fn(async () => undefined),
     destroyVersions: vi.fn(async () => undefined),
@@ -248,7 +262,7 @@ describe('ExplorerPage', () => {
     await user.click((await screen.findAllByText('shared'))[0]);
     expect(await screen.findByText('API_KEY')).toBeVisible();
     expect(gateway.readSecret).toHaveBeenCalled();
-    expect(gateway.readSecretHistory).not.toHaveBeenCalled();
+    expect(gateway.readSecretMetadata).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('tab', { name: 'Versions' }));
     expect(screen.getByText('Version history is not allowed')).toBeVisible();
@@ -275,7 +289,7 @@ describe('ExplorerPage', () => {
       'applications',
       'database',
       { USERNAME: 'billing' },
-      0,
+      { type: 'create-only' },
     ));
     expect(await screen.findByText('Created applications/database at version 3.')).toBeVisible();
 
@@ -290,7 +304,7 @@ describe('ExplorerPage', () => {
       'applications',
       'shared',
       { API_KEY: 'rotated' },
-      2,
+      { type: 'check-and-set', version: 2 },
     ));
     expect(await screen.findByText(
       'Saved applications/shared as version 3 with check-and-set.',
@@ -330,7 +344,7 @@ describe('ExplorerPage', () => {
       'applications',
       'nested',
       nextData,
-      2,
+      { type: 'check-and-set', version: 2 },
     ));
   });
 
@@ -547,7 +561,7 @@ describe('ExplorerPage', () => {
       'applications',
       'shared',
       { API_KEY: 'old-memory-only-value' },
-      2,
+      { type: 'check-and-set', version: 2 },
     ));
   });
 });

@@ -119,7 +119,7 @@ export function useKvSecretDetails(
         : captureResource(() => gateway.readSecret(session, mount, path, undefined, signal));
       const historyResult = permissionStatus === 'success' && canReadMetadata === false
         ? Promise.resolve(authorizationDeniedResource<KvV2SecretHistory>())
-        : captureResource(() => gateway.readSecretHistory(session, mount, path, signal));
+        : captureResource(() => gateway.readSecretMetadata(session, mount, path, signal));
 
       const [data, versionHistory] = await Promise.all([dataResult, historyResult]);
       const resourceErrors = [

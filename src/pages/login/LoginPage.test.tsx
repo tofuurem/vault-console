@@ -32,6 +32,7 @@ class LoginGateway implements VaultAuthGateway {
   validateToken = vi.fn(async (_serverUrl: string, _token: VaultToken): Promise<VaultSession> => this.session);
   loginUserpass = vi.fn(async (_input: UserpassLogin): Promise<VaultSession> => ({ ...this.session, authMethod: 'userpass' }));
   renewSelf = vi.fn(async () => ({ renewable: false }));
+  revokeSelf = vi.fn(async () => undefined);
   getCapabilities = vi.fn(async (): Promise<VaultCapabilityMap> => this.capabilities);
 }
 
@@ -47,7 +48,11 @@ function kvGateway(): KvV2Gateway {
     listPaths: vi.fn(async () => []),
     readSecret: vi.fn(),
     writeSecret: vi.fn(),
-    readSecretHistory: vi.fn(),
+    readSecretMetadata: vi.fn(),
+    updateSecretMetadata: vi.fn(),
+    readMountConfig: vi.fn(),
+    updateMountConfig: vi.fn(),
+    deleteLatestSecret: vi.fn(),
     deleteVersions: vi.fn(),
     undeleteVersions: vi.fn(),
     destroyVersions: vi.fn(),

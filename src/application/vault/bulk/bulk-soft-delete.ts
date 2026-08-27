@@ -102,7 +102,7 @@ export async function prepareBulkSoftDelete({
       | { readonly excluded: BulkItemOutcome }
     > => {
       try {
-        const history = await gateway.readSecretHistory(
+        const history = await gateway.readSecretMetadata(
           session,
           mount,
           path,

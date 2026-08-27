@@ -16,6 +16,7 @@ function context(status: VaultSessionStatus): VaultSessionContextValue {
     accessControlPermission: { state: 'unknown', reason: 'Capabilities are unavailable.' },
     sessionPersistenceAvailable: true,
     renewal: { status: 'idle' },
+    revocation: { status: 'idle' },
     checkHealth: vi.fn(),
     queryCapabilities: vi.fn(),
     permissionFor: vi.fn(() => ({
@@ -25,6 +26,7 @@ function context(status: VaultSessionStatus): VaultSessionContextValue {
     signInWithToken: vi.fn(),
     signInWithUserpass: vi.fn(),
     renewSession: vi.fn(),
+    revokeSession: vi.fn(),
     expireSession: vi.fn(),
     signOut: vi.fn(),
   };

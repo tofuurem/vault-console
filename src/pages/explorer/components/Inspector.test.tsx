@@ -22,8 +22,13 @@ const secret: KvV2Secret = {
 };
 
 const history: KvV2SecretHistory = {
+  createdTime: '2026-07-21T01:00:00Z',
+  updatedTime: '2026-07-23T01:00:00Z',
   currentVersion: 3,
   oldestVersion: 1,
+  maxVersions: 10,
+  casRequired: false,
+  deleteVersionAfter: '0s',
   customMetadata: { owner: 'billing' },
   versions: [
     { version: 3, createdTime: '2026-07-23T01:00:00Z', destroyed: false },

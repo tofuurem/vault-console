@@ -32,6 +32,16 @@ export const vaultQueryKeys = {
     mount,
     path,
   ] as const,
+  mountConfig: (mount: string) => [
+    ...vaultQueryKeys.all,
+    'kv-mount-config',
+    mount,
+  ] as const,
+  mountConfigPermissions: (mount: string) => [
+    ...vaultQueryKeys.all,
+    'kv-mount-config-permissions',
+    mount,
+  ] as const,
   authMounts: () => [...vaultQueryKeys.all, 'auth-mounts'] as const,
   userpassUsers: (mounts: readonly string[]) => [
     ...vaultQueryKeys.all,

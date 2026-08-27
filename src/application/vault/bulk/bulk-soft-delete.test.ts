@@ -26,11 +26,16 @@ function gateway(): KvV2Gateway {
     listPaths: vi.fn(),
     readSecret: vi.fn(),
     writeSecret: vi.fn(),
-    readSecretHistory: vi.fn(async (_session, _mount, path) => {
+    readSecretMetadata: vi.fn(async (_session, _mount, path) => {
       if (path === 'missing') throw new VaultError('not-found');
       return {
+        createdTime: '2026-07-25T00:00:00Z',
+        updatedTime: '2026-07-25T00:00:00Z',
         currentVersion: path === 'deleted' ? 4 : 3,
         oldestVersion: 1,
+        maxVersions: 0,
+        casRequired: false,
+        deleteVersionAfter: '0s',
         customMetadata: {},
         versions: [{
           version: path === 'deleted' ? 4 : 3,
@@ -40,6 +45,10 @@ function gateway(): KvV2Gateway {
         }],
       };
     }),
+    updateSecretMetadata: vi.fn(),
+    readMountConfig: vi.fn(),
+    updateMountConfig: vi.fn(),
+    deleteLatestSecret: vi.fn(),
     deleteVersions: vi.fn(async (_session, _mount, path) => {
       if (path === 'runtime-denied') throw new VaultError('authorization');
     }),
@@ -91,7 +100,7 @@ describe('bulk soft delete', () => {
       expect.objectContaining({ path: 'deleted', status: 'missing', version: 4 }),
       expect.objectContaining({ path: 'missing', status: 'missing' }),
     ]));
-    expect(kv.readSecretHistory).not.toHaveBeenCalledWith(
+    expect(kv.readSecretMetadata).not.toHaveBeenCalledWith(
       session,
       'applications',
       'denied',

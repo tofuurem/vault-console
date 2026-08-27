@@ -40,6 +40,7 @@ class StubAuthGateway implements VaultAuthGateway {
   validateToken = vi.fn(async (_serverUrl: string, _token: VaultToken): Promise<VaultSession> => this.session);
   loginUserpass = vi.fn(async (_input: UserpassLogin): Promise<VaultSession> => this.session);
   renewSelf = vi.fn(async (): Promise<VaultSessionLease> => ({ renewable: false }));
+  revokeSelf = vi.fn(async (): Promise<void> => undefined);
   getCapabilities = vi.fn(async (): Promise<VaultCapabilityMap> => this.capabilities);
 }
 
@@ -58,6 +59,8 @@ function SessionProbe() {
       <output data-testid="expiry">{session.session?.expiresAt ?? 'none'}</output>
       <output data-testid="renewal-status">{session.renewal.status}</output>
       <output data-testid="renewal-error">{session.renewal.error?.code ?? 'none'}</output>
+      <output data-testid="revocation-status">{session.revocation.status}</output>
+      <output data-testid="revocation-error">{session.revocation.error?.code ?? 'none'}</output>
       <button
         type="button"
         onClick={() => void session.signInWithToken('https://vault.example.test', 'hvs.raw').catch(() => undefined)}
@@ -72,6 +75,12 @@ function SessionProbe() {
         Renew
       </button>
       <button type="button" onClick={session.expireSession}>Expire</button>
+      <button
+        type="button"
+        onClick={() => void session.revokeSession().catch(() => undefined)}
+      >
+        Revoke
+      </button>
     </div>
   );
 }
@@ -423,5 +432,62 @@ describe('VaultSessionProvider', () => {
       expect.any(AbortSignal),
     ));
     expect(screen.getByTestId('renewal-status')).toHaveTextContent('succeeded');
+  });
+
+  it('serializes revoke-self and clears all tab session state after success', async () => {
+    const gateway = new StubAuthGateway();
+    let finishRevoke!: () => void;
+    gateway.revokeSelf.mockReturnValue(new Promise((resolve) => {
+      finishRevoke = resolve;
+    }));
+
+    render(<VaultSessionProvider gateway={gateway}><SessionProbe /></VaultSessionProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Token login' }));
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+    sessionStorage.setItem(RECENT_PATHS_STORAGE_KEY, '{"version":1,"paths":[]}');
+    sessionStorage.setItem(SESSION_FAVORITES_STORAGE_KEY, '{"version":1,"paths":[]}');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    expect(gateway.revokeSelf).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('revocation-status')).toHaveTextContent('revoking');
+
+    await act(async () => finishRevoke());
+
+    expect(screen.getByTestId('status')).toHaveTextContent('anonymous');
+    expect(screen.getByTestId('identity')).toHaveTextContent('none');
+    expect(screen.getByTestId('revocation-status')).toHaveTextContent('succeeded');
+    expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(RECENT_PATHS_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(SESSION_FAVORITES_STORAGE_KEY)).toBeNull();
+  });
+
+  it('keeps the active session when revoke-self fails normally', async () => {
+    const gateway = new StubAuthGateway();
+    gateway.revokeSelf.mockRejectedValue(new VaultError('unavailable'));
+
+    render(<VaultSessionProvider gateway={gateway}><SessionProbe /></VaultSessionProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Token login' }));
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+
+    await waitFor(() => expect(screen.getByTestId('revocation-status')).toHaveTextContent('failed'));
+    expect(screen.getByTestId('revocation-error')).toHaveTextContent('unavailable');
+    expect(screen.getByTestId('status')).toHaveTextContent('authenticated');
+    expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).not.toBeNull();
+  });
+
+  it('expires the local session when revoke-self proves the token is invalid', async () => {
+    const gateway = new StubAuthGateway();
+    gateway.revokeSelf.mockRejectedValue(new VaultError('session-expired', { status: 401 }));
+
+    render(<VaultSessionProvider gateway={gateway}><SessionProbe /></VaultSessionProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Token login' }));
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('expired'));
+    expect(screen.getByTestId('identity')).toHaveTextContent('none');
+    expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
   });
 });

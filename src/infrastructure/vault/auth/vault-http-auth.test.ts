@@ -5,10 +5,12 @@ import { VaultAuthAdapter } from './vault-auth-adapter';
 import { VaultHttpClient, type VaultFetch } from '../http/vault-http-client';
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return status === 204
+    ? new Response(null, { status })
+    : new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
 }
 
 describe('VaultAuthAdapter', () => {
@@ -195,6 +197,25 @@ describe('VaultAuthAdapter', () => {
       renewable: false,
       renewedAt: expect.any(Number),
     });
+  });
+
+  it('revokes the calling token without putting it in the request body', async () => {
+    const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(jsonResponse(null, 204));
+    const gateway = new VaultAuthAdapter(new VaultHttpClient(fetchRequest));
+    const session = {
+      serverUrl: 'https://vault.example.test',
+      token: vaultToken('hvs.revoked-by-self'),
+      authMethod: 'token' as const,
+    };
+
+    await expect(gateway.revokeSelf(session)).resolves.toBeUndefined();
+    expect(String(fetchRequest.mock.calls[0][0])).toBe(
+      'https://vault.example.test/v1/auth/token/revoke-self',
+    );
+    expect(fetchRequest.mock.calls[0][1]?.method).toBe('POST');
+    expect(fetchRequest.mock.calls[0][1]?.body).toBeUndefined();
+    expect(new Headers(fetchRequest.mock.calls[0][1]?.headers).get('X-Vault-Token'))
+      .toBe('hvs.revoked-by-self');
   });
 
   it('queries the current token capabilities for every requested path', async () => {

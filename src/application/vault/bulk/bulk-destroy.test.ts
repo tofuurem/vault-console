@@ -22,11 +22,16 @@ function gateway(): KvV2Gateway {
     listPaths: vi.fn(),
     readSecret: vi.fn(),
     writeSecret: vi.fn(),
-    readSecretHistory: vi.fn(async (_session, _mount, path) => {
+    readSecretMetadata: vi.fn(async (_session, _mount, path) => {
       if (path === 'missing') throw new VaultError('not-found');
       return {
+        createdTime: '2026-07-25T01:00:00Z',
+        updatedTime: '2026-07-25T03:00:00Z',
         currentVersion: 3,
         oldestVersion: 1,
+        maxVersions: 0,
+        casRequired: false,
+        deleteVersionAfter: '0s',
         customMetadata: {},
         versions: [
           { version: 3, createdTime: '2026-07-25T03:00:00Z', destroyed: false },
@@ -40,6 +45,10 @@ function gateway(): KvV2Gateway {
         ],
       };
     }),
+    updateSecretMetadata: vi.fn(),
+    readMountConfig: vi.fn(),
+    updateMountConfig: vi.fn(),
+    deleteLatestSecret: vi.fn(),
     deleteVersions: vi.fn(),
     undeleteVersions: vi.fn(),
     destroyVersions: vi.fn(async (_session, _mount, path) => {
@@ -79,7 +88,7 @@ describe('bulk destroy', () => {
       expect.objectContaining({ path: 'denied', status: 'denied' }),
       expect.objectContaining({ path: 'missing', status: 'missing' }),
     ]));
-    expect(kv.readSecretHistory).not.toHaveBeenCalledWith(
+    expect(kv.readSecretMetadata).not.toHaveBeenCalledWith(
       session,
       'applications',
       'denied',

@@ -34,8 +34,13 @@ describe('VersionComparison', () => {
         mount="applications"
         path="platform/api"
         history={{
+          createdTime: '2026-07-21T10:00:00Z',
+          updatedTime: '2026-07-22T10:00:00Z',
           currentVersion: 2,
           oldestVersion: 1,
+          maxVersions: 0,
+          casRequired: false,
+          deleteVersionAfter: '0s',
           customMetadata: {},
           versions: [
             { version: 2, createdTime: '2026-07-22T10:00:00Z', destroyed: false },

@@ -201,7 +201,13 @@ export default function ExplorerPage() {
     const path = `${activePath}${name}`;
     try {
       await ensureCapability(kvActionPaths(activeMount, path).data, 'create');
-      const version = await kvGateway.writeSecret(session, activeMount, path, data, 0);
+      const version = await kvGateway.writeSecret(
+        session,
+        activeMount,
+        path,
+        data,
+        { type: 'create-only' },
+      );
       navigate(explorerRoute(activeMount, activePath, path));
       refreshDirectory();
       toast.success(`Created ${activeMount}/${path} at version ${version}.`);
@@ -217,7 +223,7 @@ export default function ExplorerPage() {
         activeMount,
         selectedPath,
         data,
-        selectedDetails.secret.metadata.version,
+        { type: 'check-and-set', version: selectedDetails.secret.metadata.version },
       );
       refreshSelected();
       toast.success(`Saved ${activeMount}/${selectedPath} as version ${version} with check-and-set.`);
@@ -236,7 +242,7 @@ export default function ExplorerPage() {
         activeMount,
         selectedPath,
         data,
-        selectedDetails.history.currentVersion,
+        { type: 'check-and-set', version: selectedDetails.history.currentVersion },
       );
       refreshSelected();
       toast.success(`Restored v${version} as new version ${restoredVersion}.`);

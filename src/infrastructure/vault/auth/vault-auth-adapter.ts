@@ -142,6 +142,17 @@ export class VaultAuthAdapter implements VaultAuthGateway {
     });
   }
 
+  async revokeSelf(
+    session: VaultSession,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.client.request(session.serverUrl, 'auth/token/revoke-self', {
+      method: 'POST',
+      token: session.token,
+      signal,
+    });
+  }
+
   async getCapabilities(
     session: VaultSession,
     paths: readonly string[],

@@ -106,7 +106,7 @@ export async function prepareBulkDestroy({
       | { readonly excluded: BulkItemOutcome }
     > => {
       try {
-        const history = await gateway.readSecretHistory(
+        const history = await gateway.readSecretMetadata(
           session,
           mount,
           path,
