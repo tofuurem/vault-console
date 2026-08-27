@@ -1,3 +1,20 @@
 vault-console.example.com {
-    reverse_proxy vault-console:8080
+	encode zstd gzip
+
+	# HashiCorp Vault's native UI remains available at /ui/.
+	@nativeVaultUi path /ui /ui/*
+	handle @nativeVaultUi {
+		reverse_proxy vault:8200
+	}
+
+	# Both browser interfaces use the same-origin Vault API directly.
+	@vaultApi path /v1 /v1/*
+	handle @vaultApi {
+		reverse_proxy vault:8200
+	}
+
+	# Vault Console owns every remaining application route.
+	handle {
+		reverse_proxy vault-console:8080
+	}
 }

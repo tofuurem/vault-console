@@ -134,6 +134,13 @@ vault policy write vault-console-admin \
 сузьте пути и замените `userpass` на фактический auth mount. Создание secrets
 engine требует `sudo` вместе с `create`/`update`.
 
+Для совместимости со штатным Vault UI admin-шаблон также разрешает чтение
+`sys/config/state/sanitized`. Этот root-namespace endpoint нужен нативному
+представлению конфигурации, но не самому Vault Console; удалите stanza для ролей,
+которым такая операторская видимость не требуется. Штатная policy `default`
+должна оставаться прикреплена к UI-пользователям: она обеспечивает внутренние
+UI-возможности, включая `sys/internal/ui/resultant-acl`.
+
 Admin policy не выдаёт доступ к значениям существующих KV v2 mounts. Для
 чтения и навигации добавьте отдельную минимальную policy, например:
 
@@ -160,17 +167,34 @@ HCL policies остаются External/read-only и не переписываю�
 
 ## Reverse proxy и TLS
 
-Контейнер слушает порт `8080`. Пример Caddy:
+Контейнер слушает порт `8080`. Если Vault Console и штатный Vault UI работают
+на одном origin, явно разделите UI и API routes:
 
 ```caddyfile
 vault-console.example.com {
-    reverse_proxy vault-console:8080
+    encode zstd gzip
+
+    @nativeVaultUi path /ui /ui/*
+    handle @nativeVaultUi {
+        reverse_proxy vault:8200
+    }
+
+    @vaultApi path /v1 /v1/*
+    handle @vaultApi {
+        reverse_proxy vault:8200
+    }
+
+    handle {
+        reverse_proxy vault-console:8080
+    }
 }
 ```
 
 Готовый файл: [`deploy/Caddyfile.example`](deploy/Caddyfile.example). При
-одном HTTPS origin запросы `/v1/*` идут в Vault внутри Docker network, поэтому
-дополнительный CORS не нужен.
+одном HTTPS origin запросы `/v1/*` идут напрямую в Vault внутри Docker network,
+поэтому дополнительный CORS не нужен. Если нативный UI не нужен, достаточно
+проксировать весь origin в `vault-console:8080`: его Nginx также умеет
+пересылать `/v1/*` в `VAULT_UPSTREAM`.
 
 Если `VAULT_UPSTREAM` использует HTTPS с private CA:
 
@@ -229,6 +253,18 @@ HCL доступны только для безопасного просмотр
 - Recent paths остаются в `sessionStorage`.
 - Для `userpass` избранное и тема могут сохраняться в `localStorage`.
 - Secret values, JSON keys и ответы Vault не сохраняются в истории навигации.
+
+Vault Console использует безопасный `vc-console` namespace для persistent
+browser preferences. Версия `0.7.1` автоматически переносит прежние
+`vault-console` keys при первом открытии `/`, чтобы они не пересекались с
+зарезервированными token keys штатного Vault UI. Миграция не читает и не
+переносит токены.
+
+Сессии двух интерфейсов намеренно независимы. Вход в Vault Console на `/` не
+авторизует вкладку штатного UI на `/ui/`; войдите в нативный UI отдельно. Если
+существующий браузер сразу открывает `/ui/` после обновления и показывает белый
+экран, сначала один раз откройте `/` для browser-local миграции или удалите
+только прежние `vault-console*` keys через browser storage tools.
 
 Используйте HTTPS, доверенный образ, CSP и минимальные policies. Подробности и
 advisories находятся в [SECURITY.md](SECURITY.md).
@@ -292,6 +328,9 @@ curl -i http://127.0.0.1:8080/v1/sys/health
 | HTTPS upstream не работает | Имя в сертификате и подключённый private CA |
 | Раздел или действие отсутствует | Capabilities текущего token на точные API paths |
 | После login пустой Explorer | Права на `sys/internal/ui/mounts` и KV metadata/data |
+| Штатный `/ui/` показывает белый экран | Откройте `/` один раз для миграции legacy browser keys, затем перезагрузите `/ui/` |
+| Нативный UI получает `resultant-acl` 403 | Войдите в `/ui/` отдельно и проверьте, что token включает policy `default` |
+| Нативный admin UI получает `config/state/sanitized` 403 | Добавьте `read` на `sys/config/state/sanitized` только операторской роли |
 | `403` в Inspector | Policy оператора; revoked token автоматически завершит сессию |
 
 Vault Console не заменяет Vault audit devices, TLS, backups и операционный

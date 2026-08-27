@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { INSPECTOR_PREFERENCES_STORAGE_KEY } from '@/application/storage/browser-storage-keys';
 import InspectorDock from './InspectorDock';
 
 function TestInspector() {
@@ -51,7 +52,8 @@ describe('InspectorDock', () => {
 
     fireEvent.keyDown(separator, { key: 'ArrowUp' });
     expect(separator).toHaveAttribute('aria-valuenow', '45');
-    expect(window.localStorage.getItem('vault-console:inspector-layout:v1')).toContain('"bottomRatio":0.45');
+    expect(window.localStorage.getItem(INSPECTOR_PREFERENCES_STORAGE_KEY))
+      .toContain('"bottomRatio":0.45');
   });
 
   it('switches between bottom, right, and full-screen layouts without losing tabs', async () => {
@@ -60,7 +62,8 @@ describe('InspectorDock', () => {
 
     await user.click(screen.getByRole('button', { name: 'Dock inspector at right' }));
     expect(screen.getByRole('separator', { name: 'Resize right inspector' })).toBeVisible();
-    expect(window.localStorage.getItem('vault-console:inspector-layout:v1')).toContain('"placement":"right"');
+    expect(window.localStorage.getItem(INSPECTOR_PREFERENCES_STORAGE_KEY))
+      .toContain('"placement":"right"');
 
     await user.click(screen.getByRole('button', { name: 'Open inspector full screen' }));
     const dialog = screen.getByRole('dialog', { name: 'applications/nested' });

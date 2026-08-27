@@ -1,3 +1,5 @@
+import { INSPECTOR_PREFERENCES_STORAGE_KEY } from '@/application/storage/browser-storage-keys';
+
 export type InspectorDockPlacement = 'bottom' | 'right';
 
 export interface InspectorPreferences {
@@ -12,8 +14,6 @@ export const DEFAULT_INSPECTOR_PREFERENCES: InspectorPreferences = {
   rightWidth: 380,
 };
 
-const STORAGE_KEY = 'vault-console:inspector-layout:v1';
-
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(Math.max(value, minimum), maximum);
 }
@@ -21,7 +21,9 @@ function clamp(value: number, minimum: number, maximum: number): number {
 export function loadInspectorPreferences(storage: Storage | null): InspectorPreferences {
   if (!storage) return DEFAULT_INSPECTOR_PREFERENCES;
   try {
-    const parsed = JSON.parse(storage.getItem(STORAGE_KEY) ?? 'null') as Record<string, unknown> | null;
+    const parsed = JSON.parse(
+      storage.getItem(INSPECTOR_PREFERENCES_STORAGE_KEY) ?? 'null',
+    ) as Record<string, unknown> | null;
     if (!parsed) return DEFAULT_INSPECTOR_PREFERENCES;
     return {
       placement: parsed.placement === 'right' ? 'right' : 'bottom',
@@ -43,7 +45,7 @@ export function saveInspectorPreferences(
 ): boolean {
   if (!storage) return false;
   try {
-    storage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+    storage.setItem(INSPECTOR_PREFERENCES_STORAGE_KEY, JSON.stringify(preferences));
     return true;
   } catch {
     return false;

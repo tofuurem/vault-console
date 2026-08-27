@@ -1,8 +1,9 @@
 import type { VaultSession } from '@/domain/vault/contracts';
+import { LOCAL_FAVORITES_STORAGE_PREFIX } from '@/application/storage/browser-storage-keys';
 
 export const RECENT_PATHS_STORAGE_KEY = 'vault-console.navigation.recents.v1';
 export const SESSION_FAVORITES_STORAGE_KEY = 'vault-console.navigation.favorites.session.v1';
-export const LOCAL_FAVORITES_STORAGE_PREFIX = 'vault-console.navigation.favorites.v1.';
+export { LOCAL_FAVORITES_STORAGE_PREFIX };
 
 const MAX_RECENTS = 20;
 const MAX_FAVORITES = 100;

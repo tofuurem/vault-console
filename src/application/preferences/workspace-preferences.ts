@@ -1,5 +1,6 @@
-export const WORKSPACE_PREFERENCES_STORAGE_KEY =
-  'vault-console:workspace-preferences:v1';
+import { WORKSPACE_PREFERENCES_STORAGE_KEY } from '@/application/storage/browser-storage-keys';
+
+export { WORKSPACE_PREFERENCES_STORAGE_KEY };
 
 export const WORKSPACE_DENSITIES = ['comfortable', 'compact'] as const;
 

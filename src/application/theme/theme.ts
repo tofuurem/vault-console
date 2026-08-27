@@ -1,4 +1,6 @@
-export const THEME_STORAGE_KEY = 'vault-console:theme';
+import { THEME_STORAGE_KEY } from '@/application/storage/browser-storage-keys';
+
+export { THEME_STORAGE_KEY };
 
 export const THEME_PREFERENCES = ['system', 'light', 'dark'] as const;
 

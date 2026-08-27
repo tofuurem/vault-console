@@ -5,6 +5,12 @@ path "sys/internal/ui/mounts" {
   capabilities = ["read"]
 }
 
+# Native Vault UI reads this root-namespace endpoint for its sanitized operator
+# configuration view. Remove it when operators do not need that native view.
+path "sys/config/state/sanitized" {
+  capabilities = ["read"]
+}
+
 # Optional but recommended: without this path the UI remains usable and lets
 # each Vault API call decide, but it cannot disable forbidden actions in advance.
 path "sys/capabilities-self" {

@@ -27,6 +27,36 @@ async function revokeToken(page: import('@playwright/test').Page, token: string)
   expect(response.ok()).toBe(true);
 }
 
+test('migrates persistent settings out of the native Vault token namespace', async ({ page }) => {
+  await page.goto('/login');
+  await page.evaluate(() => {
+    localStorage.setItem('vault-console:theme', 'dark');
+    localStorage.setItem(
+      'vault-console:inspector-layout:v1',
+      JSON.stringify({ placement: 'right', bottomRatio: 0.5, rightWidth: 440 }),
+    );
+    localStorage.setItem(
+      'vault-native-token-record',
+      JSON.stringify({ token: 'native-placeholder', policies: ['default'] }),
+    );
+  });
+
+  await page.reload();
+
+  await expect(page.getByRole('heading', { name: 'Vault Console' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  const storage = await page.evaluate(() => ({
+    legacyKeys: Object.keys(localStorage).filter((key) => key.startsWith('vault-console')),
+    theme: localStorage.getItem('vc-console:theme'),
+    inspector: localStorage.getItem('vc-console:inspector-layout:v1'),
+    native: localStorage.getItem('vault-native-token-record'),
+  }));
+  expect(storage.legacyKeys).toEqual([]);
+  expect(storage.theme).toBe('dark');
+  expect(storage.inspector).toContain('"placement":"right"');
+  expect(JSON.parse(storage.native ?? '{}')).toMatchObject({ token: 'native-placeholder' });
+});
+
 test('rejects invalid tokens and expires active or restored revoked sessions', async ({ page }) => {
   test.skip(
     !revocableVaultToken || !restoredRevocableVaultToken,
