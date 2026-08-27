@@ -51,11 +51,11 @@ curl --fail http://127.0.0.1:8080/healthz
 
 ## Опубликованный образ
 
-Версия `0.7.1` опубликована для `linux/amd64` и `linux/arm64`. Для
+Версия `0.8.0` опубликована для `linux/amd64` и `linux/arm64`. Для
 воспроизводимого развёртывания используйте immutable digest:
 
 ```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.7.1@sha256:a915252d7280508ad9211944a0b48b9bbc61ca035fce37e419fcaee08ef6119b
+zero-noise-registry.registry.twcstorage.ru/vault-console:0.8.0@sha256:1bac8c1818d5a5789ccd383c2c73af6150e8da8ecae6a3eb8ffc42bbd4220cbf
 ```
 
 ## Документация

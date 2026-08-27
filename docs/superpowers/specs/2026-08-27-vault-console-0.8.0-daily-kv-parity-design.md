@@ -1,7 +1,7 @@
 # Vault Console 0.8.0 Daily KV v2 Parity Design
 
 - Date: 2026-08-27
-- Status: implemented; release verification pending
+- Status: released
 - Target release: `0.8.0`
 - Product profile: authenticated app-like admin console
 

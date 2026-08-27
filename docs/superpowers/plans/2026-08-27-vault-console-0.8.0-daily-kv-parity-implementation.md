@@ -1,7 +1,7 @@
 # Vault Console 0.8.0 Daily KV v2 Parity Implementation Plan
 
 - Date: 2026-08-27
-- Status: implementation complete; release verification pending
+- Status: complete; released as `v0.8.0`
 - Branch: `main`
 - Starting commit: `cfa9ce6d927512955588c72a3fbac858e0470c55`
 - Design: `docs/superpowers/specs/2026-08-27-vault-console-0.8.0-daily-kv-parity-design.md`
