@@ -98,6 +98,14 @@ export function hasFavoritePath(
   return current.some((candidate) => pathIdentity(candidate) === pathIdentity(path));
 }
 
+export function removeNavigationTargets<T extends NavigationPath>(
+  current: readonly T[],
+  targets: readonly NavigationPath[],
+): readonly T[] {
+  const identities = new Set(targets.map(pathIdentity));
+  return current.filter((candidate) => !identities.has(pathIdentity(candidate)));
+}
+
 export function readRecentPaths(
   storage: NavigationStorage | null,
 ): StoredPathsResult<RecentNavigationPath> {

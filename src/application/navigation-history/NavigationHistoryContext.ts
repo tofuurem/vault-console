@@ -13,6 +13,7 @@ export interface NavigationHistoryContextValue {
   recordRecent(path: NavigationPath): void;
   toggleFavorite(path: NavigationPath): void;
   isFavorite(path: NavigationPath): boolean;
+  removeSecretPaths(mount: string, paths: readonly string[]): void;
   clearLocalNavigationData(): void;
 }
 

@@ -14,6 +14,7 @@ describe('BulkToolbar', () => {
       onClear: vi.fn(),
       onSoftDelete: vi.fn(),
       onDestroy: vi.fn(),
+      onPermanentDelete: vi.fn(),
     };
     render(
       <BulkToolbar
@@ -31,6 +32,7 @@ describe('BulkToolbar', () => {
       'Unpin',
       'Soft-delete latest',
       'Destroy versions…',
+      'Delete keys permanently…',
       'Clear selection',
     ]) {
       const button = screen.getByRole('button', { name: label });

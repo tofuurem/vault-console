@@ -104,6 +104,31 @@ describe('SecretTable', () => {
     expect(onToggleSelectAll).toHaveBeenCalledOnce();
   });
 
+  it('offers permanent deletion only for secret rows', async () => {
+    const user = userEvent.setup();
+    const onDeletePermanently = vi.fn();
+    render(
+      <SecretTable
+        entries={[
+          { kind: 'folder', name: 'platform', path: 'platform/' },
+          { kind: 'secret', name: 'database', path: 'database' },
+        ]}
+        selectedPath={null}
+        onNavigateToFolder={vi.fn()}
+        onSelectSecret={vi.fn()}
+        onDeletePermanently={onDeletePermanently}
+      />,
+    );
+
+    expect(screen.queryByRole('button', {
+      name: 'Delete key permanently platform/',
+    })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', {
+      name: 'Delete key permanently database',
+    }));
+    expect(onDeletePermanently).toHaveBeenCalledWith('database');
+  });
+
   it('compacts desktop rows without shrinking mobile touch targets', () => {
     render(
       <SecretTable

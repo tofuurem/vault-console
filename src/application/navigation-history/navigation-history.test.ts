@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   favoriteStorageScope,
   recordRecentPath,
+  removeNavigationTargets,
   toggleFavoritePath,
   type NavigationPath,
 } from './navigation-history';
@@ -43,6 +44,19 @@ describe('navigation history', () => {
     expect(toggleFavoritePath(favorites, path(100), 200)).not.toContainEqual(
       expect.objectContaining({ path: 'service-100' }),
     );
+  });
+
+  it('removes only matching secret navigation targets', () => {
+    const current = [
+      { ...path(1), visitedAt: 1 },
+      { ...path(2), visitedAt: 2 },
+      { ...path(1, 'folder'), visitedAt: 3 },
+    ];
+
+    expect(removeNavigationTargets(current, [path(1)])).toEqual([
+      expect.objectContaining({ path: 'service-2', kind: 'secret' }),
+      expect.objectContaining({ path: 'service-1/', kind: 'folder' }),
+    ]);
   });
 
   it('hashes stable userpass identity without exposing server or username', async () => {

@@ -191,6 +191,28 @@ describe('Inspector partial KV access', () => {
     expect(screen.getByText('v2')).toBeVisible();
   });
 
+  it('offers a dedicated write-only workflow when exact data capabilities allow it', async () => {
+    const user = userEvent.setup();
+    const onWriteOnly = vi.fn();
+    renderInspector({
+      dataError: new VaultError('authorization', { status: 403 }),
+      historyError: new VaultError('authorization', { status: 403 }),
+    }, {
+      permissions: {
+        ...permissions,
+        canReadData: false,
+        canReadMetadata: false,
+        canCreate: true,
+        canUpdate: true,
+      },
+      onWriteOnly,
+    });
+
+    expect(screen.getByText('Write-only access is available')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Write new version…' }));
+    expect(onWriteOnly).toHaveBeenCalledOnce();
+  });
+
   it('labels comparison and destructive version actions explicitly', async () => {
     const user = userEvent.setup();
     const onCompare = vi.fn();
@@ -200,6 +222,7 @@ describe('Inspector partial KV access', () => {
       permissions: {
         ...permissions,
         canReadMetadata: true,
+        canDeleteLatest: true,
         canDeleteVersions: true,
         canDestroy: true,
       },
@@ -223,6 +246,45 @@ describe('Inspector partial KV access', () => {
     await user.click(screen.getByRole('button', { name: 'Version actions for version 2' }));
     await user.click(screen.getByRole('menuitem', { name: 'Destroy version 2' }));
     expect(onDestroyVersion).toHaveBeenCalledWith(2);
+  });
+
+  it('allows a soft-deleted version to be permanently destroyed', async () => {
+    const user = userEvent.setup();
+    const onDestroyVersion = vi.fn();
+    renderInspector({
+      history: {
+        ...history,
+        versions: [{
+          ...history.versions[0],
+          deletionTime: '2026-07-23T02:00:00Z',
+        }],
+      },
+      dataError: new VaultError('not-found'),
+    }, {
+      permissions: { ...permissions, canReadMetadata: true, canDestroy: true },
+      onDestroyVersion,
+    });
+
+    await user.click(screen.getByRole('tab', { name: /Versions.*1/ }));
+    await user.click(screen.getByRole('button', { name: 'Version actions for version 3' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Destroy version 3' }));
+    expect(onDestroyVersion).toHaveBeenCalledWith(3);
+  });
+
+  it('keeps permanent key deletion available when metadata cannot be read', async () => {
+    const user = userEvent.setup();
+    const onDeleteMetadata = vi.fn();
+    renderInspector({
+      secret,
+      historyError: new VaultError('authorization', { status: 403 }),
+    }, {
+      permissions: { ...permissions, canDeleteMetadata: true },
+      onDeleteMetadata,
+    });
+
+    await user.click(screen.getByRole('tab', { name: 'Metadata' }));
+    await user.click(screen.getByRole('button', { name: 'Delete key permanently' }));
+    expect(onDeleteMetadata).toHaveBeenCalledOnce();
   });
 
   it('pins the selected secret from the data header', async () => {

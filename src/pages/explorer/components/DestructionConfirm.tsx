@@ -9,7 +9,7 @@ export type KvDestructiveAction =
   | { readonly kind: 'delete-latest'; readonly version: number }
   | { readonly kind: 'delete-version'; readonly version: number }
   | { readonly kind: 'destroy-version'; readonly version: number }
-  | { readonly kind: 'delete-metadata'; readonly version: number };
+  | { readonly kind: 'delete-key' };
 
 interface DestructionConfirmProps {
   readonly open: boolean;
@@ -36,10 +36,10 @@ const copy = {
     description: 'Vault permanently removes this version data. This cannot be undone.',
     button: 'Destroy version permanently',
   },
-  'delete-metadata': {
-    title: 'Delete all versions and metadata',
-    description: 'Vault permanently removes the secret, every version, and its metadata. This cannot be undone.',
-    button: 'Delete everything permanently',
+  'delete-key': {
+    title: 'Delete key permanently',
+    description: 'Vault permanently removes this key, every version, custom metadata, and its history. This cannot be undone.',
+    button: 'Delete key permanently',
   },
 } as const;
 
@@ -50,7 +50,7 @@ export default function DestructionConfirm({ open, onClose, mount, path, action,
   if (!path || !action) return null;
   const fullPath = `${mount}/${path}`;
   const content = copy[action.kind];
-  const permanent = action.kind === 'destroy-version' || action.kind === 'delete-metadata';
+  const permanent = action.kind === 'destroy-version' || action.kind === 'delete-key';
   const close = () => {
     setTypedPath('');
     setError('');
@@ -73,7 +73,7 @@ export default function DestructionConfirm({ open, onClose, mount, path, action,
   return (
     <Modal open={open} onClose={close} title={content.title} width="md">
       <div className="space-y-4 p-4">
-        <div className="flex items-start gap-3"><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${permanent ? 'bg-danger-100' : 'bg-warning-100'}`}><i className={`ri-alert-line text-sm ${permanent ? 'text-danger-600' : 'text-warning-700'}`} aria-hidden="true" /></div><div><p className="text-sm leading-5 text-foreground-700">{content.description}</p><p className="mt-2 break-all font-mono text-xs text-foreground-800">{fullPath} · v{action.version}</p></div></div>
+        <div className="flex items-start gap-3"><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${permanent ? 'bg-danger-100' : 'bg-warning-100'}`}><i className={`ri-alert-line text-sm ${permanent ? 'text-danger-600' : 'text-warning-700'}`} aria-hidden="true" /></div><div><p className="text-sm leading-5 text-foreground-700">{content.description}</p><p className="mt-2 break-all font-mono text-xs text-foreground-800">{fullPath}{action.kind === 'delete-key' ? '' : ` · v${action.version}`}</p></div></div>
         {error && <div role="alert" className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</div>}
         {permanent ? (
           <>

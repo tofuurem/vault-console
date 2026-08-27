@@ -15,13 +15,14 @@ interface InspectorProps {
   readonly onRetry: () => void;
   readonly onView?: () => void;
   readonly onEdit?: () => void;
+  readonly onWriteOnly?: () => void;
   readonly permissions?: KvActionPermissions;
   readonly onCompare?: () => void;
   readonly onDeleteLatest?: (version: number) => void;
   readonly onDeleteVersion?: (version: number) => void;
   readonly onUndelete?: (version: number) => void;
   readonly onDestroyVersion?: (version: number) => void;
-  readonly onDeleteMetadata?: (version: number) => void;
+  readonly onDeleteMetadata?: () => void;
   readonly activeTab?: string;
   readonly onTabChange?: (tab: string) => void;
   readonly favorite?: boolean;
@@ -191,9 +192,11 @@ function VersionActionsMenu({
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const canSoftDelete = !deleted && permissions?.canDeleteVersions;
+  const canSoftDelete = !deleted && (
+    current ? permissions?.canDeleteLatest : permissions?.canDeleteVersions
+  );
   const canUndelete = deleted && permissions?.canUndelete;
-  const canDestroy = !deleted && permissions?.canDestroy;
+  const canDestroy = permissions?.canDestroy;
   const hasActions = canSoftDelete || canUndelete || canDestroy;
 
   useEffect(() => {
@@ -277,6 +280,7 @@ export default function Inspector({
   onRetry,
   onView,
   onEdit,
+  onWriteOnly,
   permissions,
   onCompare,
   onDeleteLatest,
@@ -339,20 +343,37 @@ export default function Inspector({
       {activeTab === 'data' && (
         <div className="space-y-3 p-3">
           {!secret ? (
-            dataError ? (
-              <ScopedResourceError
-                title={dataError.code === 'authorization' ? 'Secret data is not allowed' : 'Secret data could not be loaded'}
-                error={dataError}
-                onRetry={onRetry}
-              />
-            ) : currentVersionUnavailable ? (
-              <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
-                <p className="font-semibold">Current version has no readable data</p>
-                <p className="mt-1 leading-5">It is deleted or destroyed. Open Versions to inspect its state.</p>
-              </div>
-            ) : (
-              <ScopedResourceError title="Secret data could not be loaded" onRetry={onRetry} />
-            )
+            <div className="space-y-3">
+              {dataError ? (
+                <ScopedResourceError
+                  title={dataError.code === 'authorization' ? 'Secret data is not allowed' : 'Secret data could not be loaded'}
+                  error={dataError}
+                  onRetry={onRetry}
+                />
+              ) : currentVersionUnavailable ? (
+                <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
+                  <p className="font-semibold">Current version has no readable data</p>
+                  <p className="mt-1 leading-5">It is deleted or destroyed. Open Versions to inspect its state.</p>
+                </div>
+              ) : (
+                <ScopedResourceError title="Secret data could not be loaded" onRetry={onRetry} />
+              )}
+              {dataError?.code === 'authorization'
+                && (permissions?.canCreate || permissions?.canUpdate)
+                && onWriteOnly && (
+                <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
+                  <p className="font-semibold">Write-only access is available</p>
+                  <p className="mt-1 leading-5">You can submit a complete new document, but existing fields cannot be shown or preserved.</p>
+                  <button
+                    type="button"
+                    onClick={onWriteOnly}
+                    className="mt-2 h-11 rounded-md bg-primary-500 px-3 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2"
+                  >
+                    Write new version…
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <>
           <div className="flex items-center justify-between gap-2">
@@ -460,8 +481,9 @@ export default function Inspector({
         )
       )}
       {activeTab === 'metadata' && (
-        history ? (
-          <div className="space-y-3 p-3 text-xs">
+        <div className="space-y-3 p-3 text-xs">
+        {history ? (
+          <>
           <dl className="space-y-2">
             <div className="flex justify-between gap-3"><dt className="text-foreground-500">Logical path</dt><dd className="break-all text-right font-mono text-foreground-800">{mount}/{path}</dd></div>
             <div className="flex justify-between"><dt className="text-foreground-500">Current version</dt><dd className="font-mono text-foreground-800">{history.currentVersion}</dd></div>
@@ -473,21 +495,21 @@ export default function Inspector({
               {Object.entries(history.customMetadata).map(([key, value]) => <p key={key} className="mb-1 flex justify-between gap-3"><span className="font-mono text-foreground-600">{key}</span><span className="text-foreground-800">{value}</span></p>)}
             </div>
           )}
-          {permissions?.canDeleteMetadata && (
-            <div className="border-t border-background-200 pt-3">
-              <button type="button" onClick={() => onDeleteMetadata?.(history.currentVersion)} className="text-xs font-medium text-danger-600 hover:text-danger-700">Delete all versions and metadata…</button>
-            </div>
-          )}
-          </div>
+          </>
         ) : (
-          <div className="p-3">
-            <ScopedResourceError
-              title={historyError?.code === 'authorization' ? 'Secret metadata is not allowed' : 'Secret metadata could not be loaded'}
-              error={historyError}
-              onRetry={onRetry}
-            />
-          </div>
+          <ScopedResourceError
+            title={historyError?.code === 'authorization' ? 'Secret metadata is not allowed' : 'Secret metadata could not be loaded'}
+            error={historyError}
+            onRetry={onRetry}
+          />
         )
+        }
+        {permissions && permissions.canDeleteMetadata !== false && onDeleteMetadata && (
+          <div className="border-t border-background-200 pt-3">
+            <button type="button" aria-label="Delete key permanently" onClick={onDeleteMetadata} className="text-xs font-medium text-danger-600 hover:text-danger-700">Delete key permanently…</button>
+          </div>
+        )}
+        </div>
       )}
     </Tabs>
   );

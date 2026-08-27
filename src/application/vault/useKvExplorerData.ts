@@ -97,6 +97,9 @@ export function useKvSecretDetails(
   const permissionScope = permissions?.data?.scope ?? '';
   const canReadData = permissions?.status === 'success' ? permissions.data.canReadData : undefined;
   const canReadMetadata = permissions?.status === 'success' ? permissions.data.canReadMetadata : undefined;
+  const canCreate = permissions?.status === 'success' ? permissions.data.canCreate : undefined;
+  const canUpdate = permissions?.status === 'success' ? permissions.data.canUpdate : undefined;
+  const canWriteWithoutRead = canCreate === true || canUpdate === true;
   const waitingForPermissions = Boolean(
     permissionStatus
     && (
@@ -106,7 +109,14 @@ export function useKvSecretDetails(
     ),
   );
   const permissionKey = permissions
-    ? [permissionStatus, permissionScope, canReadData, canReadMetadata]
+    ? [
+        permissionStatus,
+        permissionScope,
+        canReadData,
+        canReadMetadata,
+        canCreate,
+        canUpdate,
+      ]
     : ['unchecked'];
   const enabled = Boolean(mount && path && !waitingForPermissions);
   const query = useQuery({
@@ -135,7 +145,7 @@ export function useKvSecretDetails(
         ? data.data
         : undefined;
 
-      if (secret || history) {
+      if (secret || history || canWriteWithoutRead) {
         const details: {
           secret?: KvV2Secret;
           history?: KvV2SecretHistory;

@@ -23,7 +23,11 @@ const session: VaultSession = {
   displayName: 'reader',
 };
 
-function authGateway(options: { metadataRead?: boolean; mountAdmin?: boolean } = {}): VaultAuthGateway {
+function authGateway(options: {
+  metadataRead?: boolean;
+  mountAdmin?: boolean;
+  writeOnly?: boolean;
+} = {}): VaultAuthGateway {
   return {
     getHealth: vi.fn(async (): Promise<VaultHealth> => ({ initialized: true, sealed: false, standby: false, version: '1.21.0' })),
     validateToken: vi.fn(async (_serverUrl: string, _token: VaultToken) => session),
@@ -38,9 +42,13 @@ function authGateway(options: { metadataRead?: boolean; mountAdmin?: boolean } =
           : path.startsWith('sys/') || path.startsWith('identity/')
           ? ['deny']
           : path.includes('/data/')
-            ? ['create', 'read', 'update', 'delete']
+            ? options.writeOnly
+              ? ['create', 'update']
+              : ['create', 'read', 'update', 'delete']
             : path.includes('/metadata/')
-              ? options.metadataRead === false ? ['list'] : ['read', 'list', 'delete']
+              ? options.metadataRead === false || options.writeOnly
+                ? ['list']
+                : ['read', 'list', 'delete']
               : ['update'],
       ]),
     ) as VaultCapabilityMap),
@@ -252,6 +260,33 @@ describe('ExplorerPage', () => {
     expect(await screen.findByText('This folder is outside your Vault policy')).toBeVisible();
   });
 
+  it('opens an exact secret path while directory LIST remains denied', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway({ denied: true });
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
+    await login(user);
+
+    expect(await screen.findByText('This folder is outside your Vault policy')).toBeVisible();
+    await user.type(
+      screen.getByLabelText('Secret path relative to applications'),
+      ' /team/shared ',
+    );
+    await user.click(screen.getByRole('button', { name: 'Open exact path' }));
+
+    expect(await screen.findByText('API_KEY')).toBeVisible();
+    expect(window.location.pathname).toBe('/explorer/applications/team/');
+    expect(window.location.search).toBe('?secret=team%2Fshared');
+    expect(gateway.readSecret).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'team/shared',
+      undefined,
+      expect.any(AbortSignal),
+    );
+    expect(screen.getByText('This folder is outside your Vault policy')).toBeVisible();
+  });
+
   it('shows secret data without calling denied metadata history', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
@@ -266,6 +301,35 @@ describe('ExplorerPage', () => {
 
     await user.click(screen.getByRole('tab', { name: 'Versions' }));
     expect(screen.getByText('Version history is not allowed')).toBeVisible();
+  });
+
+  it('writes a complete secret with CAS 0 when data and metadata reads are denied', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway({ writeOnly: true })} kvV2Gateway={gateway} />);
+    await login(user);
+
+    await user.click((await screen.findAllByText('shared'))[0]);
+    await user.click(await screen.findByRole('button', { name: 'Write new version…' }));
+    expect(screen.getByText('Existing fields are unknown.')).toBeVisible();
+    await user.type(screen.getAllByLabelText('Secret key')[0], 'TOKEN');
+    await user.type(screen.getByLabelText('Value for TOKEN'), 'replacement-value');
+    await user.click(screen.getByRole('button', { name: 'Review write' }));
+    await user.click(screen.getByRole('button', { name: 'Write complete secret' }));
+
+    await waitFor(() => expect(gateway.writeSecret).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'shared',
+      { TOKEN: 'replacement-value' },
+      { type: 'create-only' },
+    ));
+    expect(await screen.findByText(
+      'Wrote applications/shared as version 3 with CAS 0.',
+    )).toBeVisible();
+    expect(gateway.readSecret).not.toHaveBeenCalled();
+    expect(gateway.readSecretMetadata).not.toHaveBeenCalled();
   });
 
   it('creates with CAS 0 and edits from the exact loaded version', async () => {
@@ -381,11 +445,10 @@ describe('ExplorerPage', () => {
     expect(screen.queryByLabelText('Type applications/shared to confirm')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Delete current version' }));
 
-    await waitFor(() => expect(gateway.deleteVersions).toHaveBeenCalledWith(
+    await waitFor(() => expect(gateway.deleteLatestSecret).toHaveBeenCalledWith(
       session,
       'applications',
       'shared',
-      [2],
     ));
     expect(await screen.findByText(
       'Version 2 of applications/shared was soft-deleted.',
@@ -405,6 +468,70 @@ describe('ExplorerPage', () => {
     expect(await screen.findByText(
       'Restored version 2 of applications/shared.',
     )).toBeVisible();
+  });
+
+  it('permanently deletes a key from its table row with typed confirmation', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
+    await login(user);
+    await screen.findByRole('heading', { name: 'Application secrets' });
+
+    await user.click(await screen.findByRole('button', {
+      name: 'Delete key permanently shared',
+    }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete key permanently' });
+    await user.type(
+      within(dialog).getByLabelText('Type applications/shared to confirm'),
+      'applications/shared',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Delete key permanently' }));
+
+    await waitFor(() => expect(gateway.deleteMetadata).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'shared',
+    ));
+    expect(await screen.findByText('Permanently deleted applications/shared.')).toBeVisible();
+  });
+
+  it('permanently deletes selected keys after exact bulk confirmation', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    window.history.replaceState({}, '', '/login');
+    render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
+    await login(user);
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Select secret nested' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select secret shared' }));
+    await user.click(screen.getByRole('button', { name: 'Delete keys permanently…' }));
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Delete selected keys permanently',
+    });
+    await user.type(
+      within(dialog).getByLabelText('Type DELETE 2 KEYS to confirm'),
+      'DELETE 2 KEYS',
+    );
+    await user.click(within(dialog).getByRole('button', {
+      name: 'Delete 2 keys permanently',
+    }));
+
+    await waitFor(() => expect(gateway.deleteMetadata).toHaveBeenCalledTimes(2));
+    expect(gateway.deleteMetadata).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'nested',
+      undefined,
+    );
+    expect(gateway.deleteMetadata).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'shared',
+      undefined,
+    );
+    expect(await screen.findByText('Permanently deleted 2 keys.')).toBeVisible();
   });
 
   it('preflights and soft-deletes selected current versions with one exact bulk Undo', async () => {

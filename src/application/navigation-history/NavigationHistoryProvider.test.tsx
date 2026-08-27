@@ -30,6 +30,7 @@ function HistoryHarness() {
       <output>{history.persistence}:{history.favorites.length}:{history.recents.length}</output>
       <button type="button" onClick={() => history.toggleFavorite(target)}>Toggle favorite</button>
       <button type="button" onClick={() => history.recordRecent(target)}>Record recent</button>
+      <button type="button" onClick={() => history.removeSecretPaths('applications', ['platform/api'])}>Remove target</button>
       <button type="button" onClick={history.clearLocalNavigationData}>Clear navigation</button>
     </>
   );
@@ -100,6 +101,22 @@ describe('NavigationHistoryProvider', () => {
     await user.click(screen.getByRole('button', { name: 'Toggle favorite' }));
     await user.click(screen.getByRole('button', { name: 'Record recent' }));
     await user.click(screen.getByRole('button', { name: 'Clear navigation' }));
+    expect(screen.getByText(/:0:0$/)).toBeVisible();
+  });
+
+  it('removes deleted secret paths from recents and favorites', async () => {
+    const user = userEvent.setup();
+    render(
+      <NavigationHistoryProvider session={userpassSession}>
+        <HistoryHarness />
+      </NavigationHistoryProvider>,
+    );
+
+    await screen.findByText(/local|memory/);
+    await user.click(screen.getByRole('button', { name: 'Toggle favorite' }));
+    await user.click(screen.getByRole('button', { name: 'Record recent' }));
+    expect(screen.getByText(/:1:1$/)).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Remove target' }));
     expect(screen.getByText(/:0:0$/)).toBeVisible();
   });
 });

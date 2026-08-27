@@ -171,6 +171,25 @@ describe('KV explorer queries', () => {
     await waitFor(() => expect(screen.getByTestId('secret')).toHaveTextContent('error'));
   });
 
+  it('keeps scoped read errors available for an explicitly write-only path', async () => {
+    const deniedGateway = gateway();
+    const writeOnlyPermissions: KvActionPermissions = {
+      scope: 'applications/data/billing/database',
+      canReadData: false,
+      canReadMetadata: false,
+      canCreate: true,
+      canUpdate: true,
+    };
+
+    renderProbe(deniedGateway, { status: 'success', data: writeOnlyPermissions });
+
+    await waitFor(() => expect(screen.getByTestId('secret')).toHaveTextContent('undefined:vundefined'));
+    expect(screen.getByTestId('data-error')).toHaveTextContent('authorization');
+    expect(screen.getByTestId('history-error')).toHaveTextContent('authorization');
+    expect(deniedGateway.readSecret).not.toHaveBeenCalled();
+    expect(deniedGateway.readSecretMetadata).not.toHaveBeenCalled();
+  });
+
   it('treats a session expiry as global even if the parallel data read completed', async () => {
     const expiringGateway = gateway();
     expiringGateway.readSecretMetadata = vi.fn(async () => {

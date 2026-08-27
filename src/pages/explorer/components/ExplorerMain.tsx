@@ -15,6 +15,7 @@ import BulkToolbar from './BulkToolbar';
 import ExplorerSearch, { type ExplorerSearchScope } from './ExplorerSearch';
 import Inspector from './Inspector';
 import InspectorDock from './InspectorDock';
+import OpenExactPathForm from './OpenExactPathForm';
 import PathBreadcrumbs from './PathBreadcrumbs';
 import SearchResults from './SearchResults';
 import SecretTable, { type KvDirectoryEntry } from './SecretTable';
@@ -39,15 +40,18 @@ interface ExplorerMainProps {
   readonly onRefresh: () => void;
   readonly onRetrySecret: () => void;
   readonly onCreateSecret?: () => void;
+  readonly onOpenExactPath?: (path: string) => void;
   readonly onViewSecret?: () => void;
   readonly onEditSecret?: () => void;
+  readonly onWriteOnlySecret?: () => void;
   readonly permissions?: KvActionPermissions;
   readonly onCompare?: () => void;
   readonly onDeleteLatest?: (version: number) => void;
   readonly onDeleteVersion?: (version: number) => void;
   readonly onUndelete?: (version: number) => void;
   readonly onDestroyVersion?: (version: number) => void;
-  readonly onDeleteMetadata?: (version: number) => void;
+  readonly onDeleteMetadata?: () => void;
+  readonly onDeletePermanently?: (path: string) => void;
   readonly isFavorite?: (path: NavigationPath) => boolean;
   readonly onToggleFavorite?: (path: NavigationPath) => void;
   readonly onClipboardFeedback?: (
@@ -56,6 +60,7 @@ interface ExplorerMainProps {
   ) => void;
   readonly onBulkSoftDelete?: (paths: readonly string[]) => void;
   readonly onBulkDestroy?: (paths: readonly string[]) => void;
+  readonly onBulkPermanentDelete?: (paths: readonly string[]) => void;
   readonly selectionClearKey?: number;
   readonly density?: WorkspaceDensity;
 }
@@ -84,8 +89,10 @@ export default function ExplorerMain({
   onRefresh,
   onRetrySecret,
   onCreateSecret,
+  onOpenExactPath,
   onViewSecret,
   onEditSecret,
+  onWriteOnlySecret,
   permissions,
   onCompare,
   onDeleteLatest,
@@ -93,11 +100,13 @@ export default function ExplorerMain({
   onUndelete,
   onDestroyVersion,
   onDeleteMetadata,
+  onDeletePermanently,
   isFavorite,
   onToggleFavorite,
   onClipboardFeedback,
   onBulkSoftDelete,
   onBulkDestroy,
+  onBulkPermanentDelete,
   selectionClearKey = 0,
   density = 'comfortable',
 }: ExplorerMainProps) {
@@ -106,6 +115,7 @@ export default function ExplorerMain({
   const [inspectorTab, setInspectorTab] = useState('data');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchScope, setSearchScope] = useState<ExplorerSearchScope>('folder');
+  const [exactPathOpen, setExactPathOpen] = useState(false);
   const [copiedTarget, setCopiedTarget] = useState<'path' | 'cli' | null>(null);
   const [selection, setSelection] = useState(
     () => emptySecretSelection(selectionScope),
@@ -157,6 +167,9 @@ export default function ExplorerMain({
     visibleSecretPaths,
   );
   const currentMount = mounts.find((candidate) => candidate.path === mount);
+  const directoryListDenied = directory.status === 'error'
+    && !directory.data
+    && directory.error.code === 'authorization';
 
   useEffect(() => {
     if (!selectedPath) return;
@@ -254,6 +267,10 @@ export default function ExplorerMain({
             exitFullScreen();
             onEditSecret();
           } : undefined}
+          onWriteOnly={onWriteOnlySecret ? () => {
+            exitFullScreen();
+            onWriteOnlySecret();
+          } : undefined}
           permissions={permissions}
           onCompare={onCompare}
           onDeleteLatest={onDeleteLatest}
@@ -309,9 +326,31 @@ export default function ExplorerMain({
               <Tooltip content={copiedTarget === 'cli' ? 'CLI command copied' : 'Copy Vault CLI command'}>
                 <button type="button" aria-label="Copy Vault CLI command" onClick={() => void copy(`vault kv list -mount=${mount} ${currentPath || '/'}`, 'cli')} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"><i className={`${copiedTarget === 'cli' ? 'ri-check-line text-success-600' : 'ri-terminal-line'} text-sm`} aria-hidden="true" /></button>
               </Tooltip>
+              {onOpenExactPath && !directoryListDenied && (
+                <Button
+                  size="sm"
+                  onClick={() => setExactPathOpen((open) => !open)}
+                  aria-expanded={exactPathOpen}
+                >
+                  <i className="ri-route-line" aria-hidden="true" /> Open exact path
+                </Button>
+              )}
               {onCreateSecret && <Button size="sm" variant="primary" onClick={onCreateSecret}><i className="ri-add-line" aria-hidden="true" /> Create secret</Button>}
             </div>
           </div>
+          {exactPathOpen && onOpenExactPath && !directoryListDenied && (
+            <div className="mt-3 rounded-lg border border-background-200 bg-background-100 p-3">
+              <OpenExactPathForm
+                mount={mount}
+                autoFocus
+                onCancel={() => setExactPathOpen(false)}
+                onOpen={(path) => {
+                  setExactPathOpen(false);
+                  onOpenExactPath(path);
+                }}
+              />
+            </div>
+          )}
           <div className="mt-3">
             <ExplorerSearch
               query={searchQuery}
@@ -335,6 +374,9 @@ export default function ExplorerMain({
           onDestroy={onBulkDestroy
             ? () => onBulkDestroy(selectedPaths)
             : undefined}
+          onPermanentDelete={onBulkPermanentDelete
+            ? () => onBulkPermanentDelete(selectedPaths)
+            : undefined}
         />
 
         <div className="flex-1 overflow-y-auto">
@@ -345,7 +387,16 @@ export default function ExplorerMain({
             <div role="alert" className="m-4 rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">
               <p className="font-semibold">{directory.error.code === 'authorization' ? 'This folder is outside your Vault policy' : 'Directory could not be loaded'}</p>
               <p className="mt-1 text-xs leading-5">{directory.error.message}</p>
-              <button type="button" onClick={onRefresh} className="mt-2 text-xs font-medium underline underline-offset-2">Retry</button>
+              {directory.error.code === 'authorization' && onOpenExactPath ? (
+                <div className="mt-3 rounded-md border border-warning-200 bg-background-50 p-3 text-foreground-800">
+                  <p className="mb-2 text-xs text-foreground-600">
+                    If you know an exact secret path, open it without listing this folder.
+                  </p>
+                  <OpenExactPathForm mount={mount} onOpen={onOpenExactPath} />
+                </div>
+              ) : (
+                <button type="button" onClick={onRefresh} className="mt-2 text-xs font-medium underline underline-offset-2">Retry</button>
+              )}
             </div>
           )}
           {directory.data && (
@@ -378,6 +429,7 @@ export default function ExplorerMain({
                 onToggleFavorite={onToggleFavorite
                   ? (entry) => onToggleFavorite({ ...entry, mount })
                   : undefined}
+                onDeletePermanently={onDeletePermanently}
                 selectedPaths={selectedPaths}
                 onSelectionChange={(entry, checked, range) => {
                   setSelection((current) => updateSecretSelection({

@@ -14,6 +14,7 @@ interface SecretTableProps {
   readonly onCreateSecret?: () => void;
   readonly isFavorite?: (entry: KvDirectoryEntry) => boolean;
   readonly onToggleFavorite?: (entry: KvDirectoryEntry) => void;
+  readonly onDeletePermanently?: (path: string) => void;
   readonly selectedPaths?: readonly string[];
   readonly onSelectionChange?: (
     entry: KvDirectoryEntry,
@@ -33,6 +34,7 @@ export default function SecretTable({
   onCreateSecret,
   isFavorite,
   onToggleFavorite,
+  onDeletePermanently,
   selectedPaths = [],
   onSelectionChange,
   onToggleSelectAll,
@@ -111,6 +113,7 @@ export default function SecretTable({
           <th className="w-28 px-3 py-2 text-left text-[11px] font-medium text-foreground-500">Type</th>
           <th className="hidden px-3 py-2 text-left text-[11px] font-medium text-foreground-500 md:table-cell">Logical path</th>
           {onToggleFavorite && <th aria-label="Favorite" className="w-10 px-2 py-2" />}
+          {onDeletePermanently && <th aria-label="Actions" className="w-10 px-2 py-2" />}
         </tr>
       </thead>
       <tbody>
@@ -185,6 +188,20 @@ export default function SecretTable({
                   >
                     <i className={favorite ? 'ri-star-fill' : 'ri-star-line'} aria-hidden="true" />
                   </button>
+                </td>
+              )}
+              {onDeletePermanently && (
+                <td className="px-2 py-2">
+                  {entry.kind === 'secret' && (
+                    <button
+                      type="button"
+                      aria-label={`Delete key permanently ${entry.path}`}
+                      onClick={() => onDeletePermanently(entry.path)}
+                      className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-300 hover:bg-danger-50 hover:text-danger-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400 sm:h-7 sm:w-7"
+                    >
+                      <i className="ri-delete-bin-7-line" aria-hidden="true" />
+                    </button>
+                  )}
                 </td>
               )}
             </tr>

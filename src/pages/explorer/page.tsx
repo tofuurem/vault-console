@@ -21,12 +21,19 @@ import type {
 import type {
   BulkSoftDeletePreflight,
 } from '@/application/vault/bulk/bulk-soft-delete';
+import type {
+  BulkDeleteKeysPreflight,
+} from '@/application/vault/bulk/bulk-delete-keys';
 import { useKvV2Gateway } from '@/application/vault/KvV2GatewayContext';
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import { kvActionPaths, useKvActionPermissions } from '@/application/vault/useKvActionPermissions';
 import { useKvDirectory, useKvSecretDetails } from '@/application/vault/useKvExplorerData';
 import type { VaultCapability } from '@/domain/vault/contracts';
-import { summarizeBulkOutcomes } from '@/domain/vault/bulk-operation';
+import type { KvV2WriteStrategy } from '@/domain/vault/kv-v2';
+import {
+  summarizeBulkOutcomes,
+  type BulkItemOutcome,
+} from '@/domain/vault/bulk-operation';
 import { normalizeVaultError, VaultError } from '@/domain/vault/errors';
 import ContentSkeleton from '@/components/base/ContentSkeleton';
 import {
@@ -40,9 +47,13 @@ import DestructionConfirm, { type KvDestructiveAction } from './components/Destr
 import ExplorerMain from './components/ExplorerMain';
 import SecretWorkspace, { type SecretWorkspaceMode } from './components/SecretWorkspace';
 import VersionComparison from './components/VersionComparison';
+import WriteOnlySecretDrawer from './components/WriteOnlySecretDrawer';
 
 const NO_MOUNTS = [] as const;
 const BulkDestroyDialog = lazy(() => import('./components/BulkDestroyDialog'));
+const BulkPermanentDeleteDialog = lazy(
+  () => import('./components/BulkPermanentDeleteDialog'),
+);
 const BulkSoftDeleteDialog = lazy(
   () => import('./components/BulkSoftDeleteDialog'),
 );
@@ -65,6 +76,23 @@ interface BulkDestroyUiState {
   readonly error?: string;
 }
 
+interface BulkDeleteKeysUiState {
+  readonly mount: string;
+  readonly directoryPath: string;
+  readonly paths: readonly string[];
+  readonly status: 'preparing' | 'ready' | 'submitting' | 'completed' | 'error';
+  readonly preflight?: BulkDeleteKeysPreflight;
+  readonly outcomes?: readonly BulkItemOutcome[];
+  readonly error?: string;
+}
+
+interface DestructiveUiState {
+  readonly mount: string;
+  readonly path: string;
+  readonly directoryPath: string;
+  readonly action: KvDestructiveAction;
+}
+
 export default function ExplorerPage() {
   const navigate = useNavigate();
   const params = useParams<{ mount?: string; '*': string }>();
@@ -78,6 +106,7 @@ export default function ExplorerPage() {
     recordRecent,
     isFavorite,
     toggleFavorite,
+    removeSecretPaths,
   } = useNavigationHistory();
   const kvGateway = useKvV2Gateway();
   const session = vault.session!;
@@ -87,15 +116,19 @@ export default function ExplorerPage() {
   const selectedPath = searchParams.get('secret');
   const [createOpen, setCreateOpen] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<SecretWorkspaceMode | null>(null);
+  const [writeOnlyOpen, setWriteOnlyOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
-  const [destructiveAction, setDestructiveAction] = useState<KvDestructiveAction | null>(null);
+  const [destructiveTarget, setDestructiveTarget] = useState<DestructiveUiState | null>(null);
   const [bulkSoftDelete, setBulkSoftDelete] = useState<BulkSoftDeleteUiState | null>(null);
   const [bulkDestroy, setBulkDestroy] = useState<BulkDestroyUiState | null>(null);
+  const [bulkDeleteKeys, setBulkDeleteKeys] = useState<BulkDeleteKeysUiState | null>(null);
   const [selectionClearKey, setSelectionClearKey] = useState(0);
   const bulkPreflightIdRef = useRef(0);
   const bulkPreflightAbortRef = useRef<AbortController | null>(null);
   const bulkDestroyPreflightIdRef = useRef(0);
   const bulkDestroyPreflightAbortRef = useRef<AbortController | null>(null);
+  const bulkDeletePreflightIdRef = useRef(0);
+  const bulkDeletePreflightAbortRef = useRef<AbortController | null>(null);
   const [directory, refreshDirectory] = useKvDirectory(session, activeMount, activePath);
   const [permissionsState, refreshPermissions] = useKvActionPermissions(activeMount, selectedPath);
   const [details, refreshDetails] = useKvSecretDetails(
@@ -115,7 +148,12 @@ export default function ExplorerPage() {
   useEffect(() => () => {
     bulkPreflightAbortRef.current?.abort();
     bulkDestroyPreflightAbortRef.current?.abort();
+    bulkDeletePreflightAbortRef.current?.abort();
   }, []);
+
+  useEffect(() => {
+    setWriteOnlyOpen(false);
+  }, [activeMount, selectedPath]);
 
   useEffect(() => {
     const errors = [
@@ -229,6 +267,30 @@ export default function ExplorerPage() {
       toast.success(`Saved ${activeMount}/${selectedPath} as version ${version} with check-and-set.`);
     } catch (cause) { handleMutationError(cause, 'Secret update failed'); }
   };
+  const writeOnlySecret = async (
+    data: Readonly<Record<string, unknown>>,
+    strategy: KvV2WriteStrategy,
+  ) => {
+    if (!selectedPath) throw new VaultError('invalid-request');
+    try {
+      const version = await kvGateway.writeSecret(
+        session,
+        activeMount,
+        selectedPath,
+        data,
+        strategy,
+      );
+      refreshSelected();
+      const guard = strategy.type === 'check-and-set'
+        ? `CAS ${strategy.version}`
+        : strategy.type === 'create-only'
+          ? 'CAS 0'
+          : 'no CAS';
+      toast.success(`Wrote ${activeMount}/${selectedPath} as version ${version} with ${guard}.`);
+    } catch (cause) {
+      handleMutationError(cause, 'Write-only secret update failed');
+    }
+  };
   const loadVersion = useCallback(async (version: number) => {
     if (!selectedPath) throw new VaultError('invalid-request');
     return kvGateway.readSecret(session, activeMount, selectedPath, version);
@@ -277,15 +339,55 @@ export default function ExplorerPage() {
       });
     }
   };
-  const confirmDestructiveAction = async (action: KvDestructiveAction) => {
-    if (!selectedPath) throw new VaultError('invalid-request');
-    const targetMount = activeMount;
-    const targetPath = selectedPath;
+  const openSelectedDestructiveAction = (action: KvDestructiveAction) => {
+    if (!selectedPath) return;
+    setDestructiveTarget({
+      mount: activeMount,
+      path: selectedPath,
+      directoryPath: directoryPathForSecret(selectedPath),
+      action,
+    });
+  };
+  const beginPermanentDelete = async (path: string) => {
+    const metadataPath = kvActionPaths(activeMount, path).metadata;
     try {
-      if (action.kind === 'delete-latest') await kvGateway.deleteVersions(session, targetMount, targetPath, [action.version]);
+      const capabilities = await vault.queryCapabilities([metadataPath]);
+      const available = capabilities[metadataPath] ?? [];
+      if (
+        available.includes('deny')
+        || (!available.includes('root') && !available.includes('delete'))
+      ) {
+        toast.warning(`Your Vault policy cannot delete ${metadataPath}.`);
+        return;
+      }
+    } catch (cause) {
+      const error = normalizeVaultError(cause);
+      if (error.code === 'session-expired') {
+        vault.expireSession();
+        return;
+      }
+      if (error.code === 'aborted') return;
+      // Capability discovery is advisory. Let the exact Vault request decide.
+    }
+    setDestructiveTarget({
+      mount: activeMount,
+      path,
+      directoryPath: directoryPathForSecret(path),
+      action: { kind: 'delete-key' },
+    });
+  };
+  const confirmDestructiveAction = async (action: KvDestructiveAction) => {
+    if (!destructiveTarget) throw new VaultError('invalid-request');
+    const {
+      mount: targetMount,
+      path: targetPath,
+      directoryPath: targetDirectoryPath,
+    } = destructiveTarget;
+    try {
+      if (action.kind === 'delete-latest') await kvGateway.deleteLatestSecret(session, targetMount, targetPath);
       if (action.kind === 'delete-version') await kvGateway.deleteVersions(session, targetMount, targetPath, [action.version]);
       if (action.kind === 'destroy-version') await kvGateway.destroyVersions(session, targetMount, targetPath, [action.version]);
-      if (action.kind === 'delete-metadata') await kvGateway.deleteMetadata(session, targetMount, targetPath);
+      if (action.kind === 'delete-key') await kvGateway.deleteMetadata(session, targetMount, targetPath);
       if (action.kind === 'delete-latest' || action.kind === 'delete-version') {
         toast.action(
           `Version ${action.version} of ${targetMount}/${targetPath} was soft-deleted.`,
@@ -300,14 +402,18 @@ export default function ExplorerPage() {
         );
       } else {
         toast.success(
-          action.kind === 'delete-metadata'
-            ? `Deleted ${targetMount}/${targetPath}.`
+          action.kind === 'delete-key'
+            ? `Permanently deleted ${targetMount}/${targetPath}.`
             : `Permanently destroyed version ${action.version} of ${targetMount}/${targetPath}.`,
         );
       }
       await refreshPath(targetMount, targetPath);
-      if (action.kind === 'delete-metadata') {
-        navigate(explorerRoute(activeMount, activePath));
+      if (action.kind === 'delete-key' && selectedPath === targetPath) {
+        navigate(explorerRoute(targetMount, targetDirectoryPath));
+      }
+      if (action.kind === 'delete-key') {
+        removeSecretPaths(targetMount, [targetPath]);
+        setSelectionClearKey((current) => current + 1);
       }
     } catch (cause) { handleMutationError(cause, 'Destructive operation failed'); }
   };
@@ -573,6 +679,105 @@ export default function ExplorerPage() {
     }
   };
 
+  const closeBulkDeleteKeys = () => {
+    bulkDeletePreflightIdRef.current += 1;
+    bulkDeletePreflightAbortRef.current?.abort();
+    bulkDeletePreflightAbortRef.current = null;
+    setBulkDeleteKeys(null);
+  };
+
+  const beginBulkDeleteKeys = async (
+    paths: readonly string[],
+    mount = activeMount,
+    directoryPath = activePath,
+  ) => {
+    bulkDeletePreflightIdRef.current += 1;
+    const requestId = bulkDeletePreflightIdRef.current;
+    bulkDeletePreflightAbortRef.current?.abort();
+    const controller = new AbortController();
+    bulkDeletePreflightAbortRef.current = controller;
+    setBulkDeleteKeys({ mount, directoryPath, paths, status: 'preparing' });
+    try {
+      const { prepareBulkDeleteKeys } = await import(
+        '@/application/vault/bulk/bulk-delete-keys'
+      );
+      const preflight = await prepareBulkDeleteKeys({
+        mount,
+        paths,
+        queryCapabilities: vault.queryCapabilities,
+        signal: controller.signal,
+      });
+      if (requestId !== bulkDeletePreflightIdRef.current) return;
+      setBulkDeleteKeys({
+        mount,
+        directoryPath,
+        paths,
+        status: 'ready',
+        preflight,
+      });
+    } catch (cause) {
+      if (requestId !== bulkDeletePreflightIdRef.current) return;
+      const error = normalizeVaultError(cause);
+      if (error.code === 'aborted') return;
+      if (error.code === 'session-expired') vault.expireSession();
+      setBulkDeleteKeys({
+        mount,
+        directoryPath,
+        paths,
+        status: 'error',
+        error: error.message,
+      });
+    } finally {
+      if (requestId === bulkDeletePreflightIdRef.current) {
+        bulkDeletePreflightAbortRef.current = null;
+      }
+    }
+  };
+
+  const confirmBulkDeleteKeys = async () => {
+    if (!bulkDeleteKeys?.preflight || bulkDeleteKeys.status !== 'ready') return;
+    const operation = bulkDeleteKeys;
+    setBulkDeleteKeys({ ...operation, status: 'submitting' });
+    const { executeBulkDeleteKeys } = await import(
+      '@/application/vault/bulk/bulk-delete-keys'
+    );
+    const outcomes = await executeBulkDeleteKeys({
+      gateway: kvGateway,
+      session,
+      mount: operation.mount,
+      candidates: operation.preflight.eligible,
+    });
+    const summary = summarizeBulkOutcomes(outcomes);
+    const clearedPaths = outcomes
+      .filter((outcome) => outcome.status === 'succeeded' || outcome.status === 'missing')
+      .map((outcome) => outcome.path);
+    if (clearedPaths.length > 0) {
+      await refreshPaths(operation.mount, operation.directoryPath, clearedPaths);
+      removeSecretPaths(operation.mount, clearedPaths);
+    }
+    setSelectionClearKey((current) => current + 1);
+
+    if (outcomes.some((outcome) => outcome.errorCode === 'session-expired')) {
+      vault.expireSession();
+    }
+    const unsuccessful = summary.denied + summary.missing + summary.failed;
+    if (unsuccessful > 0) {
+      setBulkDeleteKeys({
+        ...operation,
+        status: 'completed',
+        outcomes,
+      });
+      toast.warning(
+        `${summary.succeeded} deleted, ${summary.denied} denied, ${summary.missing} missing, ${summary.failed} failed.`,
+        { title: 'Permanent deletion was only partially completed', durationMs: null },
+      );
+      return;
+    }
+
+    closeBulkDeleteKeys();
+    toast.success(`Permanently deleted ${summary.succeeded} keys.`);
+  };
+
   const content = mountsState.status === 'loading' && !mountsState.data ? (
     <main id="main-content" tabIndex={-1} className="flex min-w-0 flex-1">
       <ContentSkeleton label="Discovering visible KV v2 mounts" />
@@ -609,21 +814,29 @@ export default function ExplorerPage() {
       onRefresh={refreshDirectory}
       onRetrySecret={refreshDetails}
       onCreateSecret={() => setCreateOpen(true)}
+      onOpenExactPath={selectSecret}
       onViewSecret={selectedDetails?.secret ? () => setWorkspaceMode('view') : undefined}
       onEditSecret={selectedDetails?.secret ? () => setWorkspaceMode('edit') : undefined}
+      onWriteOnlySecret={selectedPermissions?.canCreate || selectedPermissions?.canUpdate
+        ? () => setWriteOnlyOpen(true)
+        : undefined}
       permissions={selectedPermissions}
       onCompare={selectedDetails?.history && selectedPermissions?.canReadData ? () => setCompareOpen(true) : undefined}
-      onDeleteLatest={(version) => setDestructiveAction({ kind: 'delete-latest', version })}
-      onDeleteVersion={(version) => setDestructiveAction({ kind: 'delete-version', version })}
+      onDeleteLatest={(version) => openSelectedDestructiveAction({ kind: 'delete-latest', version })}
+      onDeleteVersion={(version) => openSelectedDestructiveAction({ kind: 'delete-version', version })}
       onUndelete={(version) => void undeleteVersion(version)}
-      onDestroyVersion={(version) => setDestructiveAction({ kind: 'destroy-version', version })}
-      onDeleteMetadata={(version) => setDestructiveAction({ kind: 'delete-metadata', version })}
+      onDestroyVersion={(version) => openSelectedDestructiveAction({ kind: 'destroy-version', version })}
+      onDeleteMetadata={() => {
+        if (selectedPath) void beginPermanentDelete(selectedPath);
+      }}
+      onDeletePermanently={(path) => void beginPermanentDelete(path)}
       isFavorite={isFavorite}
       onToggleFavorite={toggleFavorite}
       selectionClearKey={selectionClearKey}
       density={workspacePreferences.density}
       onBulkSoftDelete={(paths) => void beginBulkSoftDelete(paths)}
       onBulkDestroy={(paths) => void beginBulkDestroy(paths)}
+      onBulkPermanentDelete={(paths) => void beginBulkDeleteKeys(paths)}
       onClipboardFeedback={(kind, success) => {
         if (!success) {
           toast.error('The browser clipboard is unavailable.', {
@@ -646,6 +859,14 @@ export default function ExplorerPage() {
       <div className="relative flex min-h-0 flex-1">{content}</div>
 
       <CreateSecretDrawer open={createOpen} onClose={() => setCreateOpen(false)} mount={activeMount} currentPath={activePath} onSave={createSecret} />
+      <WriteOnlySecretDrawer
+        open={writeOnlyOpen}
+        mount={activeMount}
+        path={selectedPath}
+        currentVersion={selectedDetails?.history?.currentVersion}
+        onClose={() => setWriteOnlyOpen(false)}
+        onSave={writeOnlySecret}
+      />
       <SecretWorkspace
         open={workspaceMode !== null}
         initialMode={workspaceMode ?? 'view'}
@@ -665,11 +886,11 @@ export default function ExplorerPage() {
         onRestore={restoreVersion}
       />
       <DestructionConfirm
-        open={Boolean(destructiveAction)}
-        onClose={() => setDestructiveAction(null)}
-        mount={activeMount}
-        path={selectedPath}
-        action={destructiveAction}
+        open={Boolean(destructiveTarget)}
+        onClose={() => setDestructiveTarget(null)}
+        mount={destructiveTarget?.mount ?? activeMount}
+        path={destructiveTarget?.path ?? null}
+        action={destructiveTarget?.action ?? null}
         onConfirm={confirmDestructiveAction}
       />
       {bulkSoftDelete && (
@@ -709,6 +930,27 @@ export default function ExplorerPage() {
               bulkDestroy.directoryPath,
             )}
             onConfirm={(targets) => void confirmBulkDestroy(targets)}
+          />
+        </Suspense>
+      )}
+      {bulkDeleteKeys && (
+        <Suspense fallback={<LazyBulkDialogFallback label="Preparing permanent key deletion…" />}>
+          <BulkPermanentDeleteDialog
+            open
+            mount={bulkDeleteKeys.mount}
+            requestedCount={bulkDeleteKeys.paths.length}
+            preflight={bulkDeleteKeys.preflight}
+            outcomes={bulkDeleteKeys.outcomes}
+            error={bulkDeleteKeys.error}
+            preparing={bulkDeleteKeys.status === 'preparing'}
+            submitting={bulkDeleteKeys.status === 'submitting'}
+            onClose={closeBulkDeleteKeys}
+            onRetry={() => void beginBulkDeleteKeys(
+              bulkDeleteKeys.paths,
+              bulkDeleteKeys.mount,
+              bulkDeleteKeys.directoryPath,
+            )}
+            onConfirm={() => void confirmBulkDeleteKeys()}
           />
         </Suspense>
       )}

@@ -48,4 +48,21 @@ describe('DestructionConfirm', () => {
     await user.click(confirm);
     expect(onConfirm).toHaveBeenCalledWith(action);
   });
+
+  it('names permanent key deletion without inventing a version target', async () => {
+    const user = userEvent.setup();
+    const action = { kind: 'delete-key' as const };
+    const onConfirm = renderConfirm(action);
+
+    expect(screen.getByRole('dialog', { name: 'Delete key permanently' })).toBeVisible();
+    expect(screen.getByText('applications/billing/database')).toBeVisible();
+    expect(screen.queryByText(/· v/)).not.toBeInTheDocument();
+    const confirm = screen.getByRole('button', { name: 'Delete key permanently' });
+    await user.type(
+      screen.getByLabelText('Type applications/billing/database to confirm'),
+      'applications/billing/database',
+    );
+    await user.click(confirm);
+    expect(onConfirm).toHaveBeenCalledWith(action);
+  });
 });

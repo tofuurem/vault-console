@@ -16,6 +16,7 @@ import {
   readRecentPaths,
   RECENT_PATHS_STORAGE_KEY,
   recordRecentPath,
+  removeNavigationTargets,
   removeNavigationPaths,
   SESSION_FAVORITES_STORAGE_KEY,
   toggleFavoritePath,
@@ -176,6 +177,22 @@ export function NavigationHistoryProvider({
     (path: NavigationPath) => hasFavoritePath(favorites, path),
     [favorites],
   );
+  const removeSecretPaths = useCallback((mount: string, paths: readonly string[]) => {
+    const targets = paths.map((path) => ({ mount, path, kind: 'secret' as const }));
+    setRecents((current) => {
+      const next = removeNavigationTargets(current, targets);
+      writeNavigationPaths(tabStorage, RECENT_PATHS_STORAGE_KEY, next);
+      return next;
+    });
+    setFavorites((current) => {
+      const next = removeNavigationTargets(current, targets);
+      const target = targetRef.current;
+      if (target.storage && target.key) {
+        writeNavigationPaths(target.storage, target.key, next);
+      }
+      return next;
+    });
+  }, [tabStorage]);
   const clearLocalNavigationData = useCallback(() => {
     clearPendingRef.current = true;
     removeNavigationPaths(tabStorage, RECENT_PATHS_STORAGE_KEY);
@@ -192,12 +209,14 @@ export function NavigationHistoryProvider({
     recordRecent,
     toggleFavorite,
     isFavorite,
+    removeSecretPaths,
     clearLocalNavigationData,
   }), [
     clearLocalNavigationData,
     favoriteTarget.persistence,
     favorites,
     isFavorite,
+    removeSecretPaths,
     recents,
     recordRecent,
     toggleFavorite,
