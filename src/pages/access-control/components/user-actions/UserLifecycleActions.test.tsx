@@ -63,7 +63,7 @@ function statefulGateway() {
       description: '',
     }]),
     listUserpassAccounts: vi.fn(async () => account ? [account] : []),
-    getCapabilities: vi.fn(async (_session, paths) => Object.fromEntries(
+    getCapabilities: vi.fn(async (_session, paths: readonly string[]) => Object.fromEntries(
       paths.map((path) => [path, ['create', 'read', 'update', 'delete'] as const]),
     )),
     updateEntity: vi.fn(async (_session, _id, next) => {

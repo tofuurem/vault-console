@@ -349,12 +349,6 @@ export function buildUserEditPlan(
   }
 
   const entityId = snapshot.entity?.id;
-  const currentDirectGroups = entityId
-    ? snapshot.groups.filter((group) => (
-        (group.type ?? 'internal') === 'internal'
-        && group.memberEntityIds.includes(entityId)
-      ))
-    : [];
   const requestedGroups = new Set(draft.groupIds);
   if (!entityId && draft.groupIds.length > 0) throw new VaultError('invalid-request');
 

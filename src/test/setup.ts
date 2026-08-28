@@ -24,7 +24,7 @@ if (!Range.prototype.getClientRects) {
   Range.prototype.getClientRects = () => ({
     length: 0,
     item: () => null,
-    [Symbol.iterator]: function* emptyRectList() {},
+    [Symbol.iterator]: () => ([] as DOMRect[])[Symbol.iterator](),
   });
 }
 

@@ -110,7 +110,7 @@ function gateway() {
       mount: 'userpass',
       tokenPolicies: policies,
     }]),
-    getCapabilities: vi.fn(async (_session, paths) => Object.fromEntries(
+    getCapabilities: vi.fn(async (_session, paths: readonly string[]) => Object.fromEntries(
       paths.map((path) => [path, ['update'] as const]),
     )),
     updateGroup: vi.fn(async (_session, _id, next) => {

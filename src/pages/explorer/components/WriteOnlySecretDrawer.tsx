@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { useDeferredSecretJsonValidation } from '@/application/json/useDeferredSecretJsonValidation';
+import type { DeferredSecretJsonValidation } from '@/application/json/useDeferredSecretJsonValidation';
 import Button from '@/components/base/Button';
 import Drawer from '@/components/base/Drawer';
 import type { KvV2WriteStrategy } from '@/domain/vault/kv-v2';
@@ -54,7 +55,6 @@ export default function WriteOnlySecretDrawer({
   const rawValidation = useDeferredSecretJsonValidation(rawJson, {
     enabled: open && rawMode && step === 'edit',
   });
-  const parsedRawJson = rawValidation.result;
   const strategy: KvV2WriteStrategy = currentVersion === undefined
     ? { type: unknownStrategy }
     : { type: 'check-and-set', version: currentVersion };
@@ -154,167 +154,223 @@ export default function WriteOnlySecretDrawer({
         </div>
 
         {step === 'edit' ? (
-          <>
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xs font-semibold text-foreground-700">Complete replacement data</h3>
-                  <button
-                    type="button"
-                    onClick={() => setRawMode((current) => !current)}
-                    className="rounded border border-background-300 px-1.5 py-0.5 text-[10px] text-foreground-500 hover:text-foreground-800"
-                  >
-                    {rawMode ? 'Structured fields' : 'Raw JSON'}
-                  </button>
-                </div>
-                {!rawMode && (
-                  <button
-                    type="button"
-                    onClick={() => setPairs((current) => [
-                      ...current,
-                      { id: ++nextPairId, key: '', value: '' },
-                    ])}
-                    className="text-xs text-primary-600 hover:text-primary-700"
-                  >
-                    + Add field
-                  </button>
-                )}
-              </div>
-              {rawMode ? (
-                <div className="flex min-h-[320px] flex-col">
-                  <JsonSecretEditor
-                    value={rawJson}
-                    onChange={setRawJson}
-                    onFormat={() => {
-                      const exact = rawValidation.validateNow();
-                      if (exact.ok) setRawJson(formatSecretJson(exact.data));
-                    }}
-                    validationError={parsedRawJson?.ok === false ? parsedRawJson.message : undefined}
-                    validationLocation={parsedRawJson?.ok === false ? parsedRawJson.location : undefined}
-                    focusErrorSignal={focusErrorSignal}
-                    disabled={saving}
-                    largeDocument={rawValidation.isLarge}
-                    validationPending={rawValidation.status === 'pending'}
-                  />
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  {pairs.map((pair) => (
-                    <div
-                      key={pair.id}
-                      data-testid="write-only-field-row"
-                      className="grid min-w-0 grid-cols-[minmax(0,1fr)_44px] gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px]"
-                    >
-                      <input
-                        aria-label="Secret key"
-                        value={pair.key}
-                        onChange={(event) => updatePair(pair.id, 'key', event.target.value)}
-                        placeholder="KEY"
-                        className="col-span-2 h-11 min-w-0 w-full rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:border-primary-400 focus:outline-none sm:col-span-1 sm:h-8"
-                      />
-                      <input
-                        aria-label={`Value for ${pair.key || 'new key'}`}
-                        value={pair.value}
-                        onChange={(event) => updatePair(pair.id, 'value', event.target.value)}
-                        placeholder="value"
-                        className="h-11 min-w-0 w-full rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:border-primary-400 focus:outline-none sm:h-8"
-                      />
-                      <button
-                        type="button"
-                        aria-label="Remove field"
-                        disabled={pairs.length === 1}
-                        onClick={() => setPairs((current) => current.filter((candidate) => candidate.id !== pair.id))}
-                        className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-danger-50 hover:text-danger-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400 disabled:opacity-30 sm:h-8 sm:w-8"
-                      >
-                        <i className="ri-close-line" aria-hidden="true" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {currentVersion === undefined ? (
-              <fieldset className="space-y-2 rounded-md border border-background-200 p-3">
-                <legend className="px-1 text-xs font-semibold text-foreground-700">Write strategy</legend>
-                <label className="flex cursor-pointer items-start gap-2 text-xs text-foreground-700">
-                  <input
-                    type="radio"
-                    name="write-only-strategy"
-                    value="create-only"
-                    checked={unknownStrategy === 'create-only'}
-                    onChange={() => setUnknownStrategy('create-only')}
-                  />
-                  <span><strong>Create only (CAS 0)</strong><span className="mt-0.5 block text-[11px] text-foreground-500">Fails safely if this secret already exists.</span></span>
-                </label>
-                <label className="flex cursor-pointer items-start gap-2 text-xs text-foreground-700">
-                  <input
-                    type="radio"
-                    name="write-only-strategy"
-                    value="unconditional"
-                    checked={unknownStrategy === 'unconditional'}
-                    onChange={() => setUnknownStrategy('unconditional')}
-                  />
-                  <span><strong>Write without CAS</strong><span className="mt-0.5 block text-[11px] text-danger-600">Can replace an existing secret without detecting concurrent changes.</span></span>
-                </label>
-              </fieldset>
-            ) : (
-              <div className="rounded-md border border-success-200 bg-success-50 px-3 py-2 text-[11px] leading-5 text-success-700">
-                Metadata is readable. Check-and-set is fixed to current version {currentVersion}.
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <Button size="sm" onClick={requestClose}>Cancel</Button>
-              <Button size="sm" variant="primary" onClick={review}>Review write</Button>
-            </div>
-          </>
+          <WriteOnlyEditStep
+            rawMode={rawMode}
+            onRawModeChange={setRawMode}
+            rawJson={rawJson}
+            onRawJsonChange={setRawJson}
+            rawValidation={rawValidation}
+            focusErrorSignal={focusErrorSignal}
+            saving={saving}
+            pairs={pairs}
+            onPairUpdate={updatePair}
+            onPairAdd={() => setPairs((current) => [
+              ...current,
+              { id: ++nextPairId, key: '', value: '' },
+            ])}
+            onPairRemove={(id) => setPairs((current) => (
+              current.filter((candidate) => candidate.id !== id)
+            ))}
+            currentVersion={currentVersion}
+            unknownStrategy={unknownStrategy}
+            onUnknownStrategyChange={setUnknownStrategy}
+            onCancel={requestClose}
+            onReview={review}
+          />
         ) : (
-          <>
-            <div>
-              <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.15em] text-warning-700">
-                {strategy.type === 'check-and-set'
-                  ? `Check-and-set version ${strategy.version}`
-                  : strategy.type === 'create-only'
-                    ? 'Create only · CAS 0'
-                    : 'No CAS · replacement allowed'}
-              </p>
-              <h3 className="mt-1 text-sm font-semibold text-foreground-900">Confirm complete secret write</h3>
-            </div>
-            <dl className="space-y-2 rounded-md border border-background-200 bg-background-100/60 p-3 text-xs">
-              <div className="flex justify-between gap-4"><dt className="text-foreground-500">Target path</dt><dd className="break-all text-right font-mono text-foreground-800">{mount}/{path}</dd></div>
-              <div className="flex justify-between"><dt className="text-foreground-500">Submitted keys</dt><dd className="font-mono text-foreground-800">{Object.keys(reviewData ?? {}).length}</dd></div>
-              <div className="flex justify-between gap-4"><dt className="text-foreground-500">Concurrency guard</dt><dd className="text-right font-medium text-foreground-800">{strategy.type === 'check-and-set' ? `CAS ${strategy.version}` : strategy.type === 'create-only' ? 'CAS 0' : 'None'}</dd></div>
-            </dl>
-            <p className="text-[11px] leading-5 text-foreground-500">Values stay hidden during review and are sent directly to Vault.</p>
-            {strategy.type === 'unconditional' && (
-              <label className="flex cursor-pointer items-start gap-2 rounded-md border border-danger-200 bg-danger-50 p-3 text-xs text-danger-700">
-                <input
-                  type="checkbox"
-                  checked={replacementAcknowledged}
-                  onChange={(event) => setReplacementAcknowledged(event.target.checked)}
-                />
-                <span>I understand that this can replace an existing secret without checking its current version.</span>
-              </label>
-            )}
-            <div className="flex justify-between gap-2">
-              <Button size="sm" onClick={() => setStep('edit')} disabled={saving}>Back</Button>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={requestClose} disabled={saving}>Cancel</Button>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  onClick={() => void save()}
-                  loading={saving}
-                  disabled={strategy.type === 'unconditional' && !replacementAcknowledged}
-                >
-                  Write complete secret
-                </Button>
-              </div>
-            </div>
-          </>
+          <WriteOnlyReviewStep
+            mount={mount}
+            path={path}
+            strategy={strategy}
+            keyCount={Object.keys(reviewData ?? {}).length}
+            acknowledged={replacementAcknowledged}
+            onAcknowledgedChange={setReplacementAcknowledged}
+            saving={saving}
+            onBack={() => setStep('edit')}
+            onCancel={requestClose}
+            onSave={() => void save()}
+          />
         )}
       </div>
     </Drawer>
+  );
+}
+
+interface WriteOnlyEditStepProps {
+  readonly rawMode: boolean;
+  readonly onRawModeChange: (value: boolean) => void;
+  readonly rawJson: string;
+  readonly onRawJsonChange: (value: string) => void;
+  readonly rawValidation: DeferredSecretJsonValidation;
+  readonly focusErrorSignal: number;
+  readonly saving: boolean;
+  readonly pairs: readonly KeyValuePair[];
+  readonly onPairUpdate: (id: number, field: 'key' | 'value', value: string) => void;
+  readonly onPairAdd: () => void;
+  readonly onPairRemove: (id: number) => void;
+  readonly currentVersion?: number;
+  readonly unknownStrategy: 'create-only' | 'unconditional';
+  readonly onUnknownStrategyChange: (value: 'create-only' | 'unconditional') => void;
+  readonly onCancel: () => void;
+  readonly onReview: () => void;
+}
+
+function WriteOnlyEditStep(props: WriteOnlyEditStepProps) {
+  const parsed = props.rawValidation.result;
+  const format = () => {
+    const exact = props.rawValidation.validateNow();
+    if (exact.ok) props.onRawJsonChange(formatSecretJson(exact.data));
+  };
+  return (
+    <>
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-semibold text-foreground-700">Complete replacement data</h3>
+            <button type="button" onClick={() => props.onRawModeChange(!props.rawMode)} className="rounded border border-background-300 px-1.5 py-0.5 text-[10px] text-foreground-500 hover:text-foreground-800">
+              {props.rawMode ? 'Structured fields' : 'Raw JSON'}
+            </button>
+          </div>
+          {!props.rawMode && <button type="button" onClick={props.onPairAdd} className="text-xs text-primary-600 hover:text-primary-700">+ Add field</button>}
+        </div>
+        {props.rawMode ? (
+          <div className="flex min-h-[320px] flex-col">
+            <JsonSecretEditor
+              value={props.rawJson}
+              onChange={props.onRawJsonChange}
+              onFormat={format}
+              validationError={parsed?.ok === false ? parsed.message : undefined}
+              validationLocation={parsed?.ok === false ? parsed.location : undefined}
+              focusErrorSignal={props.focusErrorSignal}
+              disabled={props.saving}
+              largeDocument={props.rawValidation.isLarge}
+              validationPending={props.rawValidation.status === 'pending'}
+            />
+          </div>
+        ) : (
+          <WriteOnlyFields pairs={props.pairs} onUpdate={props.onPairUpdate} onRemove={props.onPairRemove} />
+        )}
+      </div>
+      <WriteOnlyStrategy
+        currentVersion={props.currentVersion}
+        value={props.unknownStrategy}
+        onChange={props.onUnknownStrategyChange}
+      />
+      <div className="flex justify-end gap-2">
+        <Button size="sm" onClick={props.onCancel}>Cancel</Button>
+        <Button size="sm" variant="primary" onClick={props.onReview}>Review write</Button>
+      </div>
+    </>
+  );
+}
+
+function WriteOnlyFields({
+  pairs,
+  onUpdate,
+  onRemove,
+}: {
+  readonly pairs: readonly KeyValuePair[];
+  readonly onUpdate: WriteOnlyEditStepProps['onPairUpdate'];
+  readonly onRemove: WriteOnlyEditStepProps['onPairRemove'];
+}) {
+  return (
+    <div className="space-y-1.5">
+      {pairs.map((pair) => (
+        <div key={pair.id} data-testid="write-only-field-row" className="grid min-w-0 grid-cols-[minmax(0,1fr)_44px] gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px]">
+          <input aria-label="Secret key" value={pair.key} onChange={(event) => onUpdate(pair.id, 'key', event.target.value)} placeholder="KEY" className="col-span-2 h-11 min-w-0 w-full rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:border-primary-400 focus:outline-none sm:col-span-1 sm:h-8" />
+          <input aria-label={`Value for ${pair.key || 'new key'}`} value={pair.value} onChange={(event) => onUpdate(pair.id, 'value', event.target.value)} placeholder="value" className="h-11 min-w-0 w-full rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:border-primary-400 focus:outline-none sm:h-8" />
+          <button type="button" aria-label="Remove field" disabled={pairs.length === 1} onClick={() => onRemove(pair.id)} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-danger-50 hover:text-danger-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400 disabled:opacity-30 sm:h-8 sm:w-8"><i className="ri-close-line" aria-hidden="true" /></button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WriteOnlyStrategy({
+  currentVersion,
+  value,
+  onChange,
+}: {
+  readonly currentVersion?: number;
+  readonly value: 'create-only' | 'unconditional';
+  readonly onChange: (value: 'create-only' | 'unconditional') => void;
+}) {
+  if (currentVersion !== undefined) {
+    return <div className="rounded-md border border-success-200 bg-success-50 px-3 py-2 text-[11px] leading-5 text-success-700">Metadata is readable. Check-and-set is fixed to current version {currentVersion}.</div>;
+  }
+  return (
+    <fieldset className="space-y-2 rounded-md border border-background-200 p-3">
+      <legend className="px-1 text-xs font-semibold text-foreground-700">Write strategy</legend>
+      <label className="flex cursor-pointer items-start gap-2 text-xs text-foreground-700">
+        <input type="radio" name="write-only-strategy" value="create-only" checked={value === 'create-only'} onChange={() => onChange('create-only')} />
+        <span><strong>Create only (CAS 0)</strong><span className="mt-0.5 block text-[11px] text-foreground-500">Fails safely if this secret already exists.</span></span>
+      </label>
+      <label className="flex cursor-pointer items-start gap-2 text-xs text-foreground-700">
+        <input type="radio" name="write-only-strategy" value="unconditional" checked={value === 'unconditional'} onChange={() => onChange('unconditional')} />
+        <span><strong>Write without CAS</strong><span className="mt-0.5 block text-[11px] text-danger-600">Can replace an existing secret without detecting concurrent changes.</span></span>
+      </label>
+    </fieldset>
+  );
+}
+
+function strategyLabel(strategy: KvV2WriteStrategy): string {
+  if (strategy.type === 'check-and-set') return `Check-and-set version ${strategy.version}`;
+  if (strategy.type === 'create-only') return 'Create only · CAS 0';
+  return 'No CAS · replacement allowed';
+}
+
+function guardLabel(strategy: KvV2WriteStrategy): string {
+  if (strategy.type === 'check-and-set') return `CAS ${strategy.version}`;
+  if (strategy.type === 'create-only') return 'CAS 0';
+  return 'None';
+}
+
+function WriteOnlyReviewStep({
+  mount,
+  path,
+  strategy,
+  keyCount,
+  acknowledged,
+  onAcknowledgedChange,
+  saving,
+  onBack,
+  onCancel,
+  onSave,
+}: {
+  readonly mount: string;
+  readonly path: string;
+  readonly strategy: KvV2WriteStrategy;
+  readonly keyCount: number;
+  readonly acknowledged: boolean;
+  readonly onAcknowledgedChange: (value: boolean) => void;
+  readonly saving: boolean;
+  readonly onBack: () => void;
+  readonly onCancel: () => void;
+  readonly onSave: () => void;
+}) {
+  const needsAcknowledgement = strategy.type === 'unconditional';
+  return (
+    <>
+      <div><p className="font-mono text-[9px] font-semibold uppercase tracking-[0.15em] text-warning-700">{strategyLabel(strategy)}</p><h3 className="mt-1 text-sm font-semibold text-foreground-900">Confirm complete secret write</h3></div>
+      <dl className="space-y-2 rounded-md border border-background-200 bg-background-100/60 p-3 text-xs">
+        <div className="flex justify-between gap-4"><dt className="text-foreground-500">Target path</dt><dd className="break-all text-right font-mono text-foreground-800">{mount}/{path}</dd></div>
+        <div className="flex justify-between"><dt className="text-foreground-500">Submitted keys</dt><dd className="font-mono text-foreground-800">{keyCount}</dd></div>
+        <div className="flex justify-between gap-4"><dt className="text-foreground-500">Concurrency guard</dt><dd className="text-right font-medium text-foreground-800">{guardLabel(strategy)}</dd></div>
+      </dl>
+      <p className="text-[11px] leading-5 text-foreground-500">Values stay hidden during review and are sent directly to Vault.</p>
+      {needsAcknowledgement && (
+        <label className="flex cursor-pointer items-start gap-2 rounded-md border border-danger-200 bg-danger-50 p-3 text-xs text-danger-700">
+          <input type="checkbox" checked={acknowledged} onChange={(event) => onAcknowledgedChange(event.target.checked)} />
+          <span>I understand that this can replace an existing secret without checking its current version.</span>
+        </label>
+      )}
+      <div className="flex justify-between gap-2">
+        <Button size="sm" onClick={onBack} disabled={saving}>Back</Button>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={onCancel} disabled={saving}>Cancel</Button>
+          <Button size="sm" variant="primary" onClick={onSave} loading={saving} disabled={needsAcknowledgement && !acknowledged}>Write complete secret</Button>
+        </div>
+      </div>
+    </>
   );
 }

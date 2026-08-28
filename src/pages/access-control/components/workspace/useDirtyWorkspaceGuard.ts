@@ -3,7 +3,7 @@ import {
   useEffect,
   useRef,
 } from 'react';
-import { useBlocker } from 'react-router-dom';
+import { useBlocker, type BlockerFunction } from 'react-router-dom';
 
 export interface DirtyWorkspaceGuard {
   readonly guard: (action: () => void) => void;
@@ -15,7 +15,7 @@ export function useDirtyWorkspaceGuard(
   message = 'Discard unsaved access changes?',
 ): DirtyWorkspaceGuard {
   const bypassNextNavigation = useRef(false);
-  const blocker = useBlocker(useCallback(({
+  const blocker = useBlocker(useCallback<BlockerFunction>(({
     currentLocation,
     nextLocation,
   }) => {

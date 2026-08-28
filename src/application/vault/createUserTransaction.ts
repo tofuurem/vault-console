@@ -146,7 +146,8 @@ export class CreateUserTransaction {
         report(id, 'compensation-failed');
       }
     };
-    if (this.state.groupIds.size && this.state.entityId) {
+    const entityId = this.state.entityId;
+    if (this.state.groupIds.size && entityId) {
       await compensate('groups', async () => {
         for (const group of [...this.input.groups].reverse()) {
           if (!this.state.groupIds.has(group.id)) continue;
@@ -154,11 +155,11 @@ export class CreateUserTransaction {
           await this.gateway.updateGroupMembers(
             this.session,
             current,
-            current.memberEntityIds.filter((id) => id !== this.state.entityId),
+            current.memberEntityIds.filter((id) => id !== entityId),
             signal,
           );
           const verified = await this.gateway.readGroup(this.session, group.id, signal);
-          if (verified.memberEntityIds.includes(this.state.entityId)) {
+          if (verified.memberEntityIds.includes(entityId)) {
             throw new VaultError('conflict');
           }
           this.state.groupIds.delete(group.id);

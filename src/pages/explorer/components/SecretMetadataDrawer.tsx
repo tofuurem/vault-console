@@ -229,54 +229,17 @@ export default function SecretMetadataDrawer({
               <span><strong>Require check-and-set</strong><span className="mt-0.5 block text-[11px] text-foreground-500">All writes to this key must include a CAS version.</span></span>
             </label>
 
-            <section aria-labelledby="custom-metadata-heading">
-              <div className="mb-2 flex items-center justify-between">
-                <h4 id="custom-metadata-heading" className="text-xs font-semibold text-foreground-700">Custom metadata</h4>
-                <button
-                  type="button"
-                  onClick={() => setFields((current) => [
-                    ...current,
-                    { id: ++nextFieldId, key: '', value: '' },
-                  ])}
-                  className="text-xs text-primary-600 hover:text-primary-700"
-                >
-                  + Add field
-                </button>
-              </div>
-              <div className="space-y-1.5">
-                {fields.map((field) => (
-                  <div
-                    key={field.id}
-                    data-testid="metadata-field-row"
-                    className="grid min-w-0 grid-cols-[minmax(0,1fr)_44px] gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px]"
-                  >
-                    <input
-                      aria-label="Custom metadata key"
-                      value={field.key}
-                      onChange={(event) => updateField(field.id, 'key', event.target.value)}
-                      placeholder="owner"
-                      className="col-span-2 h-11 min-w-0 w-full rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:border-primary-400 focus:outline-none sm:col-span-1 sm:h-8"
-                    />
-                    <input
-                      aria-label={`Custom metadata value for ${field.key || 'new key'}`}
-                      value={field.value}
-                      onChange={(event) => updateField(field.id, 'value', event.target.value)}
-                      placeholder="platform"
-                      className="h-11 min-w-0 w-full rounded-md border border-background-300 bg-background-50 px-2 text-xs focus:border-primary-400 focus:outline-none sm:h-8"
-                    />
-                    <button
-                      type="button"
-                      aria-label={`Remove custom metadata ${field.key || 'field'}`}
-                      disabled={fields.length === 1}
-                      onClick={() => setFields((current) => current.filter((candidate) => candidate.id !== field.id))}
-                      className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-danger-50 hover:text-danger-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400 disabled:opacity-30 sm:h-8 sm:w-8"
-                    >
-                      <i className="ri-close-line" aria-hidden="true" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </section>
+            <CustomMetadataFields
+              fields={fields}
+              onAdd={() => setFields((current) => [
+                ...current,
+                { id: ++nextFieldId, key: '', value: '' },
+              ])}
+              onUpdate={updateField}
+              onRemove={(id) => setFields((current) => (
+                current.filter((candidate) => candidate.id !== id)
+              ))}
+            />
 
             <div className="flex justify-end gap-2">
               <Button size="sm" onClick={requestClose} disabled={saving}>Cancel</Button>
@@ -288,5 +251,59 @@ export default function SecretMetadataDrawer({
         )}
       </div>
     </Drawer>
+  );
+}
+
+function CustomMetadataFields({
+  fields,
+  onAdd,
+  onUpdate,
+  onRemove,
+}: {
+  readonly fields: readonly EditableMetadataField[];
+  readonly onAdd: () => void;
+  readonly onUpdate: (id: number, field: 'key' | 'value', value: string) => void;
+  readonly onRemove: (id: number) => void;
+}) {
+  return (
+    <section aria-labelledby="custom-metadata-heading">
+      <div className="mb-2 flex items-center justify-between">
+        <h4 id="custom-metadata-heading" className="text-xs font-semibold text-foreground-700">Custom metadata</h4>
+        <button type="button" onClick={onAdd} className="text-xs text-primary-600 hover:text-primary-700">+ Add field</button>
+      </div>
+      <div className="space-y-1.5">
+        {fields.map((field) => (
+          <div
+            key={field.id}
+            data-testid="metadata-field-row"
+            className="grid min-w-0 grid-cols-[minmax(0,1fr)_44px] gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px]"
+          >
+            <input
+              aria-label="Custom metadata key"
+              value={field.key}
+              onChange={(event) => onUpdate(field.id, 'key', event.target.value)}
+              placeholder="owner"
+              className="col-span-2 h-11 min-w-0 w-full rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:border-primary-400 focus:outline-none sm:col-span-1 sm:h-8"
+            />
+            <input
+              aria-label={`Custom metadata value for ${field.key || 'new key'}`}
+              value={field.value}
+              onChange={(event) => onUpdate(field.id, 'value', event.target.value)}
+              placeholder="platform"
+              className="h-11 min-w-0 w-full rounded-md border border-background-300 bg-background-50 px-2 text-xs focus:border-primary-400 focus:outline-none sm:h-8"
+            />
+            <button
+              type="button"
+              aria-label={`Remove custom metadata ${field.key || 'field'}`}
+              disabled={fields.length === 1}
+              onClick={() => onRemove(field.id)}
+              className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-danger-50 hover:text-danger-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400 disabled:opacity-30 sm:h-8 sm:w-8"
+            >
+              <i className="ri-close-line" aria-hidden="true" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

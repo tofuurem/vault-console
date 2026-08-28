@@ -280,28 +280,8 @@ function VersionActionsMenu({
   );
 }
 
-export default function Inspector({
-  state,
-  mount,
-  path,
-  onRetry,
-  onView,
-  onEdit,
-  onWriteOnly,
-  permissions,
-  onCompare,
-  onDeleteLatest,
-  onDeleteVersion,
-  onUndelete,
-  onDestroyVersion,
-  onDeleteMetadata,
-  onEditMetadata,
-  activeTab: controlledTab,
-  onTabChange,
-  favorite = false,
-  onToggleFavorite,
-  onClipboardFeedback,
-}: InspectorProps) {
+export default function Inspector(props: InspectorProps) {
+  const { state, path, onRetry, activeTab: controlledTab, onTabChange } = props;
   const [internalTab, setInternalTab] = useState('data');
   const activeTab = controlledTab ?? internalTab;
   const setActiveTab = (tab: string) => {
@@ -331,175 +311,196 @@ export default function Inspector({
       </div>
     );
   }
+  if (state.status !== 'success') return null;
 
-  const { secret, history, dataError, historyError } = state.data;
-  const currentVersion = history?.versions.find((version) => version.version === history.currentVersion);
-  const currentVersionUnavailable = Boolean(currentVersion?.destroyed || currentVersion?.deletionTime);
+  return (
+    <InspectorContent
+      {...props}
+      details={state.data}
+      path={path}
+      activeTab={activeTab}
+      onActiveTabChange={setActiveTab}
+    />
+  );
+}
+
+interface InspectorContentProps extends Omit<
+  InspectorProps,
+  'state' | 'path' | 'activeTab' | 'onTabChange'
+> {
+  readonly details: KvSecretDetails;
+  readonly path: string;
+  readonly activeTab: string;
+  readonly onActiveTabChange: (tab: string) => void;
+}
+
+function InspectorContent(props: InspectorContentProps) {
+  const { details, activeTab, onActiveTabChange } = props;
   const tabs = [
     { key: 'data', label: 'Data', icon: 'ri-database-2-line' },
     {
       key: 'versions',
       label: 'Versions',
       icon: 'ri-history-line',
-      ...(history ? { count: history.versions.length } : {}),
+      ...(details.history ? { count: details.history.versions.length } : {}),
     },
     { key: 'metadata', label: 'Metadata', icon: 'ri-information-line' },
   ];
 
   return (
-    <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab}>
-      {activeTab === 'data' && (
-        <div className="space-y-3 p-3">
-          {!secret ? (
-            <div className="space-y-3">
-              {dataError ? (
-                <ScopedResourceError
-                  title={dataError.code === 'authorization' ? 'Secret data is not allowed' : 'Secret data could not be loaded'}
-                  error={dataError}
-                  onRetry={onRetry}
-                />
-              ) : currentVersionUnavailable ? (
-                <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
-                  <p className="font-semibold">Current version has no readable data</p>
-                  <p className="mt-1 leading-5">It is deleted or destroyed. Open Versions to inspect its state.</p>
-                </div>
-              ) : (
-                <ScopedResourceError title="Secret data could not be loaded" onRetry={onRetry} />
-              )}
-              {dataError?.code === 'authorization' && onWriteOnly && (
-                <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
-                  <p className="font-semibold">
-                    {permissions?.discovery === 'unavailable'
-                      ? 'Write permission could not be preflighted'
-                      : 'Write-only access is available'}
-                  </p>
-                  <p className="mt-1 leading-5">
-                    {permissions?.discovery === 'unavailable'
-                      ? 'Vault will make the final authorization decision. A write still replaces the complete secret document.'
-                      : 'You can submit a complete new document, but existing fields cannot be shown or preserved.'}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={onWriteOnly}
-                    className="mt-2 h-11 rounded-md bg-primary-500 px-3 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2"
-                  >
-                    {permissions?.discovery === 'unavailable'
-                      ? 'Try writing a new version…'
-                      : 'Write new version…'}
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <>
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <span className="text-[11px] font-medium text-foreground-500">Current version</span>
-              <span className="ml-1.5 font-mono text-xs text-foreground-800">v{secret.metadata.version}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              {onToggleFavorite && (
-                <Tooltip content={favorite ? 'Remove from favorites' : 'Add to favorites'}>
-                  <button
-                    type="button"
-                    aria-label={`${favorite ? 'Unpin' : 'Pin'} secret ${mount}/${path}`}
-                    aria-pressed={favorite}
-                    onClick={onToggleFavorite}
-                    className={`flex h-11 w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7 ${
-                      favorite
-                        ? 'text-warning-600 hover:bg-warning-100'
-                        : 'text-foreground-400 hover:bg-background-100 hover:text-warning-600'
-                    }`}
-                  >
-                    <i className={favorite ? 'ri-star-fill' : 'ri-star-line'} aria-hidden="true" />
-                  </button>
-                </Tooltip>
-              )}
-              {onView && (
-                <Tooltip content="View secret full screen">
-                  <button
-                    type="button"
-                    aria-label="View secret full screen"
-                    onClick={onView}
-                    className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"
-                  >
-                    <i className="ri-eye-line" aria-hidden="true" />
-                  </button>
-                </Tooltip>
-              )}
-              {onEdit && canAttemptKvAction(permissions, 'canEdit') && <button type="button" onClick={onEdit} className="h-11 rounded-md bg-primary-500 px-3 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2">Edit secret</button>}
-            </div>
+    <Tabs tabs={tabs} activeTab={activeTab} onChange={onActiveTabChange}>
+      {activeTab === 'data' && <InspectorDataTab {...props} />}
+      {activeTab === 'versions' && <InspectorVersionsTab {...props} />}
+      {activeTab === 'metadata' && <InspectorMetadataTab {...props} />}
+    </Tabs>
+  );
+}
+
+function InspectorDataTab({
+  details,
+  mount,
+  path,
+  onRetry,
+  onView,
+  onEdit,
+  onWriteOnly,
+  permissions,
+  favorite = false,
+  onToggleFavorite,
+  onClipboardFeedback,
+}: InspectorContentProps) {
+  const { secret, history, dataError } = details;
+  const currentVersion = history?.versions.find((version) => version.version === history.currentVersion);
+  const currentVersionUnavailable = Boolean(currentVersion?.destroyed || currentVersion?.deletionTime);
+  if (!secret) {
+    return (
+      <div className="space-y-3 p-3">
+        {dataError ? (
+          <ScopedResourceError title={dataError.code === 'authorization' ? 'Secret data is not allowed' : 'Secret data could not be loaded'} error={dataError} onRetry={onRetry} />
+        ) : currentVersionUnavailable ? (
+          <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
+            <p className="font-semibold">Current version has no readable data</p>
+            <p className="mt-1 leading-5">It is deleted or destroyed. Open Versions to inspect its state.</p>
           </div>
-          <p className="text-[10px] text-foreground-400">Created {formatTime(secret.metadata.createdTime)}</p>
-          <div className="overflow-hidden rounded-md border border-background-200">
-            <div className="grid grid-cols-[minmax(90px,120px)_1fr] border-b border-background-200 bg-background-100 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-500"><span>Key</span><span>Value</span></div>
-            <div className="divide-y divide-background-100">
-              {Object.entries(secret.data).map(([key, value]) => (
-                <div key={`${mount}\u001f${path}\u001f${secret.metadata.version}\u001f${key}`} className="grid grid-cols-[minmax(90px,120px)_1fr] px-2.5 py-2">
-                  <span className="break-all pr-2 font-mono text-xs font-medium text-foreground-700">{key}</span>
-                  <InspectorValue label={key} value={value} onClipboardFeedback={onClipboardFeedback} />
-                </div>
-              ))}
+        ) : <ScopedResourceError title="Secret data could not be loaded" onRetry={onRetry} />}
+        {dataError?.code === 'authorization' && onWriteOnly && (
+          <WriteOnlyNotice permissions={permissions} onWriteOnly={onWriteOnly} />
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div><span className="text-[11px] font-medium text-foreground-500">Current version</span><span className="ml-1.5 font-mono text-xs text-foreground-800">v{secret.metadata.version}</span></div>
+        <InspectorSecretActions mount={mount} path={path} favorite={favorite} onToggleFavorite={onToggleFavorite} onView={onView} onEdit={onEdit} permissions={permissions} />
+      </div>
+      <p className="text-[10px] text-foreground-400">Created {formatTime(secret.metadata.createdTime)}</p>
+      <div className="overflow-hidden rounded-md border border-background-200">
+        <div className="grid grid-cols-[minmax(90px,120px)_1fr] border-b border-background-200 bg-background-100 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-500"><span>Key</span><span>Value</span></div>
+        <div className="divide-y divide-background-100">
+          {Object.entries(secret.data).map(([key, value]) => (
+            <div key={`${mount}\u001f${path}\u001f${secret.metadata.version}\u001f${key}`} className="grid grid-cols-[minmax(90px,120px)_1fr] px-2.5 py-2">
+              <span className="break-all pr-2 font-mono text-xs font-medium text-foreground-700">{key}</span>
+              <InspectorValue label={key} value={value} onClipboardFeedback={onClipboardFeedback} />
             </div>
-          </div>
-            </>
-          )}
+          ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function InspectorSecretActions({
+  mount,
+  path,
+  favorite,
+  onToggleFavorite,
+  onView,
+  onEdit,
+  permissions,
+}: Pick<InspectorContentProps, 'mount' | 'path' | 'favorite' | 'onToggleFavorite' | 'onView' | 'onEdit' | 'permissions'>) {
+  return (
+    <div className="flex items-center gap-1">
+      {onToggleFavorite && (
+        <Tooltip content={favorite ? 'Remove from favorites' : 'Add to favorites'}>
+          <button type="button" aria-label={`${favorite ? 'Unpin' : 'Pin'} secret ${mount}/${path}`} aria-pressed={favorite} onClick={onToggleFavorite} className={`flex h-11 w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7 ${favorite ? 'text-warning-600 hover:bg-warning-100' : 'text-foreground-400 hover:bg-background-100 hover:text-warning-600'}`}>
+            <i className={favorite ? 'ri-star-fill' : 'ri-star-line'} aria-hidden="true" />
+          </button>
+        </Tooltip>
       )}
-      {activeTab === 'versions' && (
-        history ? (
-          <div className="space-y-1 p-3">
-          {history.versions.map((version) => {
-            const current = version.version === history.currentVersion;
-            return (
-              <div key={version.version} className={`flex items-center gap-3 rounded-md border px-2.5 py-2 ${current ? 'border-primary-200 bg-primary-50/30' : 'border-background-200'} ${version.destroyed ? 'opacity-55' : ''}`}>
-                <span className="w-8 shrink-0 font-mono text-xs font-semibold text-foreground-800">v{version.version}</span>
-                <div className="min-w-0 flex-1">
-                  {current && !version.deletionTime && !version.destroyed && <Badge variant="success">Current</Badge>}
-                  {version.deletionTime && <Badge variant="danger">Deleted</Badge>}
-                  {version.destroyed && <Badge variant="danger">Destroyed</Badge>}
-                  {!current && !version.deletionTime && !version.destroyed && <Badge variant="info">Older</Badge>}
-                  <p className="mt-0.5 truncate text-[10px] text-foreground-400">{formatTime(version.createdTime)}</p>
-                </div>
-                {!version.destroyed && (
-                  <div className="flex shrink-0 items-center gap-1">
-                    {!version.deletionTime && onCompare && (
-                      <Tooltip content={`Compare version ${version.version} with another version`}>
-                        <button type="button" aria-label={`Compare version ${version.version}`} onClick={onCompare} className="flex h-11 items-center gap-1 rounded-md px-3 text-[11px] font-medium text-primary-600 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2">
-                          <i className="ri-scales-line text-xs" aria-hidden="true" /> Compare
-                        </button>
-                      </Tooltip>
-                    )}
-                    <VersionActionsMenu
-                      version={version.version}
-                      current={current}
-                      deleted={Boolean(version.deletionTime)}
-                      permissions={permissions}
-                      onDeleteLatest={onDeleteLatest}
-                      onDeleteVersion={onDeleteVersion}
-                      onUndelete={onUndelete}
-                      onDestroyVersion={onDestroyVersion}
-                    />
-                  </div>
-                )}
+      {onView && <Tooltip content="View secret full screen"><button type="button" aria-label="View secret full screen" onClick={onView} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"><i className="ri-eye-line" aria-hidden="true" /></button></Tooltip>}
+      {onEdit && canAttemptKvAction(permissions, 'canEdit') && <button type="button" onClick={onEdit} className="h-11 rounded-md bg-primary-500 px-3 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2">Edit secret</button>}
+    </div>
+  );
+}
+
+function WriteOnlyNotice({ permissions, onWriteOnly }: Pick<InspectorContentProps, 'permissions' | 'onWriteOnly'>) {
+  const preflightUnavailable = permissions?.discovery === 'unavailable';
+  return (
+    <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
+      <p className="font-semibold">{preflightUnavailable ? 'Write permission could not be preflighted' : 'Write-only access is available'}</p>
+      <p className="mt-1 leading-5">{preflightUnavailable ? 'Vault will make the final authorization decision. A write still replaces the complete secret document.' : 'You can submit a complete new document, but existing fields cannot be shown or preserved.'}</p>
+      <button type="button" onClick={onWriteOnly} className="mt-2 h-11 rounded-md bg-primary-500 px-3 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2">{preflightUnavailable ? 'Try writing a new version…' : 'Write new version…'}</button>
+    </div>
+  );
+}
+
+function InspectorVersionsTab({
+  details,
+  onRetry,
+  onCompare,
+  permissions,
+  onDeleteLatest,
+  onDeleteVersion,
+  onUndelete,
+  onDestroyVersion,
+}: InspectorContentProps) {
+  const { history, historyError } = details;
+  if (!history) {
+    return <div className="p-3"><ScopedResourceError title={historyError?.code === 'authorization' ? 'Version history is not allowed' : 'Version history could not be loaded'} error={historyError} onRetry={onRetry} /></div>;
+  }
+  return (
+    <div className="space-y-1 p-3">
+      {history.versions.map((version) => {
+        const current = version.version === history.currentVersion;
+        return (
+          <div key={version.version} className={`flex items-center gap-3 rounded-md border px-2.5 py-2 ${current ? 'border-primary-200 bg-primary-50/30' : 'border-background-200'} ${version.destroyed ? 'opacity-55' : ''}`}>
+            <span className="w-8 shrink-0 font-mono text-xs font-semibold text-foreground-800">v{version.version}</span>
+            <div className="min-w-0 flex-1">
+              {current && !version.deletionTime && !version.destroyed && <Badge variant="success">Current</Badge>}
+              {version.deletionTime && <Badge variant="danger">Deleted</Badge>}
+              {version.destroyed && <Badge variant="danger">Destroyed</Badge>}
+              {!current && !version.deletionTime && !version.destroyed && <Badge variant="info">Older</Badge>}
+              <p className="mt-0.5 truncate text-[10px] text-foreground-400">{formatTime(version.createdTime)}</p>
+            </div>
+            {!version.destroyed && (
+              <div className="flex shrink-0 items-center gap-1">
+                {!version.deletionTime && onCompare && <Tooltip content={`Compare version ${version.version} with another version`}><button type="button" aria-label={`Compare version ${version.version}`} onClick={onCompare} className="flex h-11 items-center gap-1 rounded-md px-3 text-[11px] font-medium text-primary-600 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2"><i className="ri-scales-line text-xs" aria-hidden="true" /> Compare</button></Tooltip>}
+                <VersionActionsMenu version={version.version} current={current} deleted={Boolean(version.deletionTime)} permissions={permissions} onDeleteLatest={onDeleteLatest} onDeleteVersion={onDeleteVersion} onUndelete={onUndelete} onDestroyVersion={onDestroyVersion} />
               </div>
-            );
-          })}
+            )}
           </div>
-        ) : (
-          <div className="p-3">
-            <ScopedResourceError
-              title={historyError?.code === 'authorization' ? 'Version history is not allowed' : 'Version history could not be loaded'}
-              error={historyError}
-              onRetry={onRetry}
-            />
-          </div>
-        )
-      )}
-      {activeTab === 'metadata' && (
-        <div className="space-y-3 p-3 text-xs">
-        {history ? (
-          <>
+        );
+      })}
+    </div>
+  );
+}
+
+function InspectorMetadataTab({
+  details,
+  mount,
+  path,
+  onRetry,
+  permissions,
+  onEditMetadata,
+  onDeleteMetadata,
+}: InspectorContentProps) {
+  const { history, historyError } = details;
+  return (
+    <div className="space-y-3 p-3 text-xs">
+      {history ? (
+        <>
           <dl className="space-y-2">
             <div className="flex justify-between gap-3"><dt className="text-foreground-500">Logical path</dt><dd className="break-all text-right font-mono text-foreground-800">{mount}/{path}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-foreground-500">Created</dt><dd className="text-right text-foreground-800">{formatTime(history.createdTime)}</dd></div>
@@ -510,35 +511,20 @@ export default function Inspector({
             <div className="flex justify-between"><dt className="text-foreground-500">Check-and-set required</dt><dd className="font-medium text-foreground-800">{history.casRequired ? 'Yes' : 'No'}</dd></div>
             <div className="flex justify-between"><dt className="text-foreground-500">Delete version after</dt><dd className="font-mono text-foreground-800">{history.deleteVersionAfter === '0s' ? 'Disabled' : history.deleteVersionAfter}</dd></div>
           </dl>
-          {Object.keys(history.customMetadata).length > 0 && (
-            <div className="border-t border-background-200 pt-3">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-foreground-500">Custom metadata</p>
-              {Object.entries(history.customMetadata).map(([key, value]) => <p key={key} className="mb-1 flex justify-between gap-3"><span className="font-mono text-foreground-600">{key}</span><span className="text-foreground-800">{value}</span></p>)}
-            </div>
-          )}
-          {canAttemptKvAction(permissions, 'canReadMetadata')
-            && canAttemptKvAction(permissions, 'canUpdateMetadata')
-            && onEditMetadata && (
-            <Button size="sm" onClick={onEditMetadata}>
-              <i className="ri-edit-line" aria-hidden="true" /> Edit key metadata
-            </Button>
-          )}
-          </>
-        ) : (
-          <ScopedResourceError
-            title={historyError?.code === 'authorization' ? 'Secret metadata is not allowed' : 'Secret metadata could not be loaded'}
-            error={historyError}
-            onRetry={onRetry}
-          />
-        )
-        }
-        {canAttemptKvAction(permissions, 'canDeleteMetadata') && onDeleteMetadata && (
-          <div className="border-t border-background-200 pt-3">
-            <button type="button" aria-label="Delete key permanently" onClick={onDeleteMetadata} className="text-xs font-medium text-danger-600 hover:text-danger-700">Delete key permanently…</button>
-          </div>
-        )}
-        </div>
-      )}
-    </Tabs>
+          {Object.keys(history.customMetadata).length > 0 && <CustomMetadata metadata={history.customMetadata} />}
+          {canAttemptKvAction(permissions, 'canReadMetadata') && canAttemptKvAction(permissions, 'canUpdateMetadata') && onEditMetadata && <Button size="sm" onClick={onEditMetadata}><i className="ri-edit-line" aria-hidden="true" /> Edit key metadata</Button>}
+        </>
+      ) : <ScopedResourceError title={historyError?.code === 'authorization' ? 'Secret metadata is not allowed' : 'Secret metadata could not be loaded'} error={historyError} onRetry={onRetry} />}
+      {canAttemptKvAction(permissions, 'canDeleteMetadata') && onDeleteMetadata && <div className="border-t border-background-200 pt-3"><button type="button" aria-label="Delete key permanently" onClick={onDeleteMetadata} className="text-xs font-medium text-danger-600 hover:text-danger-700">Delete key permanently…</button></div>}
+    </div>
+  );
+}
+
+function CustomMetadata({ metadata }: { readonly metadata: Readonly<Record<string, string>> }) {
+  return (
+    <div className="border-t border-background-200 pt-3">
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-foreground-500">Custom metadata</p>
+      {Object.entries(metadata).map(([key, value]) => <p key={key} className="mb-1 flex justify-between gap-3"><span className="font-mono text-foreground-600">{key}</span><span className="text-foreground-800">{String(value)}</span></p>)}
+    </div>
   );
 }

@@ -73,7 +73,7 @@ function authGateway(): VaultAuthGateway {
     loginUserpass: vi.fn(async (_input: UserpassLogin) => session),
     renewSelf: vi.fn(async () => ({ renewable: false })),
     revokeSelf: vi.fn(async () => undefined),
-    getCapabilities: vi.fn(async (_session, paths): Promise<VaultCapabilityMap> => Object.fromEntries(
+    getCapabilities: vi.fn(async (_session, paths: readonly string[]): Promise<VaultCapabilityMap> => Object.fromEntries(
       paths.map((path) => [path, ['create', 'read', 'update', 'delete', 'list']]),
     ) as VaultCapabilityMap),
   };
@@ -203,7 +203,7 @@ function accessGateway(): VaultAccessControlGateway {
     deleteEntity: vi.fn(async () => undefined),
     createEntityAlias: vi.fn(async () => 'alias-bob'),
     deleteEntityAlias: vi.fn(async () => undefined),
-    getCapabilities: vi.fn(async (_session, paths) => Object.fromEntries(
+    getCapabilities: vi.fn(async (_session, paths: readonly string[]) => Object.fromEntries(
       paths.map((path) => [path, ['create', 'read', 'update', 'delete'] as const]),
     )),
   };

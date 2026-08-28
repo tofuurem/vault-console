@@ -56,4 +56,16 @@ export default [
       'local-route/route-element-jsx': 'error',
     },
   },
+  {
+    files: ['src/pages/explorer/**/*.{ts,tsx}'],
+    ignores: ['src/pages/explorer/**/*.test.{ts,tsx}'],
+    rules: {
+      complexity: ['error', 20],
+      'max-lines-per-function': ['error', {
+        max: 200,
+        skipBlankLines: true,
+        skipComments: true,
+      }],
+    },
+  },
 ]

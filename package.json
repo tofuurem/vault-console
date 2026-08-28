@@ -8,13 +8,15 @@
     "build": "vite build && node scripts/check-build-output.mjs",
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:complexity": "eslint src/pages/explorer --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit --project tsconfig.app.json",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:vault": "./scripts/test-vault.sh",
     "test:e2e": "./scripts/test-compose-e2e.sh",
     "test:e2e:playwright": "playwright test",
-    "quality": "npm run type-check && npm run lint && npm run test:run"
+    "quality": "npm run type-check && npm run lint && npm run lint:complexity && npm run test:run"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",
@@ -40,6 +42,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.11",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.30.1",
     "eslint-plugin-react-hooks": "^5.2.0",
@@ -51,6 +54,6 @@
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.35.1",
     "vite": "^8.0.1",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }

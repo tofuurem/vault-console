@@ -1,106 +1,86 @@
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { lazy, Suspense, useEffect, useState, type ComponentProps } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuthenticatedShell } from '@/app/authenticated-shell';
 import { useNavigationHistory } from '@/application/navigation-history/NavigationHistoryContext';
 import { useToast } from '@/application/notifications/ToastContext';
-import { vaultQueryKeys } from '@/application/query/vault-query-keys';
-import type {
-  BulkDestroyPreflight,
-  BulkDestroyTarget,
-} from '@/application/vault/bulk/bulk-destroy';
-import type {
-  BulkSoftDeletePreflight,
-} from '@/application/vault/bulk/bulk-soft-delete';
-import type {
-  BulkDeleteKeysPreflight,
-} from '@/application/vault/bulk/bulk-delete-keys';
-import { useKvV2Gateway } from '@/application/vault/KvV2GatewayContext';
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import {
   canAttemptKvAction,
-  kvActionPaths,
+  type KvActionPermissions,
+  type KvMountConfigPermissions,
   useKvActionPermissions,
   useKvMountConfigPermissions,
 } from '@/application/vault/useKvActionPermissions';
-import { useKvDirectory, useKvSecretDetails } from '@/application/vault/useKvExplorerData';
-import type { VaultCapability } from '@/domain/vault/contracts';
-import type {
-  KvV2MountConfig,
-  KvV2SecretMetadataInput,
-  KvV2WriteStrategy,
-} from '@/domain/vault/kv-v2';
 import {
-  summarizeBulkOutcomes,
-  type BulkItemOutcome,
-} from '@/domain/vault/bulk-operation';
-import { normalizeVaultError, VaultError } from '@/domain/vault/errors';
-import ContentSkeleton from '@/components/base/ContentSkeleton';
-import {
-  directoryPathForSecret,
-  directoryPathFromWildcard,
-  explorerRoute,
-} from '@/router/explorer-route';
-import { mapWithConcurrency } from '@/shared/async/map-with-concurrency';
-import CreateSecretDrawer from './components/CreateSecretDrawer';
-import DestructionConfirm, { type KvDestructiveAction } from './components/DestructionConfirm';
-import ExplorerMain from './components/ExplorerMain';
-import KvMountConfigDrawer from './components/KvMountConfigDrawer';
-import SecretWorkspace, { type SecretWorkspaceMode } from './components/SecretWorkspace';
-import SecretMetadataDrawer from './components/SecretMetadataDrawer';
-import VersionComparison from './components/VersionComparison';
-import WriteOnlySecretDrawer from './components/WriteOnlySecretDrawer';
+  useKvDirectory,
+  useKvSecretDetails,
+  type KvSecretDetails,
+  type VaultQueryState,
+} from '@/application/vault/useKvExplorerData';
+import { directoryPathForSecret, directoryPathFromWildcard, explorerRoute } from '@/router/explorer-route';
+import ExplorerContent from './components/ExplorerContent';
+import type ExplorerMain from './components/ExplorerMain';
+import { useExplorerBulkController } from './controllers/useExplorerBulkController';
+import { useExplorerDestructiveController } from './controllers/useExplorerDestructiveController';
+import { useExplorerMutationController } from './controllers/useExplorerMutationController';
+import { useExplorerOverlayController } from './controllers/useExplorerOverlayController';
 
 const NO_MOUNTS = [] as const;
-const BulkDestroyDialog = lazy(() => import('./components/BulkDestroyDialog'));
-const BulkPermanentDeleteDialog = lazy(
-  () => import('./components/BulkPermanentDeleteDialog'),
-);
-const BulkSoftDeleteDialog = lazy(
-  () => import('./components/BulkSoftDeleteDialog'),
-);
+const ExplorerDialogs = lazy(() => import('./components/ExplorerDialogs'));
 
-interface BulkSoftDeleteUiState {
-  readonly mount: string;
-  readonly directoryPath: string;
-  readonly paths: readonly string[];
-  readonly status: 'preparing' | 'ready' | 'submitting' | 'error';
-  readonly preflight?: BulkSoftDeletePreflight;
-  readonly error?: string;
+function clipboardMessage(kind: 'path' | 'paths' | 'cli' | 'secret-value'): string {
+  if (kind === 'path') return 'Logical path copied.';
+  if (kind === 'paths') return 'Selected logical paths copied.';
+  if (kind === 'cli') return 'Vault CLI command copied.';
+  return 'Secret value copied.';
 }
 
-interface BulkDestroyUiState {
-  readonly mount: string;
-  readonly directoryPath: string;
-  readonly paths: readonly string[];
-  readonly status: 'preparing' | 'ready' | 'submitting' | 'error';
-  readonly preflight?: BulkDestroyPreflight;
-  readonly error?: string;
+function availableAction<T extends (...args: never[]) => void>(
+  available: boolean,
+  action: T,
+): T | undefined {
+  return available ? action : undefined;
 }
 
-interface BulkDeleteKeysUiState {
-  readonly mount: string;
-  readonly directoryPath: string;
-  readonly paths: readonly string[];
-  readonly status: 'preparing' | 'ready' | 'submitting' | 'completed' | 'error';
-  readonly preflight?: BulkDeleteKeysPreflight;
-  readonly outcomes?: readonly BulkItemOutcome[];
-  readonly error?: string;
+function canOpenMountConfig(state: VaultQueryState<KvMountConfigPermissions>): boolean {
+  if (state.status === 'error') return state.data?.discovery === 'unavailable';
+  return state.status === 'success'
+    && state.data.canRead === true
+    && state.data.canUpdate === true;
 }
 
-interface DestructiveUiState {
-  readonly mount: string;
-  readonly path: string;
-  readonly directoryPath: string;
-  readonly action: KvDestructiveAction;
+function canWriteWithoutRead(
+  details: KvSecretDetails | undefined,
+  permissions: KvActionPermissions | undefined,
+): boolean {
+  return details?.dataError?.code === 'authorization'
+    && (
+      canAttemptKvAction(permissions, 'canCreate')
+      || canAttemptKvAction(permissions, 'canUpdate')
+    );
+}
+
+function canCompareVersions(
+  details: KvSecretDetails | undefined,
+  permissions: KvActionPermissions | undefined,
+): boolean {
+  return Boolean(
+    details?.history
+    && details.secret
+    && canAttemptKvAction(permissions, 'canReadData'),
+  );
+}
+
+function canEditMetadata(
+  details: KvSecretDetails | undefined,
+  permissions: KvActionPermissions | undefined,
+): boolean {
+  return Boolean(
+    details?.history
+    && canAttemptKvAction(permissions, 'canReadMetadata')
+    && canAttemptKvAction(permissions, 'canUpdateMetadata'),
+  );
 }
 
 export default function ExplorerPage() {
@@ -110,36 +90,13 @@ export default function ExplorerPage() {
   const { mountsState, refreshMounts } = useAuthenticatedShell();
   const vault = useVaultSession();
   const toast = useToast();
-  const queryClient = useQueryClient();
-  const {
-    recordRecent,
-    isFavorite,
-    toggleFavorite,
-    removeSecretPaths,
-  } = useNavigationHistory();
-  const kvGateway = useKvV2Gateway();
+  const { recordRecent, isFavorite, toggleFavorite } = useNavigationHistory();
   const session = vault.session!;
   const mounts = mountsState.data ?? NO_MOUNTS;
   const activeMount = params.mount ? decodeURIComponent(params.mount) : '';
   const activePath = directoryPathFromWildcard(params['*']);
   const selectedPath = searchParams.get('secret');
-  const [createOpen, setCreateOpen] = useState(false);
-  const [workspaceMode, setWorkspaceMode] = useState<SecretWorkspaceMode | null>(null);
-  const [writeOnlyOpen, setWriteOnlyOpen] = useState(false);
-  const [metadataOpen, setMetadataOpen] = useState(false);
-  const [mountConfigOpen, setMountConfigOpen] = useState(false);
-  const [compareOpen, setCompareOpen] = useState(false);
-  const [destructiveTarget, setDestructiveTarget] = useState<DestructiveUiState | null>(null);
-  const [bulkSoftDelete, setBulkSoftDelete] = useState<BulkSoftDeleteUiState | null>(null);
-  const [bulkDestroy, setBulkDestroy] = useState<BulkDestroyUiState | null>(null);
-  const [bulkDeleteKeys, setBulkDeleteKeys] = useState<BulkDeleteKeysUiState | null>(null);
   const [selectionClearKey, setSelectionClearKey] = useState(0);
-  const bulkPreflightIdRef = useRef(0);
-  const bulkPreflightAbortRef = useRef<AbortController | null>(null);
-  const bulkDestroyPreflightIdRef = useRef(0);
-  const bulkDestroyPreflightAbortRef = useRef<AbortController | null>(null);
-  const bulkDeletePreflightIdRef = useRef(0);
-  const bulkDeletePreflightAbortRef = useRef<AbortController | null>(null);
   const [directory, refreshDirectory] = useKvDirectory(session, activeMount, activePath);
   const [permissionsState, refreshPermissions] = useKvActionPermissions(activeMount, selectedPath);
   const [mountConfigPermissions] = useKvMountConfigPermissions(activeMount);
@@ -149,6 +106,34 @@ export default function ExplorerPage() {
     selectedPath,
     permissionsState,
   );
+  const selectedDetails = details.status === 'success' ? details.data : undefined;
+  const permissionScope = selectedPath ? `${activeMount}/data/${selectedPath}` : '';
+  const selectedPermissions = permissionsState.data?.scope === permissionScope
+    ? permissionsState.data
+    : undefined;
+  const clearSelection = () => setSelectionClearKey((current) => current + 1);
+  const overlays = useExplorerOverlayController(activeMount, selectedPath);
+  const mutations = useExplorerMutationController({
+    activeMount,
+    activePath,
+    selectedPath,
+    selectedDetails,
+    refreshDirectory,
+    refreshDetails,
+    refreshPermissions,
+  });
+  const destructive = useExplorerDestructiveController({
+    activeMount,
+    selectedPath,
+    refreshPath: mutations.refreshPath,
+    clearSelection,
+  });
+  const bulk = useExplorerBulkController({
+    activeMount,
+    activePath,
+    refreshPaths: mutations.refreshPaths,
+    clearSelection,
+  });
 
   useEffect(() => {
     if (mountsState.status !== 'success' || !mounts.length) return;
@@ -156,921 +141,97 @@ export default function ExplorerPage() {
       navigate(explorerRoute(mounts[0].path), { replace: true });
     }
   }, [activeMount, mounts, mountsState.status, navigate]);
-
-  useEffect(() => () => {
-    bulkPreflightAbortRef.current?.abort();
-    bulkDestroyPreflightAbortRef.current?.abort();
-    bulkDeletePreflightAbortRef.current?.abort();
-  }, []);
-
   useEffect(() => {
-    setWriteOnlyOpen(false);
-    setMetadataOpen(false);
-  }, [activeMount, selectedPath]);
-
-  useEffect(() => {
-    setMountConfigOpen(false);
-  }, [activeMount]);
-
-  useEffect(() => {
-    const errors = [
-      directory.status === 'error' ? directory.error : undefined,
-      details.status === 'error' ? details.error : undefined,
-      permissionsState.status === 'error' ? permissionsState.error : undefined,
-      mountConfigPermissions.status === 'error' ? mountConfigPermissions.error : undefined,
-    ];
-    if (errors.some((error) => error?.code === 'session-expired')) vault.expireSession();
+    const errors = [directory, details, permissionsState, mountConfigPermissions]
+      .filter((state) => state.status === 'error')
+      .map((state) => state.error);
+    if (errors.some((error) => error.code === 'session-expired')) vault.expireSession();
   }, [details, directory, mountConfigPermissions, permissionsState, vault]);
+  useEffect(() => {
+    if (!selectedPath || !selectedDetails?.secret) return;
+    recordRecent({ mount: activeMount, path: selectedPath, kind: 'secret' });
+  }, [activeMount, recordRecent, selectedDetails?.secret, selectedPath]);
 
   const selectSecret = (path: string) => {
     navigate(explorerRoute(activeMount, directoryPathForSecret(path), path));
   };
-  const navigateFolder = (path: string) => {
-    navigate(explorerRoute(activeMount, path));
-  };
-  const selectedDetails = details.status === 'success' ? details.data : undefined;
-  const selectedPermissionScope = selectedPath ? `${activeMount}/data/${selectedPath}` : '';
-  const selectedPermissions = permissionsState.data?.scope === selectedPermissionScope
-    ? permissionsState.data
-    : undefined;
-  const canAttemptMountConfig = (
-    mountConfigPermissions.status === 'error'
-    && mountConfigPermissions.data.discovery === 'unavailable'
-  )
-    || (
-      mountConfigPermissions.status === 'success'
-      && mountConfigPermissions.data.canRead === true
-      && mountConfigPermissions.data.canUpdate === true
-    );
-  const canAttemptWriteOnly = selectedDetails?.dataError?.code === 'authorization'
-    && (
-      canAttemptKvAction(selectedPermissions, 'canCreate')
-      || canAttemptKvAction(selectedPermissions, 'canUpdate')
-    );
-
-  useEffect(() => {
-    if (!selectedPath || !selectedDetails?.secret) return;
-    recordRecent({
-      mount: activeMount,
-      path: selectedPath,
-      kind: 'secret',
-    });
-  }, [activeMount, recordRecent, selectedDetails?.secret, selectedPath]);
-
-  const ensureCapability = async (path: string, capability: VaultCapability) => {
-    const result = await vault.queryCapabilities([path]);
-    const available = result[path] ?? [];
-    if (available.includes('deny') || (!available.includes('root') && !available.includes(capability))) {
-      throw new VaultError('authorization');
-    }
-  };
-  const handleMutationError = (cause: unknown, title = 'Vault operation failed'): never => {
-    const error = normalizeVaultError(cause);
-    if (error.code === 'session-expired') vault.expireSession();
-    else toast.error(error.message, { title });
-    throw error;
-  };
-  const refreshSelected = () => {
-    refreshDirectory();
-    refreshDetails();
-    refreshPermissions();
-  };
-  const refreshPath = async (mount: string, path: string) => {
-    await Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: vaultQueryKeys.directory(mount, directoryPathForSecret(path)),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: vaultQueryKeys.secretScope(mount, path),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: vaultQueryKeys.permissions(mount, path),
-      }),
-    ]);
-  };
-  const refreshPaths = async (
-    mount: string,
-    directoryPath: string,
-    paths: readonly string[],
-  ) => {
-    await queryClient.invalidateQueries({
-      queryKey: vaultQueryKeys.directory(mount, directoryPath),
-    });
-    await mapWithConcurrency(paths, 4, async (path) => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: vaultQueryKeys.secretScope(mount, path),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: vaultQueryKeys.permissions(mount, path),
-        }),
-      ]);
-    });
-  };
-  const createSecret = async (name: string, data: Readonly<Record<string, unknown>>) => {
-    const path = `${activePath}${name}`;
-    try {
-      await ensureCapability(kvActionPaths(activeMount, path).data, 'create');
-      const version = await kvGateway.writeSecret(
-        session,
-        activeMount,
-        path,
-        data,
-        { type: 'create-only' },
-      );
-      navigate(explorerRoute(activeMount, activePath, path));
-      refreshDirectory();
-      toast.success(`Created ${activeMount}/${path} at version ${version}.`);
-    } catch (cause) { handleMutationError(cause, 'Secret creation failed'); }
-  };
-  const editSecret = async (data: Readonly<Record<string, unknown>>) => {
-    if (!selectedPath || !selectedDetails?.secret) throw new VaultError('invalid-request');
-    try {
-      const path = kvActionPaths(activeMount, selectedPath).data;
-      await ensureCapability(path, 'update');
-      const version = await kvGateway.writeSecret(
-        session,
-        activeMount,
-        selectedPath,
-        data,
-        { type: 'check-and-set', version: selectedDetails.secret.metadata.version },
-      );
-      refreshSelected();
-      toast.success(`Saved ${activeMount}/${selectedPath} as version ${version} with check-and-set.`);
-    } catch (cause) { handleMutationError(cause, 'Secret update failed'); }
-  };
-  const writeOnlySecret = async (
-    data: Readonly<Record<string, unknown>>,
-    strategy: KvV2WriteStrategy,
-  ) => {
-    if (!selectedPath) throw new VaultError('invalid-request');
-    try {
-      const version = await kvGateway.writeSecret(
-        session,
-        activeMount,
-        selectedPath,
-        data,
-        strategy,
-      );
-      refreshSelected();
-      const guard = strategy.type === 'check-and-set'
-        ? `CAS ${strategy.version}`
-        : strategy.type === 'create-only'
-          ? 'CAS 0'
-          : 'no CAS';
-      toast.success(`Wrote ${activeMount}/${selectedPath} as version ${version} with ${guard}.`);
-    } catch (cause) {
-      handleMutationError(cause, 'Write-only secret update failed');
-    }
-  };
-  const loadSecretMetadata = useCallback((
-    mount: string,
-    path: string,
-    signal: AbortSignal,
-  ) => kvGateway.readSecretMetadata(session, mount, path, signal), [kvGateway, session]);
-  const saveSecretMetadata = async (
-    mount: string,
-    path: string,
-    input: KvV2SecretMetadataInput,
-  ) => {
-    try {
-      await kvGateway.updateSecretMetadata(session, mount, path, input);
-      await refreshPath(mount, path);
-      toast.success(`Updated key metadata for ${mount}/${path}.`);
-    } catch (cause) {
-      handleMutationError(cause, 'Key metadata update failed');
-    }
-  };
-  const loadMountConfig = useCallback((
-    mount: string,
-    signal: AbortSignal,
-  ) => kvGateway.readMountConfig(session, mount, signal), [kvGateway, session]);
-  const saveMountConfig = async (mount: string, input: KvV2MountConfig) => {
-    try {
-      await kvGateway.updateMountConfig(session, mount, input);
-      await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.mountConfig(mount) });
-      toast.success(`Updated KV v2 mount configuration for ${mount}.`);
-    } catch (cause) {
-      handleMutationError(cause, 'KV mount configuration update failed');
-    }
-  };
-  const loadVersion = useCallback(async (version: number) => {
-    if (!selectedPath) throw new VaultError('invalid-request');
-    return kvGateway.readSecret(session, activeMount, selectedPath, version);
-  }, [activeMount, kvGateway, selectedPath, session]);
-  const restoreVersion = async (version: number, data: Readonly<Record<string, unknown>>) => {
-    if (!selectedPath || !selectedDetails?.history) throw new VaultError('invalid-request');
-    try {
-      await ensureCapability(kvActionPaths(activeMount, selectedPath).data, 'update');
-      const restoredVersion = await kvGateway.writeSecret(
-        session,
-        activeMount,
-        selectedPath,
-        data,
-        { type: 'check-and-set', version: selectedDetails.history.currentVersion },
-      );
-      refreshSelected();
-      toast.success(`Restored v${version} as new version ${restoredVersion}.`);
-    } catch (cause) { handleMutationError(cause, 'Version restore failed'); }
-  };
-  const undeleteVersion = async (version: number) => {
-    if (!selectedPath) return;
-    try {
-      await kvGateway.undeleteVersions(session, activeMount, selectedPath, [version]);
-      await refreshPath(activeMount, selectedPath);
-      toast.success(`Undeleted version ${version} of ${activeMount}/${selectedPath}.`);
-    } catch (cause) {
-      const error = normalizeVaultError(cause);
-      if (error.code === 'session-expired') vault.expireSession();
-      else toast.error(error.message, { title: 'Version undelete failed' });
-    }
-  };
-  const undoDeletedVersion = async (
-    mount: string,
-    path: string,
-    version: number,
-  ) => {
-    try {
-      await kvGateway.undeleteVersions(session, mount, path, [version]);
-      await refreshPath(mount, path);
-      toast.success(`Restored version ${version} of ${mount}/${path}.`);
-    } catch (cause) {
-      const error = normalizeVaultError(cause);
-      if (error.code === 'session-expired') vault.expireSession();
-      else toast.error(error.message, {
-        title: `Undo failed for ${mount}/${path} v${version}`,
-      });
-    }
-  };
-  const openSelectedDestructiveAction = (action: KvDestructiveAction) => {
-    if (!selectedPath) return;
-    setDestructiveTarget({
-      mount: activeMount,
-      path: selectedPath,
-      directoryPath: directoryPathForSecret(selectedPath),
-      action,
-    });
-  };
-  const beginPermanentDelete = async (path: string) => {
-    const metadataPath = kvActionPaths(activeMount, path).metadata;
-    try {
-      const capabilities = await vault.queryCapabilities([metadataPath]);
-      const available = capabilities[metadataPath] ?? [];
-      if (
-        available.includes('deny')
-        || (!available.includes('root') && !available.includes('delete'))
-      ) {
-        toast.warning(`Your Vault policy cannot delete ${metadataPath}.`);
+  const navigateFolder = (path: string) => navigate(explorerRoute(activeMount, path));
+  const main: ComponentProps<typeof ExplorerMain> = {
+    mount: activeMount,
+    currentPath: activePath,
+    mounts,
+    directory,
+    selectedPath,
+    details,
+    onSelectSecret: selectSecret,
+    onNavigateToFolder: navigateFolder,
+    onNavigateToBreadcrumb: navigateFolder,
+    onRefresh: refreshDirectory,
+    onRetrySecret: refreshDetails,
+    onCreateSecret: overlays.create.show,
+    onOpenExactPath: selectSecret,
+    onConfigureMount: availableAction(canOpenMountConfig(mountConfigPermissions), overlays.mountConfig.show),
+    onViewSecret: availableAction(Boolean(selectedDetails?.secret), () => overlays.workspace.show('view')),
+    onEditSecret: availableAction(Boolean(selectedDetails?.secret), () => overlays.workspace.show('edit')),
+    onWriteOnlySecret: availableAction(
+      canWriteWithoutRead(selectedDetails, selectedPermissions),
+      overlays.writeOnly.show,
+    ),
+    permissions: selectedPermissions,
+    onCompare: availableAction(
+      canCompareVersions(selectedDetails, selectedPermissions),
+      overlays.comparison.show,
+    ),
+    onDeleteLatest: (version) => destructive.openSelected({ kind: 'delete-latest', version }),
+    onDeleteVersion: (version) => destructive.openSelected({ kind: 'delete-version', version }),
+    onUndelete: (version) => void destructive.undeleteVersion(version),
+    onDestroyVersion: (version) => destructive.openSelected({ kind: 'destroy-version', version }),
+    onDeleteMetadata: () => {
+      if (selectedPath) void destructive.beginPermanentDelete(selectedPath);
+    },
+    onEditMetadata: availableAction(
+      canEditMetadata(selectedDetails, selectedPermissions),
+      overlays.metadata.show,
+    ),
+    onDeletePermanently: (path) => void destructive.beginPermanentDelete(path),
+    isFavorite,
+    onToggleFavorite: toggleFavorite,
+    selectionClearKey,
+    onBulkSoftDelete: (paths) => void bulk.softDelete.begin(paths),
+    onBulkDestroy: (paths) => void bulk.destroy.begin(paths),
+    onBulkPermanentDelete: (paths) => void bulk.deleteKeys.begin(paths),
+    onClipboardFeedback: (kind, success) => {
+      if (!success) {
+        toast.error('The browser clipboard is unavailable.', { title: 'Copy failed' });
         return;
       }
-    } catch (cause) {
-      const error = normalizeVaultError(cause);
-      if (error.code === 'session-expired') {
-        vault.expireSession();
-        return;
-      }
-      if (error.code === 'aborted') return;
-      // Capability discovery is advisory. Let the exact Vault request decide.
-    }
-    setDestructiveTarget({
-      mount: activeMount,
-      path,
-      directoryPath: directoryPathForSecret(path),
-      action: { kind: 'delete-key' },
-    });
+      toast.success(clipboardMessage(kind));
+    },
   };
-  const confirmDestructiveAction = async (action: KvDestructiveAction) => {
-    if (!destructiveTarget) throw new VaultError('invalid-request');
-    const {
-      mount: targetMount,
-      path: targetPath,
-      directoryPath: targetDirectoryPath,
-    } = destructiveTarget;
-    try {
-      let affectedVersion = action.kind === 'delete-key' ? undefined : action.version;
-      if (action.kind === 'delete-latest') {
-        await kvGateway.deleteLatestSecret(session, targetMount, targetPath);
-        try {
-          const freshMetadata = await kvGateway.readSecretMetadata(
-            session,
-            targetMount,
-            targetPath,
-          );
-          affectedVersion = freshMetadata.currentVersion;
-        } catch {
-          // The delete itself succeeded. Keep the displayed snapshot version if
-          // a follow-up metadata read becomes unavailable.
-        }
-      }
-      if (action.kind === 'delete-version') await kvGateway.deleteVersions(session, targetMount, targetPath, [action.version]);
-      if (action.kind === 'destroy-version') await kvGateway.destroyVersions(session, targetMount, targetPath, [action.version]);
-      if (action.kind === 'delete-key') await kvGateway.deleteMetadata(session, targetMount, targetPath);
-      if (action.kind === 'delete-latest' || action.kind === 'delete-version') {
-        toast.action(
-          `Version ${affectedVersion} of ${targetMount}/${targetPath} was soft-deleted.`,
-          {
-            label: 'Undo',
-            onAction: () => void undoDeletedVersion(
-              targetMount,
-              targetPath,
-              affectedVersion!,
-            ),
-          },
-        );
-      } else {
-        toast.success(
-          action.kind === 'delete-key'
-            ? `Permanently deleted ${targetMount}/${targetPath}.`
-            : `Permanently destroyed version ${action.version} of ${targetMount}/${targetPath}.`,
-        );
-      }
-      await refreshPath(targetMount, targetPath);
-      if (action.kind === 'delete-key' && selectedPath === targetPath) {
-        navigate(explorerRoute(targetMount, targetDirectoryPath));
-      }
-      if (action.kind === 'delete-key') {
-        removeSecretPaths(targetMount, [targetPath]);
-        setSelectionClearKey((current) => current + 1);
-      }
-    } catch (cause) { handleMutationError(cause, 'Destructive operation failed'); }
-  };
-
-  const closeBulkSoftDelete = () => {
-    bulkPreflightIdRef.current += 1;
-    bulkPreflightAbortRef.current?.abort();
-    bulkPreflightAbortRef.current = null;
-    setBulkSoftDelete(null);
-  };
-
-  const beginBulkSoftDelete = async (
-    paths: readonly string[],
-    mount = activeMount,
-    directoryPath = activePath,
-  ) => {
-    bulkPreflightIdRef.current += 1;
-    const requestId = bulkPreflightIdRef.current;
-    bulkPreflightAbortRef.current?.abort();
-    const controller = new AbortController();
-    bulkPreflightAbortRef.current = controller;
-    setBulkSoftDelete({
-      mount,
-      directoryPath,
-      paths,
-      status: 'preparing',
-    });
-    try {
-      const { prepareBulkSoftDelete } = await import(
-        '@/application/vault/bulk/bulk-soft-delete'
-      );
-      const preflight = await prepareBulkSoftDelete({
-        gateway: kvGateway,
-        session,
-        mount,
-        paths,
-        queryCapabilities: vault.queryCapabilities,
-        signal: controller.signal,
-      });
-      if (requestId !== bulkPreflightIdRef.current) return;
-      setBulkSoftDelete({
-        mount,
-        directoryPath,
-        paths,
-        status: 'ready',
-        preflight,
-      });
-    } catch (cause) {
-      if (requestId !== bulkPreflightIdRef.current) return;
-      const error = normalizeVaultError(cause);
-      if (error.code === 'aborted') return;
-      if (error.code === 'session-expired') vault.expireSession();
-      setBulkSoftDelete({
-        mount,
-        directoryPath,
-        paths,
-        status: 'error',
-        error: error.message,
-      });
-    } finally {
-      if (requestId === bulkPreflightIdRef.current) {
-        bulkPreflightAbortRef.current = null;
-      }
-    }
-  };
-
-  const undoBulkDeletedVersions = async (
-    mount: string,
-    directoryPath: string,
-    candidates: BulkSoftDeletePreflight['eligible'],
-  ) => {
-    const { undoBulkSoftDelete } = await import(
-      '@/application/vault/bulk/bulk-soft-delete'
-    );
-    const outcomes = await undoBulkSoftDelete({
-      gateway: kvGateway,
-      session,
-      mount,
-      candidates,
-    });
-    const summary = summarizeBulkOutcomes(outcomes);
-    const restoredPaths = outcomes
-      .filter((outcome) => outcome.status === 'succeeded')
-      .map((outcome) => outcome.path);
-    if (restoredPaths.length > 0) {
-      await refreshPaths(mount, directoryPath, restoredPaths);
-      toast.success(`Restored ${restoredPaths.length} soft-deleted current versions.`);
-    }
-    const expired = outcomes.some((outcome) => outcome.errorCode === 'session-expired');
-    if (expired) vault.expireSession();
-    if (summary.denied + summary.missing + summary.failed > 0) {
-      toast.error(
-        `${summary.denied} denied, ${summary.missing} missing, ${summary.failed} failed.`,
-        { title: 'Bulk Undo was only partially completed' },
-      );
-    }
-  };
-
-  const confirmBulkSoftDelete = async () => {
-    if (!bulkSoftDelete?.preflight || bulkSoftDelete.status !== 'ready') return;
-    const operation = bulkSoftDelete;
-    setBulkSoftDelete({ ...operation, status: 'submitting' });
-    const { executeBulkSoftDelete } = await import(
-      '@/application/vault/bulk/bulk-soft-delete'
-    );
-    const outcomes = await executeBulkSoftDelete({
-      gateway: kvGateway,
-      session,
-      mount: operation.mount,
-      candidates: operation.preflight.eligible,
-    });
-    const summary = summarizeBulkOutcomes(outcomes);
-    const successfulCandidates = operation.preflight.eligible.filter(
-      (candidate) => outcomes.some((outcome) => (
-        outcome.path === candidate.path && outcome.status === 'succeeded'
-      )),
-    );
-    await refreshPaths(
-      operation.mount,
-      operation.directoryPath,
-      successfulCandidates.map((candidate) => candidate.path),
-    );
-    closeBulkSoftDelete();
-    setSelectionClearKey((current) => current + 1);
-
-    const undoable = successfulCandidates.filter((candidate) => candidate.canUndo);
-    const withoutUndo = successfulCandidates.length - undoable.length;
-    if (undoable.length > 0) {
-      toast.action(
-        `${successfulCandidates.length} current versions were soft-deleted.${
-          withoutUndo > 0 ? ` ${withoutUndo} cannot be undone by this token.` : ''
-        }`,
-        {
-          label: `Undo ${undoable.length}`,
-          onAction: () => void undoBulkDeletedVersions(
-            operation.mount,
-            operation.directoryPath,
-            undoable,
-          ),
-        },
-      );
-    } else if (successfulCandidates.length > 0) {
-      toast.success(
-        `${successfulCandidates.length} current versions were soft-deleted. Undo is not allowed by this token.`,
-      );
-    }
-
-    const unsuccessful = summary.denied + summary.missing + summary.failed;
-    if (unsuccessful > 0) {
-      toast.warning(
-        `${summary.denied} denied, ${summary.missing} missing, ${summary.failed} failed.`,
-        {
-          title: 'Bulk soft-delete was only partially completed',
-          durationMs: null,
-        },
-      );
-    }
-    if (outcomes.some((outcome) => outcome.errorCode === 'session-expired')) {
-      vault.expireSession();
-    }
-  };
-
-  const closeBulkDestroy = () => {
-    bulkDestroyPreflightIdRef.current += 1;
-    bulkDestroyPreflightAbortRef.current?.abort();
-    bulkDestroyPreflightAbortRef.current = null;
-    setBulkDestroy(null);
-  };
-
-  const beginBulkDestroy = async (
-    paths: readonly string[],
-    mount = activeMount,
-    directoryPath = activePath,
-  ) => {
-    bulkDestroyPreflightIdRef.current += 1;
-    const requestId = bulkDestroyPreflightIdRef.current;
-    bulkDestroyPreflightAbortRef.current?.abort();
-    const controller = new AbortController();
-    bulkDestroyPreflightAbortRef.current = controller;
-    setBulkDestroy({ mount, directoryPath, paths, status: 'preparing' });
-    try {
-      const { prepareBulkDestroy } = await import(
-        '@/application/vault/bulk/bulk-destroy'
-      );
-      const preflight = await prepareBulkDestroy({
-        gateway: kvGateway,
-        session,
-        mount,
-        paths,
-        queryCapabilities: vault.queryCapabilities,
-        signal: controller.signal,
-      });
-      if (requestId !== bulkDestroyPreflightIdRef.current) return;
-      setBulkDestroy({
-        mount,
-        directoryPath,
-        paths,
-        status: 'ready',
-        preflight,
-      });
-    } catch (cause) {
-      if (requestId !== bulkDestroyPreflightIdRef.current) return;
-      const error = normalizeVaultError(cause);
-      if (error.code === 'aborted') return;
-      if (error.code === 'session-expired') vault.expireSession();
-      setBulkDestroy({
-        mount,
-        directoryPath,
-        paths,
-        status: 'error',
-        error: error.message,
-      });
-    } finally {
-      if (requestId === bulkDestroyPreflightIdRef.current) {
-        bulkDestroyPreflightAbortRef.current = null;
-      }
-    }
-  };
-
-  const confirmBulkDestroy = async (
-    targets: readonly BulkDestroyTarget[],
-  ) => {
-    if (!bulkDestroy?.preflight || bulkDestroy.status !== 'ready') return;
-    const operation = bulkDestroy;
-    setBulkDestroy({ ...operation, status: 'submitting' });
-    const { executeBulkDestroy } = await import(
-      '@/application/vault/bulk/bulk-destroy'
-    );
-    const outcomes = await executeBulkDestroy({
-      gateway: kvGateway,
-      session,
-      mount: operation.mount,
-      targets,
-    });
-    const summary = summarizeBulkOutcomes(outcomes);
-    const successfulPaths = outcomes
-      .filter((outcome) => outcome.status === 'succeeded')
-      .map((outcome) => outcome.path);
-    const destroyedVersionCount = outcomes
-      .filter((outcome) => outcome.status === 'succeeded')
-      .reduce((count, outcome) => count + outcome.versions.length, 0);
-    await refreshPaths(
-      operation.mount,
-      operation.directoryPath,
-      successfulPaths,
-    );
-    closeBulkDestroy();
-    setSelectionClearKey((current) => current + 1);
-    if (destroyedVersionCount > 0) {
-      toast.success(
-        `Permanently destroyed ${destroyedVersionCount} versions across ${successfulPaths.length} secrets.`,
-      );
-    }
-    const unsuccessful = summary.denied + summary.missing + summary.failed;
-    if (unsuccessful > 0) {
-      toast.error(
-        `${summary.denied} denied, ${summary.missing} missing, ${summary.failed} failed.`,
-        { title: 'Bulk destroy was only partially completed' },
-      );
-    }
-    if (outcomes.some((outcome) => outcome.errorCode === 'session-expired')) {
-      vault.expireSession();
-    }
-  };
-
-  const closeBulkDeleteKeys = () => {
-    bulkDeletePreflightIdRef.current += 1;
-    bulkDeletePreflightAbortRef.current?.abort();
-    bulkDeletePreflightAbortRef.current = null;
-    setBulkDeleteKeys(null);
-  };
-
-  const beginBulkDeleteKeys = async (
-    paths: readonly string[],
-    mount = activeMount,
-    directoryPath = activePath,
-  ) => {
-    bulkDeletePreflightIdRef.current += 1;
-    const requestId = bulkDeletePreflightIdRef.current;
-    bulkDeletePreflightAbortRef.current?.abort();
-    const controller = new AbortController();
-    bulkDeletePreflightAbortRef.current = controller;
-    setBulkDeleteKeys({ mount, directoryPath, paths, status: 'preparing' });
-    try {
-      const { prepareBulkDeleteKeys } = await import(
-        '@/application/vault/bulk/bulk-delete-keys'
-      );
-      const preflight = await prepareBulkDeleteKeys({
-        mount,
-        paths,
-        queryCapabilities: vault.queryCapabilities,
-        signal: controller.signal,
-      });
-      if (requestId !== bulkDeletePreflightIdRef.current) return;
-      setBulkDeleteKeys({
-        mount,
-        directoryPath,
-        paths,
-        status: 'ready',
-        preflight,
-      });
-    } catch (cause) {
-      if (requestId !== bulkDeletePreflightIdRef.current) return;
-      const error = normalizeVaultError(cause);
-      if (error.code === 'aborted') return;
-      if (error.code === 'session-expired') vault.expireSession();
-      setBulkDeleteKeys({
-        mount,
-        directoryPath,
-        paths,
-        status: 'error',
-        error: error.message,
-      });
-    } finally {
-      if (requestId === bulkDeletePreflightIdRef.current) {
-        bulkDeletePreflightAbortRef.current = null;
-      }
-    }
-  };
-
-  const confirmBulkDeleteKeys = async () => {
-    if (!bulkDeleteKeys?.preflight || bulkDeleteKeys.status !== 'ready') return;
-    const operation = bulkDeleteKeys;
-    setBulkDeleteKeys({ ...operation, status: 'submitting' });
-    const { executeBulkDeleteKeys } = await import(
-      '@/application/vault/bulk/bulk-delete-keys'
-    );
-    const outcomes = await executeBulkDeleteKeys({
-      gateway: kvGateway,
-      session,
-      mount: operation.mount,
-      candidates: operation.preflight.eligible,
-    });
-    const summary = summarizeBulkOutcomes(outcomes);
-    const clearedPaths = outcomes
-      .filter((outcome) => outcome.status === 'succeeded' || outcome.status === 'missing')
-      .map((outcome) => outcome.path);
-    if (clearedPaths.length > 0) {
-      await refreshPaths(operation.mount, operation.directoryPath, clearedPaths);
-      removeSecretPaths(operation.mount, clearedPaths);
-    }
-    setSelectionClearKey((current) => current + 1);
-
-    if (outcomes.some((outcome) => outcome.errorCode === 'session-expired')) {
-      vault.expireSession();
-    }
-    const unsuccessful = summary.denied + summary.missing + summary.failed;
-    if (unsuccessful > 0) {
-      setBulkDeleteKeys({
-        ...operation,
-        status: 'completed',
-        outcomes,
-      });
-      toast.warning(
-        `${summary.succeeded} deleted, ${summary.denied} denied, ${summary.missing} missing, ${summary.failed} failed.`,
-        { title: 'Permanent deletion was only partially completed', durationMs: null },
-      );
-      return;
-    }
-
-    closeBulkDeleteKeys();
-    toast.success(`Permanently deleted ${summary.succeeded} keys.`);
-  };
-
-  const content = mountsState.status === 'loading' && !mountsState.data ? (
-    <main id="main-content" tabIndex={-1} className="flex min-w-0 flex-1">
-      <ContentSkeleton label="Discovering visible KV v2 mounts" />
-    </main>
-  ) : mountsState.status === 'error' && !mountsState.data ? (
-    <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center p-6">
-      <div role="alert" className="max-w-md rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">
-        <p className="font-semibold">KV mounts could not be discovered</p>
-        <p className="mt-1 text-xs leading-5">{mountsState.error.message}</p>
-        <button type="button" onClick={refreshMounts} className="mt-3 text-xs font-medium underline underline-offset-2">Retry</button>
-      </div>
-    </main>
-  ) : mounts.length === 0 ? (
-    <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center p-6">
-      <div className="max-w-md text-center">
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-background-200">
-          <i className="ri-folder-shield-2-line text-xl text-foreground-400" aria-hidden="true" />
-        </div>
-        <h1 className="text-sm font-semibold text-foreground-800">No visible KV v2 mounts</h1>
-        <p className="mt-1 text-xs leading-5 text-foreground-500">Vault only returns mounts available to this token. Ask an administrator for metadata access if a mount is missing.</p>
-      </div>
-    </main>
-  ) : (
-    <ExplorerMain
-      mount={activeMount}
-      currentPath={activePath}
-      mounts={mounts}
-      directory={directory}
-      selectedPath={selectedPath}
-      details={details}
-      onSelectSecret={selectSecret}
-      onNavigateToFolder={navigateFolder}
-      onNavigateToBreadcrumb={navigateFolder}
-      onRefresh={refreshDirectory}
-      onRetrySecret={refreshDetails}
-      onCreateSecret={() => setCreateOpen(true)}
-      onOpenExactPath={selectSecret}
-      onConfigureMount={canAttemptMountConfig
-        ? () => setMountConfigOpen(true)
-        : undefined}
-      onViewSecret={selectedDetails?.secret ? () => setWorkspaceMode('view') : undefined}
-      onEditSecret={selectedDetails?.secret ? () => setWorkspaceMode('edit') : undefined}
-      onWriteOnlySecret={canAttemptWriteOnly
-        ? () => setWriteOnlyOpen(true)
-        : undefined}
-      permissions={selectedPermissions}
-      onCompare={selectedDetails?.history
-        && selectedDetails.secret
-        && canAttemptKvAction(selectedPermissions, 'canReadData')
-        ? () => setCompareOpen(true)
-        : undefined}
-      onDeleteLatest={(version) => openSelectedDestructiveAction({ kind: 'delete-latest', version })}
-      onDeleteVersion={(version) => openSelectedDestructiveAction({ kind: 'delete-version', version })}
-      onUndelete={(version) => void undeleteVersion(version)}
-      onDestroyVersion={(version) => openSelectedDestructiveAction({ kind: 'destroy-version', version })}
-      onDeleteMetadata={() => {
-        if (selectedPath) void beginPermanentDelete(selectedPath);
-      }}
-      onEditMetadata={selectedDetails?.history
-        && canAttemptKvAction(selectedPermissions, 'canReadMetadata')
-        && canAttemptKvAction(selectedPermissions, 'canUpdateMetadata')
-        ? () => setMetadataOpen(true)
-        : undefined}
-      onDeletePermanently={(path) => void beginPermanentDelete(path)}
-      isFavorite={isFavorite}
-      onToggleFavorite={toggleFavorite}
-      selectionClearKey={selectionClearKey}
-      onBulkSoftDelete={(paths) => void beginBulkSoftDelete(paths)}
-      onBulkDestroy={(paths) => void beginBulkDestroy(paths)}
-      onBulkPermanentDelete={(paths) => void beginBulkDeleteKeys(paths)}
-      onClipboardFeedback={(kind, success) => {
-        if (!success) {
-          toast.error('The browser clipboard is unavailable.', {
-            title: 'Copy failed',
-          });
-          return;
-        }
-        const message = kind === 'path'
-          ? 'Logical path copied.'
-          : kind === 'paths'
-            ? 'Selected logical paths copied.'
-            : kind === 'cli' ? 'Vault CLI command copied.' : 'Secret value copied.';
-        toast.success(message);
-      }}
-    />
-  );
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <div className="relative flex min-h-0 flex-1">{content}</div>
-
-      <CreateSecretDrawer open={createOpen} onClose={() => setCreateOpen(false)} mount={activeMount} currentPath={activePath} onSave={createSecret} />
-      <WriteOnlySecretDrawer
-        open={writeOnlyOpen}
-        mount={activeMount}
-        path={selectedPath}
-        currentVersion={selectedDetails?.history?.currentVersion}
-        onClose={() => setWriteOnlyOpen(false)}
-        onSave={writeOnlySecret}
-      />
-      <SecretMetadataDrawer
-        open={metadataOpen}
-        mount={activeMount}
-        path={selectedPath}
-        onClose={() => setMetadataOpen(false)}
-        onLoad={loadSecretMetadata}
-        onSave={saveSecretMetadata}
-      />
-      <KvMountConfigDrawer
-        open={mountConfigOpen}
-        mount={activeMount}
-        onClose={() => setMountConfigOpen(false)}
-        onLoad={loadMountConfig}
-        onSave={saveMountConfig}
-      />
-      <SecretWorkspace
-        open={workspaceMode !== null}
-        initialMode={workspaceMode ?? 'view'}
-        secret={selectedDetails?.secret}
-        canEdit={canAttemptKvAction(selectedPermissions, 'canEdit')}
-        onClose={() => setWorkspaceMode(null)}
-        onSave={editSecret}
-      />
-      <VersionComparison
-        open={compareOpen}
-        onClose={() => setCompareOpen(false)}
-        mount={activeMount}
-        path={selectedPath}
-        history={selectedDetails?.history}
-        currentSecret={selectedDetails?.secret}
-        loadVersion={loadVersion}
-        onRestore={restoreVersion}
-      />
-      <DestructionConfirm
-        open={Boolean(destructiveTarget)}
-        onClose={() => setDestructiveTarget(null)}
-        mount={destructiveTarget?.mount ?? activeMount}
-        path={destructiveTarget?.path ?? null}
-        action={destructiveTarget?.action ?? null}
-        onConfirm={confirmDestructiveAction}
-      />
-      {bulkSoftDelete && (
-        <Suspense fallback={<LazyBulkDialogFallback label="Preparing soft-delete…" />}>
-          <BulkSoftDeleteDialog
-            open
-            mount={bulkSoftDelete.mount}
-            requestedCount={bulkSoftDelete.paths.length}
-            preflight={bulkSoftDelete.preflight}
-            error={bulkSoftDelete.error}
-            preparing={bulkSoftDelete.status === 'preparing'}
-            submitting={bulkSoftDelete.status === 'submitting'}
-            onClose={closeBulkSoftDelete}
-            onRetry={() => void beginBulkSoftDelete(
-              bulkSoftDelete.paths,
-              bulkSoftDelete.mount,
-              bulkSoftDelete.directoryPath,
-            )}
-            onConfirm={() => void confirmBulkSoftDelete()}
-          />
-        </Suspense>
-      )}
-      {bulkDestroy && (
-        <Suspense fallback={<LazyBulkDialogFallback label="Preparing version destroy…" />}>
-          <BulkDestroyDialog
-            open
-            mount={bulkDestroy.mount}
-            requestedCount={bulkDestroy.paths.length}
-            preflight={bulkDestroy.preflight}
-            error={bulkDestroy.error}
-            preparing={bulkDestroy.status === 'preparing'}
-            submitting={bulkDestroy.status === 'submitting'}
-            onClose={closeBulkDestroy}
-            onRetry={() => void beginBulkDestroy(
-              bulkDestroy.paths,
-              bulkDestroy.mount,
-              bulkDestroy.directoryPath,
-            )}
-            onConfirm={(targets) => void confirmBulkDestroy(targets)}
-          />
-        </Suspense>
-      )}
-      {bulkDeleteKeys && (
-        <Suspense fallback={<LazyBulkDialogFallback label="Preparing permanent key deletion…" />}>
-          <BulkPermanentDeleteDialog
-            open
-            mount={bulkDeleteKeys.mount}
-            requestedCount={bulkDeleteKeys.paths.length}
-            preflight={bulkDeleteKeys.preflight}
-            outcomes={bulkDeleteKeys.outcomes}
-            error={bulkDeleteKeys.error}
-            preparing={bulkDeleteKeys.status === 'preparing'}
-            submitting={bulkDeleteKeys.status === 'submitting'}
-            onClose={closeBulkDeleteKeys}
-            onRetry={() => void beginBulkDeleteKeys(
-              bulkDeleteKeys.paths,
-              bulkDeleteKeys.mount,
-              bulkDeleteKeys.directoryPath,
-            )}
-            onConfirm={() => void confirmBulkDeleteKeys()}
-          />
-        </Suspense>
-      )}
-    </div>
-  );
-}
-
-function LazyBulkDialogFallback({ label }: { readonly label: string }) {
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-overlay/40">
-      <div
-        role="status"
-        className="flex items-center gap-2 rounded-lg border border-background-300 bg-background-50 px-4 py-3 text-xs text-foreground-700 shadow-sm"
-      >
-        <i className="ri-loader-4-line animate-spin text-primary-500" aria-hidden="true" />
-        {label}
+      <div className="relative flex min-h-0 flex-1">
+        <ExplorerContent
+          mountsState={mountsState}
+          mounts={mounts}
+          refreshMounts={refreshMounts}
+          main={main}
+        />
       </div>
+      <Suspense fallback={null}>
+        <ExplorerDialogs
+          activeMount={activeMount}
+          activePath={activePath}
+          selectedPath={selectedPath}
+          selectedDetails={selectedDetails}
+          selectedPermissions={selectedPermissions}
+          overlays={overlays}
+          mutations={mutations}
+          destructive={destructive}
+          bulk={bulk}
+        />
+      </Suspense>
     </div>
   );
 }

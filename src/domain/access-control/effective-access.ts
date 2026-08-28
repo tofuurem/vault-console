@@ -263,7 +263,7 @@ function permissionLevel(access: EffectiveKvEndpointAccess): EffectiveKvPermissi
 
 function uniqueSources(endpoints: EffectiveKvEndpointAccess): readonly PolicySource[] {
   const seen = new Set<string>();
-  return Object.values(endpoints).flatMap((endpoint) =>
+  return (Object.values(endpoints) as readonly ResolvedPolicyAccess[]).flatMap((endpoint) =>
     endpoint.sources.filter((source) => {
       const key = sourceKey(source);
       if (seen.has(key)) return false;

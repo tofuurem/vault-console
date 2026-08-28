@@ -43,7 +43,6 @@ function matchMount(
 }
 
 function permissionLevel(
-  pattern: string,
   capabilities: readonly VaultCapability[],
   allRules: ReadonlyMap<string, string>,
   mount: string,
@@ -93,7 +92,6 @@ export function decompileKvV2Policy(
       : remainder;
     if (target === 'secret' && !path) return null;
     const level = permissionLevel(
-      rule.pattern,
       rule.capabilities,
       actual,
       mount,

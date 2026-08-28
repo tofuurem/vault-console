@@ -133,11 +133,14 @@ export async function scanKvPathIndex(
     ));
     batch.forEach((prefix) => queued.delete(prefix));
     budgetListRequests += batch.length;
-    const results = await Promise.all(batch.map(async (prefix) => {
+    const results = await Promise.all(batch.map(async (prefix): Promise<
+      | { readonly prefix: string; readonly keys: readonly string[] }
+      | { readonly prefix: string; readonly error: VaultError }
+    > => {
       try {
-        return { prefix, keys: await options.list(prefix, signal) } as const;
+        return { prefix, keys: await options.list(prefix, signal) };
       } catch (cause) {
-        return { prefix, error: normalizeVaultError(cause) } as const;
+        return { prefix, error: normalizeVaultError(cause) };
       }
     }));
 

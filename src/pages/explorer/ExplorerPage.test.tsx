@@ -35,7 +35,7 @@ function authGateway(options: {
     loginUserpass: vi.fn(async (_input: UserpassLogin) => session),
     renewSelf: vi.fn(async () => ({ renewable: false })),
     revokeSelf: vi.fn(async () => undefined),
-    getCapabilities: vi.fn(async (_session, paths): Promise<VaultCapabilityMap> => {
+    getCapabilities: vi.fn(async (_session, paths: readonly string[]): Promise<VaultCapabilityMap> => {
       if (options.capabilitiesUnavailable) {
         throw new VaultError('authorization', { status: 403 });
       }

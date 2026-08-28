@@ -111,91 +111,114 @@ export default function SecretTable({
         </tr>
       </thead>
       <tbody>
-        {entries.map((entry) => {
-          const selected = entry.kind === 'secret' && selectedPath === entry.path;
-          const bulkSelected = entry.kind === 'secret' && selectedSet.has(entry.path);
-          const favorite = isFavorite?.(entry) ?? false;
-          return (
-            <tr
-              key={`${entry.kind}:${entry.path}`}
-              className={`group border-b border-background-100 transition-colors ${selected ? 'bg-primary-50/70' : 'hover:bg-background-100 focus-within:bg-background-100'}`}
-            >
-              {selectable && (
-                <td className="w-12 px-0 py-0">
-                  {entry.kind === 'secret' && (
-                    <button
-                      type="button"
-                      role="checkbox"
-                      aria-checked={bulkSelected}
-                      aria-label={`${bulkSelected ? 'Deselect' : 'Select'} secret ${entry.path}`}
-                      onClick={(event) => onSelectionChange?.(
-                        entry,
-                        !bulkSelected,
-                        event.shiftKey,
-                      )}
-                      className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                    >
-                      <i
-                        className={`${bulkSelected
-                          ? 'ri-checkbox-fill text-primary-600'
-                          : 'ri-checkbox-blank-line'} text-base`}
-                        aria-hidden="true"
-                      />
-                    </button>
-                  )}
-                </td>
-              )}
-              <td className="px-3 py-2.5">
-                <i className={`${entry.kind === 'folder' ? 'ri-folder-3-line text-warning-500' : 'ri-key-2-line text-foreground-400'} text-sm`} aria-hidden="true" />
-              </td>
-              <td className="px-0 py-2.5">
-                <button
-                  type="button"
-                  aria-label={`${entry.kind === 'folder' ? 'Open folder' : 'Inspect secret'} ${entry.path}`}
-                  aria-current={selected ? 'true' : undefined}
-                  onClick={() => entry.kind === 'folder' ? onNavigateToFolder(entry.path) : onSelectSecret(entry.path)}
-                  className="min-h-11 w-full rounded-sm text-left font-mono text-sm font-medium text-foreground-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-8"
-                >
-                  {entry.name}{entry.kind === 'folder' ? '/' : ''}
-                </button>
-              </td>
-              <td className="px-3 py-2.5 text-xs text-foreground-500">{entry.kind === 'folder' ? 'Folder' : 'Secret'}</td>
-              <td className="hidden px-3 py-2.5 font-mono text-[11px] text-foreground-400 md:table-cell">{entry.path}</td>
-              {onToggleFavorite && (
-                <td className="px-2 py-2">
-                  <button
-                    type="button"
-                    aria-label={`${favorite ? 'Unpin' : 'Pin'} ${entry.kind} ${entry.path}`}
-                    aria-pressed={favorite}
-                    onClick={() => onToggleFavorite(entry)}
-                    className={`flex h-11 w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7 ${
-                      favorite
-                        ? 'text-warning-600 hover:bg-warning-100'
-                        : 'text-foreground-300 hover:bg-background-200 hover:text-warning-600'
-                    }`}
-                  >
-                    <i className={favorite ? 'ri-star-fill' : 'ri-star-line'} aria-hidden="true" />
-                  </button>
-                </td>
-              )}
-              {onDeletePermanently && (
-                <td className="px-2 py-2">
-                  {entry.kind === 'secret' && (
-                    <button
-                      type="button"
-                      aria-label={`Delete key permanently ${entry.path}`}
-                      onClick={() => onDeletePermanently(entry.path)}
-                      className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-300 hover:bg-danger-50 hover:text-danger-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400 sm:h-7 sm:w-7"
-                    >
-                      <i className="ri-delete-bin-7-line" aria-hidden="true" />
-                    </button>
-                  )}
-                </td>
-              )}
-            </tr>
-          );
-        })}
+        {entries.map((entry) => (
+          <SecretTableRow
+            key={`${entry.kind}:${entry.path}`}
+            entry={entry}
+            selected={entry.kind === 'secret' && selectedPath === entry.path}
+            bulkSelected={entry.kind === 'secret' && selectedSet.has(entry.path)}
+            favorite={isFavorite?.(entry) ?? false}
+            selectable={selectable}
+            onSelectSecret={onSelectSecret}
+            onNavigateToFolder={onNavigateToFolder}
+            onSelectionChange={onSelectionChange}
+            onToggleFavorite={onToggleFavorite}
+            onDeletePermanently={onDeletePermanently}
+          />
+        ))}
       </tbody>
     </table>
+  );
+}
+
+function entryPresentation(entry: KvDirectoryEntry) {
+  if (entry.kind === 'folder') {
+    return {
+      icon: 'ri-folder-3-line text-warning-500',
+      action: 'Open folder',
+      name: `${entry.name}/`,
+      type: 'Folder',
+    };
+  }
+  return {
+    icon: 'ri-key-2-line text-foreground-400',
+    action: 'Inspect secret',
+    name: entry.name,
+    type: 'Secret',
+  };
+}
+
+interface SecretTableRowProps {
+  readonly entry: KvDirectoryEntry;
+  readonly selected: boolean;
+  readonly bulkSelected: boolean;
+  readonly favorite: boolean;
+  readonly selectable: boolean;
+  readonly onSelectSecret: (path: string) => void;
+  readonly onNavigateToFolder: (path: string) => void;
+  readonly onSelectionChange?: SecretTableProps['onSelectionChange'];
+  readonly onToggleFavorite?: SecretTableProps['onToggleFavorite'];
+  readonly onDeletePermanently?: SecretTableProps['onDeletePermanently'];
+}
+
+function SecretTableRow({
+  entry,
+  selected,
+  bulkSelected,
+  favorite,
+  selectable,
+  onSelectSecret,
+  onNavigateToFolder,
+  onSelectionChange,
+  onToggleFavorite,
+  onDeletePermanently,
+}: SecretTableRowProps) {
+  const presentation = entryPresentation(entry);
+  const open = () => entry.kind === 'folder'
+    ? onNavigateToFolder(entry.path)
+    : onSelectSecret(entry.path);
+  return (
+    <tr className={`group border-b border-background-100 transition-colors ${selected ? 'bg-primary-50/70' : 'hover:bg-background-100 focus-within:bg-background-100'}`}>
+      {selectable && (
+        <td className="w-12 px-0 py-0">
+          {entry.kind === 'secret' && (
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={bulkSelected}
+              aria-label={`${bulkSelected ? 'Deselect' : 'Select'} secret ${entry.path}`}
+              onClick={(event) => onSelectionChange?.(entry, !bulkSelected, event.shiftKey)}
+              className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            >
+              <i className={`${bulkSelected ? 'ri-checkbox-fill text-primary-600' : 'ri-checkbox-blank-line'} text-base`} aria-hidden="true" />
+            </button>
+          )}
+        </td>
+      )}
+      <td className="px-3 py-2.5"><i className={`${presentation.icon} text-sm`} aria-hidden="true" /></td>
+      <td className="px-0 py-2.5">
+        <button type="button" aria-label={`${presentation.action} ${entry.path}`} aria-current={selected ? 'true' : undefined} onClick={open} className="min-h-11 w-full rounded-sm text-left font-mono text-sm font-medium text-foreground-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-8">
+          {presentation.name}
+        </button>
+      </td>
+      <td className="px-3 py-2.5 text-xs text-foreground-500">{presentation.type}</td>
+      <td className="hidden px-3 py-2.5 font-mono text-[11px] text-foreground-400 md:table-cell">{entry.path}</td>
+      {onToggleFavorite && (
+        <td className="px-2 py-2">
+          <button type="button" aria-label={`${favorite ? 'Unpin' : 'Pin'} ${entry.kind} ${entry.path}`} aria-pressed={favorite} onClick={() => onToggleFavorite(entry)} className={`flex h-11 w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7 ${favorite ? 'text-warning-600 hover:bg-warning-100' : 'text-foreground-300 hover:bg-background-200 hover:text-warning-600'}`}>
+            <i className={favorite ? 'ri-star-fill' : 'ri-star-line'} aria-hidden="true" />
+          </button>
+        </td>
+      )}
+      {onDeletePermanently && (
+        <td className="px-2 py-2">
+          {entry.kind === 'secret' && (
+            <button type="button" aria-label={`Delete key permanently ${entry.path}`} onClick={() => onDeletePermanently(entry.path)} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-300 hover:bg-danger-50 hover:text-danger-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400 sm:h-7 sm:w-7">
+              <i className="ri-delete-bin-7-line" aria-hidden="true" />
+            </button>
+          )}
+        </td>
+      )}
+    </tr>
   );
 }

@@ -321,7 +321,3 @@ describe('access lifecycle preflight and executor', () => {
     expect(readCount).toBe(0);
   });
 });
-
-function neverValue(): never {
-  throw new Error('Unreachable test branch');
-}

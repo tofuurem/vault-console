@@ -11,6 +11,7 @@ import {
   loadInspectorPreferences,
   saveInspectorPreferences,
   type InspectorDockPlacement,
+  type InspectorPreferences,
 } from '@/application/preferences/inspector-preferences';
 import Tooltip from '@/components/base/Tooltip';
 import { useDialogFocus } from '@/components/base/useDialogFocus';
@@ -146,44 +147,6 @@ export default function InspectorDock({
         });
   };
 
-  const header = (isFullScreen: boolean) => (
-    <div className="flex min-h-12 shrink-0 items-center gap-2 border-b border-background-200 bg-background-50 px-2 sm:h-9 sm:min-h-0 sm:px-3">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground-500">Inspector</span>
-      <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-foreground-400">{path}</span>
-      <div className="flex items-center gap-0.5">
-        <Tooltip content="Dock inspector at bottom">
-          <button type="button" aria-label="Dock inspector at bottom" onClick={() => setPlacement('bottom')} className={`hidden h-11 w-11 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6 md:flex ${!isFullScreen && preferences.placement === 'bottom' ? 'bg-primary-100 text-primary-700' : 'text-foreground-400 hover:bg-background-100 hover:text-foreground-700'}`}>
-            <i className="ri-layout-bottom-2-line text-xs" aria-hidden="true" />
-          </button>
-        </Tooltip>
-        <Tooltip content="Dock inspector at right">
-          <button type="button" aria-label="Dock inspector at right" onClick={() => setPlacement('right')} className={`hidden h-11 w-11 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6 md:flex ${!isFullScreen && preferences.placement === 'right' ? 'bg-primary-100 text-primary-700' : 'text-foreground-400 hover:bg-background-100 hover:text-foreground-700'}`}>
-            <i className="ri-layout-right-2-line text-xs" aria-hidden="true" />
-          </button>
-        </Tooltip>
-        {!isFullScreen && (
-          <Tooltip content="Open inspector full screen">
-            <button type="button" aria-label="Open inspector full screen" onClick={() => setFullScreen(true)} className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6">
-              <i className="ri-fullscreen-line text-xs" aria-hidden="true" />
-            </button>
-          </Tooltip>
-        )}
-        {isFullScreen && (
-          <Tooltip content="Exit full screen">
-            <button type="button" aria-label="Exit inspector full screen" onClick={exitFullScreen} className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6">
-              <i className="ri-fullscreen-exit-line text-xs" aria-hidden="true" />
-            </button>
-          </Tooltip>
-        )}
-        <Tooltip content="Close inspector">
-          <button type="button" aria-label="Close inspector" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6">
-            <i className="ri-close-line text-xs" aria-hidden="true" />
-          </button>
-        </Tooltip>
-      </div>
-    </div>
-  );
-
   const inspector = renderInspector({
     exitFullScreen: () => setFullScreen(false),
   });
@@ -210,7 +173,15 @@ export default function InspectorDock({
                 <span className="h-0.5 w-12 rounded-full bg-background-400 group-hover:bg-primary-400" />
               </div>
               <aside aria-label="Secret inspector" className="flex min-h-[180px] shrink-0 flex-col border-t border-background-200 bg-background-50" style={{ height: `${preferences.bottomRatio * 100}%` }}>
-                {header(false)}
+                <InspectorHeader
+                  path={path}
+                  preferences={preferences}
+                  fullScreen={false}
+                  onPlacementChange={setPlacement}
+                  onEnterFullScreen={() => setFullScreen(true)}
+                  onExitFullScreen={exitFullScreen}
+                  onClose={onClose}
+                />
                 <div className="min-h-0 flex-1 overflow-hidden">{inspector}</div>
               </aside>
             </>
@@ -236,7 +207,15 @@ export default function InspectorDock({
                 <span className="h-12 w-0.5 rounded-full bg-background-400 group-hover:bg-primary-400" />
               </div>
               <aside aria-label="Secret inspector" className="flex min-h-0 shrink-0 flex-col border-l border-background-200 bg-background-50" style={{ width: `${preferences.rightWidth}px` }}>
-                {header(false)}
+                <InspectorHeader
+                  path={path}
+                  preferences={preferences}
+                  fullScreen={false}
+                  onPlacementChange={setPlacement}
+                  onEnterFullScreen={() => setFullScreen(true)}
+                  onExitFullScreen={exitFullScreen}
+                  onClose={onClose}
+                />
                 <div className="min-h-0 flex-1 overflow-hidden">{inspector}</div>
               </aside>
             </>
@@ -244,18 +223,20 @@ export default function InspectorDock({
         </div>
       )}
 
-      {!visible && path && (
-        <Tooltip content="Open inspector" position="left">
-          <button type="button" aria-label="Open inspector" onClick={onOpen} className="absolute right-0 top-1/2 z-10 flex h-12 w-11 -translate-y-1/2 items-center justify-center rounded-l-md border border-r-0 border-background-300 bg-background-50 text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:w-6">
-            <i className="ri-arrow-left-s-line text-sm" aria-hidden="true" />
-          </button>
-        </Tooltip>
-      )}
+      {!visible && path && <OpenInspectorButton onOpen={onOpen} />}
 
       {fullScreenVisible && (
         <div className="fixed inset-0 z-[85] bg-background-50">
           <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={path ?? 'Secret inspector'} tabIndex={-1} className="flex h-full min-h-0 flex-col">
-            {header(true)}
+            <InspectorHeader
+              path={path}
+              preferences={preferences}
+              fullScreen
+              onPlacementChange={setPlacement}
+              onEnterFullScreen={() => setFullScreen(true)}
+              onExitFullScreen={exitFullScreen}
+              onClose={onClose}
+            />
             <div className="min-h-0 flex-1 overflow-hidden">
               {inspector}
             </div>
@@ -263,5 +244,59 @@ export default function InspectorDock({
         </div>
       )}
     </main>
+  );
+}
+
+function OpenInspectorButton({ onOpen }: { readonly onOpen: () => void }) {
+  return (
+    <Tooltip content="Open inspector" position="left">
+      <button type="button" aria-label="Open inspector" onClick={onOpen} className="absolute right-0 top-1/2 z-10 flex h-12 w-11 -translate-y-1/2 items-center justify-center rounded-l-md border border-r-0 border-background-300 bg-background-50 text-foreground-400 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:w-6">
+        <i className="ri-arrow-left-s-line text-sm" aria-hidden="true" />
+      </button>
+    </Tooltip>
+  );
+}
+
+function InspectorHeader({
+  path,
+  preferences,
+  fullScreen,
+  onPlacementChange,
+  onEnterFullScreen,
+  onExitFullScreen,
+  onClose,
+}: {
+  readonly path: string | null;
+  readonly preferences: InspectorPreferences;
+  readonly fullScreen: boolean;
+  readonly onPlacementChange: (placement: InspectorDockPlacement) => void;
+  readonly onEnterFullScreen: () => void;
+  readonly onExitFullScreen: () => void;
+  readonly onClose: () => void;
+}) {
+  const placementClass = (placement: InspectorDockPlacement) => (
+    !fullScreen && preferences.placement === placement
+      ? 'bg-primary-100 text-primary-700'
+      : 'text-foreground-400 hover:bg-background-100 hover:text-foreground-700'
+  );
+  return (
+    <div className="flex min-h-12 shrink-0 items-center gap-2 border-b border-background-200 bg-background-50 px-2 sm:h-9 sm:min-h-0 sm:px-3">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground-500">Inspector</span>
+      <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-foreground-400">{path}</span>
+      <div className="flex items-center gap-0.5">
+        <Tooltip content="Dock inspector at bottom">
+          <button type="button" aria-label="Dock inspector at bottom" onClick={() => onPlacementChange('bottom')} className={`hidden h-11 w-11 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6 md:flex ${placementClass('bottom')}`}><i className="ri-layout-bottom-2-line text-xs" aria-hidden="true" /></button>
+        </Tooltip>
+        <Tooltip content="Dock inspector at right">
+          <button type="button" aria-label="Dock inspector at right" onClick={() => onPlacementChange('right')} className={`hidden h-11 w-11 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6 md:flex ${placementClass('right')}`}><i className="ri-layout-right-2-line text-xs" aria-hidden="true" /></button>
+        </Tooltip>
+        <Tooltip content={fullScreen ? 'Exit full screen' : 'Open inspector full screen'}>
+          <button type="button" aria-label={fullScreen ? 'Exit inspector full screen' : 'Open inspector full screen'} onClick={fullScreen ? onExitFullScreen : onEnterFullScreen} className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6"><i className={fullScreen ? 'ri-fullscreen-exit-line text-xs' : 'ri-fullscreen-line text-xs'} aria-hidden="true" /></button>
+        </Tooltip>
+        <Tooltip content="Close inspector">
+          <button type="button" aria-label="Close inspector" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-6 sm:w-6"><i className="ri-close-line text-xs" aria-hidden="true" /></button>
+        </Tooltip>
+      </div>
+    </div>
   );
 }
