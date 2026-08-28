@@ -193,6 +193,18 @@ paths. `LIST` раскрывает имена путей, даже если чт
 destroy отдельных версий. Для bulk-удаления UI проверяет каждый exact path,
 ограничивает параллелизм и требует фразу `DELETE N KEYS`.
 
+`sys/capabilities-self` остаётся рекомендуемой, но необязательной preflight-
+возможностью. Если capability discovery недоступен, UI показывает осторожно
+сформулированную попытку действия, а окончательное решение принимает прямой
+Vault API вызов. Подтверждённый capability deny по-прежнему скрывает или
+блокирует действие.
+
+Перед сохранением key metadata или defaults KV v2 mount UI повторно читает и
+сравнивает свежий нормализованный snapshot с исходным. При конфликте mutation
+не выполняется, локальный draft сохраняется, а заменить его можно только через
+явный `Load latest`. Vault не предоставляет CAS для этих config endpoints,
+поэтому read/update пара не заявляется как полностью атомарная.
+
 Для пользователя, которому разрешена только полная запись известного секрета,
 можно не выдавать `LIST` и `read`:
 
@@ -214,6 +226,11 @@ path "applications/data/team/rotated-token" {
 читается, UI фиксирует CAS на свежей current version. Без metadata read
 безопасный default — `Create only (CAS 0)`; `Write without CAS` требует
 отдельного выбора и подтверждения полной замены неизвестного документа.
+
+Для JSON-документов semantic validation выполняется с задержкой и не блокирует
+каждый ввод. Выше 512 KiB редактор переключается на простой monospaced textarea
+и показывает предупреждение о размере; `Format`, `Review` и `Save` всегда
+валидируют точное текущее содержимое перед действием.
 
 Интерфейс управляет визуальными ролями с prefix `vc-role-` и прямыми
 пользовательскими policies `vc-user-<username>`. Сторонние или неподдерживаемые
@@ -313,7 +330,7 @@ Delete key permanently необратимы и требуют явного по�
 актуальное состояние с Vault перед Apply. External resources и неподдерживаемый
 HCL доступны только для безопасного просмотра.
 
-Release `0.8.0` не меняет поведение или scope Access Center.
+Release `0.8.1` не меняет поведение, данные или product scope Access Center.
 
 ### Навигация
 
@@ -340,6 +357,8 @@ browser preferences. Версия `0.7.1` автоматически перен�
 `vc-console:workspace-preferences:v1` и
 `vault-console:workspace-preferences:v1`. Тема, Inspector, favorites, recents и
 любые browser keys штатного Vault UI сохраняются.
+
+Версия `0.8.1` не добавляет Vault data, policy или browser-storage migrations.
 
 Сессии двух интерфейсов намеренно независимы. Вход в Vault Console на `/` не
 авторизует вкладку штатного UI на `/ui/`; войдите в нативный UI отдельно. Если
@@ -372,9 +391,11 @@ docker compose pull vault-console
 docker compose up -d --no-build vault-console
 ```
 
-Обновление `0.7.1` → `0.8.0` не требует миграции Vault data. После rollout
+Обновление `0.8.0` → `0.8.1` не требует миграции Vault data, policies или
+browser storage. После rollout
 проверьте `/healthz`, вход token/userpass, exact-path read и одну разрешённую
-metadata capability. При необходимости можно вернуть контейнер `0.7.1`; уже
+metadata capability. При необходимости можно вернуть immutable контейнер
+`0.8.0`; уже
 выполненные permanent delete, revoke-self и другие Vault mutations откат образа
 не отменяет.
 
@@ -397,12 +418,18 @@ npm run audit
 npm run test:container
 VAULT_TEST_IMAGE=hashicorp/vault:2.0.3 npm run test:vault
 VAULT_TEST_IMAGE=hashicorp/vault:1.21.3 npm run test:vault
-npm run test:e2e
+VAULT_TEST_IMAGE=hashicorp/vault:2.0.3 npm run test:e2e
+VAULT_TEST_IMAGE=hashicorp/vault:1.21.3 npm run test:e2e
 ```
 
 Интеграционные и браузерные проверки создают одноразовый Vault и требуют
 Docker. Для первого E2E-запуска может понадобиться
 `npx playwright install chromium`.
+
+GitHub Actions запускает тот же locked-install quality/coverage/build/audit
+набор, integration matrix и production-container Chromium E2E matrix. Vault
+2.0.3 обозначен основным окружением, а 1.21.3 — compatibility-контуром;
+Playwright traces и screenshots выгружаются только при падении.
 
 ## Диагностика
 

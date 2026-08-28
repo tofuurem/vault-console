@@ -71,9 +71,17 @@ jobs:
         run: npm run test:vault
 
   production-e2e:
-    name: Production container E2E (Vault 2.0.3)
+    name: Production E2E ${{ matrix.tier }} (Vault ${{ matrix.version }})
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: 2.0.3
+            tier: primary
+          - version: 1.21.3
+            tier: compatibility
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -90,13 +98,13 @@ jobs:
         run: npm run test:container
       - name: Run production-container browser suite
         env:
-          VAULT_TEST_IMAGE: hashicorp/vault:2.0.3
+          VAULT_TEST_IMAGE: hashicorp/vault:${{ matrix.version }}
         run: npm run test:e2e
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: production-e2e-failure-${{ github.run_id }}
+          name: production-e2e-${{ matrix.version }}-failure-${{ github.run_id }}
           path: |
             test-results/
             playwright-report/

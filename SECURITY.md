@@ -54,12 +54,19 @@ bulk execution has an exact-path preflight and bounded concurrency.
 Write-only editing never pretends to preserve unread fields. It sends a full
 replacement document and defaults to create-only CAS 0 when metadata is not
 readable. Unconditional replacement requires a separate strategy choice and a
-second acknowledgement. Metadata and mount-configuration editors require a
-fresh readable snapshot before they can save the complete supported settings.
+second acknowledgement. When capability discovery itself is unavailable, the
+UI may expose a guarded attempt but never treats it as permission; the direct
+Vault response remains authoritative.
+
+Metadata and mount-configuration editors normalize their initial snapshot and
+read it again immediately before saving the complete supported settings. A
+changed snapshot blocks the mutation, preserves the local draft, and requires
+an explicit Load latest action. Vault exposes no CAS primitive for these
+configuration endpoints, so the final read/update pair cannot be fully atomic.
 
 ## Dependency audit policy
 
-Reviewed: 2026-08-28
+Reviewed: 2026-08-29
 
 Both the production and complete dependency trees are required to pass at the
 moderate audit level. Run `npm run audit:production` and `npm run audit`; CI runs

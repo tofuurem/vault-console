@@ -25,6 +25,9 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community: рабо
   revoke-self и отдельный локальный sign-out.
 - **Least privilege:** интерфейс показывает только доступные текущему Vault
   token разделы и действия; окончательное решение всегда принимает Vault.
+- **Защищённый runtime:** обязательные strict/complexity/coverage/audit gates и
+  non-root read-only production-контейнер с проверенной матрицей Vault 2.0.3 и
+  1.21.3.
 
 ## Поддерживаемый scope
 
