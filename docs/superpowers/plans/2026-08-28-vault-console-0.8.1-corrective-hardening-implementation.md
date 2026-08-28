@@ -1,7 +1,7 @@
 # Vault Console 0.8.1 Corrective Hardening Implementation Plan
 
 - Date: 2026-08-28
-- Status: release verification complete; publication pending
+- Status: complete
 - Branch: `main`
 - Starting commit: `44895d1`
 - Design: `docs/superpowers/specs/2026-08-28-vault-console-0.8.1-corrective-hardening-design.md`

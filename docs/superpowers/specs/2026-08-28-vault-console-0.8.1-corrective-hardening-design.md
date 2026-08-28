@@ -1,6 +1,6 @@
 # Vault Console 0.8.1 Corrective Hardening Design
 
-**Status:** implemented and release-verified; publication pending
+**Status:** released
 
 **Date:** 2026-08-28
 
