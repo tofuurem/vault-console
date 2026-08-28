@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
+import { useDeferredSecretJsonValidation } from '@/application/json/useDeferredSecretJsonValidation';
 import Button from '@/components/base/Button';
 import Drawer from '@/components/base/Drawer';
 import type { KvV2WriteStrategy } from '@/domain/vault/kv-v2';
 import { normalizeVaultError } from '@/domain/vault/errors';
-import { formatSecretJson, parseSecretJson } from '@/domain/vault/secret-json';
+import { formatSecretJson } from '@/domain/vault/secret-json';
 import JsonSecretEditor from './JsonSecretEditor';
 
 interface KeyValuePair {
@@ -49,7 +50,11 @@ export default function WriteOnlySecretDrawer({
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const [focusErrorSignal, setFocusErrorSignal] = useState(0);
-  const parsedRawJson = useMemo(() => parseSecretJson(rawJson), [rawJson]);
+  const [reviewData, setReviewData] = useState<Readonly<Record<string, unknown>>>();
+  const rawValidation = useDeferredSecretJsonValidation(rawJson, {
+    enabled: open && rawMode && step === 'edit',
+  });
+  const parsedRawJson = rawValidation.result;
   const strategy: KvV2WriteStrategy = currentVersion === undefined
     ? { type: unknownStrategy }
     : { type: 'check-and-set', version: currentVersion };
@@ -66,6 +71,7 @@ export default function WriteOnlySecretDrawer({
     setSaveError('');
     setSaving(false);
     setFocusErrorSignal(0);
+    setReviewData(undefined);
   }, [currentVersion, mount, open, path]);
 
   const requestClose = () => {
@@ -76,17 +82,15 @@ export default function WriteOnlySecretDrawer({
       pair.id === id ? { ...pair, [field]: value } : pair
     )));
   };
-  const data = (): Readonly<Record<string, unknown>> => {
-    if (rawMode) return parsedRawJson.ok ? parsedRawJson.data : {};
-    return Object.fromEntries(
-      pairs
-        .filter((pair) => pair.key.trim())
-        .map((pair) => [pair.key.trim(), pair.value]),
-    );
-  };
-  const validate = () => {
+  const structuredData = (): Readonly<Record<string, unknown>> => Object.fromEntries(
+    pairs
+      .filter((pair) => pair.key.trim())
+      .map((pair) => [pair.key.trim(), pair.value]),
+  );
+  const review = () => {
     const nextErrors: string[] = [];
-    if (rawMode && !parsedRawJson.ok) {
+    const exactRawJson = rawMode ? rawValidation.validateNow() : undefined;
+    if (exactRawJson?.ok === false) {
       nextErrors.push('Fix the highlighted JSON error before review.');
     } else if (!rawMode) {
       const filled = pairs.filter((pair) => pair.key.trim() || pair.value);
@@ -96,23 +100,20 @@ export default function WriteOnlySecretDrawer({
       if (new Set(keys).size !== keys.length) nextErrors.push('Secret keys must be unique.');
     }
     setErrors(nextErrors);
-    return nextErrors.length === 0;
-  };
-  const review = () => {
-    if (!validate()) {
-      if (rawMode && !parsedRawJson.ok) {
-        setFocusErrorSignal((current) => current + 1);
-      }
+    if (nextErrors.length > 0) {
+      if (exactRawJson?.ok === false) setFocusErrorSignal((current) => current + 1);
       return;
     }
+    setReviewData(exactRawJson?.ok ? exactRawJson.data : structuredData());
     setReplacementAcknowledged(false);
     setStep('review');
   };
   const save = async () => {
+    if (!reviewData) return;
     setSaving(true);
     setSaveError('');
     try {
-      await onSave(data(), strategy);
+      await onSave(reviewData, strategy);
       setSaving(false);
       onClose();
     } catch (cause) {
@@ -185,31 +186,38 @@ export default function WriteOnlySecretDrawer({
                     value={rawJson}
                     onChange={setRawJson}
                     onFormat={() => {
-                      if (parsedRawJson.ok) setRawJson(formatSecretJson(parsedRawJson.data));
+                      const exact = rawValidation.validateNow();
+                      if (exact.ok) setRawJson(formatSecretJson(exact.data));
                     }}
-                    validationError={parsedRawJson.ok === false ? parsedRawJson.message : undefined}
-                    validationLocation={parsedRawJson.ok === false ? parsedRawJson.location : undefined}
+                    validationError={parsedRawJson?.ok === false ? parsedRawJson.message : undefined}
+                    validationLocation={parsedRawJson?.ok === false ? parsedRawJson.location : undefined}
                     focusErrorSignal={focusErrorSignal}
                     disabled={saving}
+                    largeDocument={rawValidation.isLarge}
+                    validationPending={rawValidation.status === 'pending'}
                   />
                 </div>
               ) : (
                 <div className="space-y-1.5">
                   {pairs.map((pair) => (
-                    <div key={pair.id} className="grid grid-cols-[1fr_1fr_32px] gap-2">
+                    <div
+                      key={pair.id}
+                      data-testid="write-only-field-row"
+                      className="grid min-w-0 grid-cols-[minmax(0,1fr)_44px] gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px]"
+                    >
                       <input
                         aria-label="Secret key"
                         value={pair.key}
                         onChange={(event) => updatePair(pair.id, 'key', event.target.value)}
                         placeholder="KEY"
-                        className="h-11 rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:border-primary-400 focus:outline-none sm:h-8"
+                        className="col-span-2 h-11 min-w-0 w-full rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:border-primary-400 focus:outline-none sm:col-span-1 sm:h-8"
                       />
                       <input
                         aria-label={`Value for ${pair.key || 'new key'}`}
                         value={pair.value}
                         onChange={(event) => updatePair(pair.id, 'value', event.target.value)}
                         placeholder="value"
-                        className="h-11 rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:border-primary-400 focus:outline-none sm:h-8"
+                        className="h-11 min-w-0 w-full rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:border-primary-400 focus:outline-none sm:h-8"
                       />
                       <button
                         type="button"
@@ -275,7 +283,7 @@ export default function WriteOnlySecretDrawer({
             </div>
             <dl className="space-y-2 rounded-md border border-background-200 bg-background-100/60 p-3 text-xs">
               <div className="flex justify-between gap-4"><dt className="text-foreground-500">Target path</dt><dd className="break-all text-right font-mono text-foreground-800">{mount}/{path}</dd></div>
-              <div className="flex justify-between"><dt className="text-foreground-500">Submitted keys</dt><dd className="font-mono text-foreground-800">{Object.keys(data()).length}</dd></div>
+              <div className="flex justify-between"><dt className="text-foreground-500">Submitted keys</dt><dd className="font-mono text-foreground-800">{Object.keys(reviewData ?? {}).length}</dd></div>
               <div className="flex justify-between gap-4"><dt className="text-foreground-500">Concurrency guard</dt><dd className="text-right font-medium text-foreground-800">{strategy.type === 'check-and-set' ? `CAS ${strategy.version}` : strategy.type === 'create-only' ? 'CAS 0' : 'None'}</dd></div>
             </dl>
             <p className="text-[11px] leading-5 text-foreground-500">Values stay hidden during review and are sent directly to Vault.</p>

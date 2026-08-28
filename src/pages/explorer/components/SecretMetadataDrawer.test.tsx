@@ -35,6 +35,10 @@ describe('SecretMetadataDrawer', () => {
     );
 
     expect(await screen.findByText(/Loaded fresh from Vault/)).toBeVisible();
+    expect(screen.getByTestId('metadata-field-row')).toHaveClass(
+      'grid-cols-[minmax(0,1fr)_44px]',
+      'sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px]',
+    );
     expect(onLoad).toHaveBeenCalledWith(
       'applications',
       'team/database',

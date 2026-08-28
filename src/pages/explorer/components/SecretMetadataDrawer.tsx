@@ -245,20 +245,24 @@ export default function SecretMetadataDrawer({
               </div>
               <div className="space-y-1.5">
                 {fields.map((field) => (
-                  <div key={field.id} className="grid grid-cols-[1fr_1fr_32px] gap-2">
+                  <div
+                    key={field.id}
+                    data-testid="metadata-field-row"
+                    className="grid min-w-0 grid-cols-[minmax(0,1fr)_44px] gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px]"
+                  >
                     <input
                       aria-label="Custom metadata key"
                       value={field.key}
                       onChange={(event) => updateField(field.id, 'key', event.target.value)}
                       placeholder="owner"
-                      className="h-11 rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:border-primary-400 focus:outline-none sm:h-8"
+                      className="col-span-2 h-11 min-w-0 w-full rounded-md border border-background-300 bg-background-50 px-2 font-mono text-xs focus:border-primary-400 focus:outline-none sm:col-span-1 sm:h-8"
                     />
                     <input
                       aria-label={`Custom metadata value for ${field.key || 'new key'}`}
                       value={field.value}
                       onChange={(event) => updateField(field.id, 'value', event.target.value)}
                       placeholder="platform"
-                      className="h-11 rounded-md border border-background-300 bg-background-50 px-2 text-xs focus:border-primary-400 focus:outline-none sm:h-8"
+                      className="h-11 min-w-0 w-full rounded-md border border-background-300 bg-background-50 px-2 text-xs focus:border-primary-400 focus:outline-none sm:h-8"
                     />
                     <button
                       type="button"

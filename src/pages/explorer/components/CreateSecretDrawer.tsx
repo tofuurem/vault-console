@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
+import { useDeferredSecretJsonValidation } from '@/application/json/useDeferredSecretJsonValidation';
 import Button from '@/components/base/Button';
 import Drawer from '@/components/base/Drawer';
 import { Input } from '@/components/base/Input';
 import { normalizeVaultError } from '@/domain/vault/errors';
-import { formatSecretJson, parseSecretJson } from '@/domain/vault/secret-json';
+import { formatSecretJson } from '@/domain/vault/secret-json';
 import JsonSecretEditor from './JsonSecretEditor';
 
 interface KeyValuePair {
@@ -37,9 +38,13 @@ export default function CreateSecretDrawer({ open, onClose, mount, currentPath, 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [focusErrorSignal, setFocusErrorSignal] = useState(0);
+  const [reviewData, setReviewData] = useState<Readonly<Record<string, unknown>>>();
   const logicalPath = `${currentPath}${name.trim()}`;
   const fullPath = `${mount}/${logicalPath}`;
-  const parsedRawJson = useMemo(() => parseSecretJson(rawJson), [rawJson]);
+  const rawValidation = useDeferredSecretJsonValidation(rawJson, {
+    enabled: open && rawMode && step === 'edit',
+  });
+  const parsedRawJson = rawValidation.result;
 
   const reset = () => {
     setStep('edit');
@@ -51,6 +56,7 @@ export default function CreateSecretDrawer({ open, onClose, mount, currentPath, 
     setSaveError('');
     setSaving(false);
     setFocusErrorSignal(0);
+    setReviewData(undefined);
   };
   const close = () => {
     reset();
@@ -59,15 +65,15 @@ export default function CreateSecretDrawer({ open, onClose, mount, currentPath, 
   const updatePair = (id: number, field: 'key' | 'value', value: string) => {
     setPairs((current) => current.map((pair) => pair.id === id ? { ...pair, [field]: value } : pair));
   };
-  const data = (): Readonly<Record<string, unknown>> => {
-    if (rawMode) return parsedRawJson.ok ? parsedRawJson.data : {};
-    return Object.fromEntries(pairs.filter((pair) => pair.key.trim()).map((pair) => [pair.key.trim(), pair.value]));
-  };
-  const validate = () => {
+  const structuredData = (): Readonly<Record<string, unknown>> => Object.fromEntries(
+    pairs.filter((pair) => pair.key.trim()).map((pair) => [pair.key.trim(), pair.value]),
+  );
+  const review = () => {
     const nextErrors: string[] = [];
+    const exactRawJson = rawMode ? rawValidation.validateNow() : undefined;
     if (!name.trim()) nextErrors.push('Secret name is required.');
     else if (!/^[a-zA-Z0-9._-]+$/.test(name.trim())) nextErrors.push('Use letters, numbers, dots, underscores, or hyphens in the name.');
-    if (rawMode && !parsedRawJson.ok) {
+    if (exactRawJson?.ok === false) {
       nextErrors.push('Fix the highlighted JSON error before review.');
     } else if (!rawMode) {
       const filled = pairs.filter((pair) => pair.key.trim() || pair.value);
@@ -77,13 +83,19 @@ export default function CreateSecretDrawer({ open, onClose, mount, currentPath, 
       if (new Set(keys).size !== keys.length) nextErrors.push('Secret keys must be unique.');
     }
     setErrors(nextErrors);
-    return nextErrors.length === 0;
+    if (nextErrors.length > 0) {
+      if (exactRawJson?.ok === false) setFocusErrorSignal((current) => current + 1);
+      return;
+    }
+    setReviewData(exactRawJson?.ok ? exactRawJson.data : structuredData());
+    setStep('review');
   };
   const save = async () => {
+    if (!reviewData) return;
     setSaving(true);
     setSaveError('');
     try {
-      await onSave(name.trim(), data());
+      await onSave(name.trim(), reviewData);
       close();
     } catch (cause) {
       const error = normalizeVaultError(cause);
@@ -124,12 +136,15 @@ export default function CreateSecretDrawer({ open, onClose, mount, currentPath, 
                     value={rawJson}
                     onChange={setRawJson}
                     onFormat={() => {
-                      if (parsedRawJson.ok) setRawJson(formatSecretJson(parsedRawJson.data));
+                      const exact = rawValidation.validateNow();
+                      if (exact.ok) setRawJson(formatSecretJson(exact.data));
                     }}
-                    validationError={parsedRawJson.ok === false ? parsedRawJson.message : undefined}
-                    validationLocation={parsedRawJson.ok === false ? parsedRawJson.location : undefined}
+                    validationError={parsedRawJson?.ok === false ? parsedRawJson.message : undefined}
+                    validationLocation={parsedRawJson?.ok === false ? parsedRawJson.location : undefined}
                     focusErrorSignal={focusErrorSignal}
                     disabled={saving}
+                    largeDocument={rawValidation.isLarge}
+                    validationPending={rawValidation.status === 'pending'}
                   />
                 </div>
               ) : (
@@ -145,17 +160,14 @@ export default function CreateSecretDrawer({ open, onClose, mount, currentPath, 
               )}
             </div>
             <div className="rounded-md border border-background-200 bg-background-100 px-3 py-2 text-[11px] leading-5 text-foreground-500">Creation uses CAS 0, so Vault will reject the request if a secret already exists at this path.</div>
-            <div className="flex justify-end gap-2"><Button size="sm" onClick={close}>Cancel</Button><Button size="sm" variant="primary" onClick={() => {
-              if (validate()) setStep('review');
-              else if (rawMode && !parsedRawJson.ok) setFocusErrorSignal((current) => current + 1);
-            }}>Review &amp; create</Button></div>
+            <div className="flex justify-end gap-2"><Button size="sm" onClick={close}>Cancel</Button><Button size="sm" variant="primary" onClick={review}>Review &amp; create</Button></div>
           </>
         ) : (
           <>
             <div><p className="font-mono text-[9px] font-semibold uppercase tracking-[0.15em] text-primary-600">Create with CAS 0</p><h3 className="mt-1 text-sm font-semibold text-foreground-900">Confirm new secret</h3></div>
             <dl className="space-y-2 rounded-md border border-background-200 bg-background-100/60 p-3 text-xs">
               <div className="flex justify-between gap-4"><dt className="text-foreground-500">Target path</dt><dd className="break-all text-right font-mono text-foreground-800">{fullPath}</dd></div>
-              <div className="flex justify-between"><dt className="text-foreground-500">Keys</dt><dd className="font-mono text-foreground-800">{Object.keys(data()).length}</dd></div>
+              <div className="flex justify-between"><dt className="text-foreground-500">Keys</dt><dd className="font-mono text-foreground-800">{Object.keys(reviewData ?? {}).length}</dd></div>
             </dl>
             <p className="text-[11px] leading-5 text-foreground-500">Values are intentionally hidden from review and are sent directly to Vault.</p>
             <div className="flex justify-between gap-2"><Button size="sm" onClick={() => setStep('edit')} disabled={saving}>Back</Button><div className="flex gap-2"><Button size="sm" onClick={close} disabled={saving}>Cancel</Button><Button size="sm" variant="primary" onClick={() => void save()} loading={saving}>Create secret</Button></div></div>

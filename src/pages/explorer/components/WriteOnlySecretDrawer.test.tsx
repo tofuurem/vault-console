@@ -6,6 +6,31 @@ import { VaultError } from '@/domain/vault/errors';
 import WriteOnlySecretDrawer from './WriteOnlySecretDrawer';
 
 describe('WriteOnlySecretDrawer', () => {
+  it('rechecks raw JSON immediately before review', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn(async () => undefined);
+    render(
+      <WriteOnlySecretDrawer
+        open
+        mount="applications"
+        path="team/database"
+        onClose={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Raw JSON' }));
+    const editor = await screen.findByLabelText('Secret JSON editor');
+    await user.click(editor);
+    await user.keyboard('{Control>}a{/Control}');
+    await user.paste('{"token":}');
+    await user.click(screen.getByRole('button', { name: 'Review write' }));
+
+    expect(screen.getByText(/JSON syntax error/)).toBeVisible();
+    expect(screen.getByText('Fix the highlighted JSON error before review.')).toBeVisible();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   it('uses the readable metadata version as a fixed CAS guard', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn(async () => undefined);
@@ -20,6 +45,10 @@ describe('WriteOnlySecretDrawer', () => {
       />,
     );
 
+    expect(screen.getAllByTestId('write-only-field-row')[0]).toHaveClass(
+      'grid-cols-[minmax(0,1fr)_44px]',
+      'sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px]',
+    );
     await user.type(screen.getAllByLabelText('Secret key')[0], 'USERNAME');
     await user.type(screen.getByLabelText('Value for USERNAME'), 'billing');
     expect(screen.getByText(/Check-and-set is fixed to current version 7/)).toBeVisible();

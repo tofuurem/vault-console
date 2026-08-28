@@ -302,6 +302,21 @@ test('opens an exact path and replaces a write-only secret with an explicit stra
   await page.getByRole('button', { name: 'Try writing a new version…' }).click();
 
   const drawer = page.getByRole('dialog', { name: 'Write secret without read access' });
+  for (const width of [430, 390, 360, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const overflow = await drawer.evaluate((element) => {
+      const row = element.querySelector<HTMLElement>('[data-testid="write-only-field-row"]');
+      return {
+        dialog: element.scrollWidth - element.clientWidth,
+        row: row ? row.scrollWidth - row.clientWidth : Number.POSITIVE_INFINITY,
+        document: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+    expect(overflow.dialog).toBeLessThanOrEqual(1);
+    expect(overflow.row).toBeLessThanOrEqual(1);
+    expect(overflow.document).toBeLessThanOrEqual(1);
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
   await drawer.getByLabel('Secret key').first().fill('REPLACEMENT');
   await drawer.getByLabel('Value for REPLACEMENT').fill('written-without-read');
   await drawer.getByRole('button', { name: 'Review write' }).click();
@@ -678,6 +693,21 @@ test('round-trips key metadata and KV v2 mount defaults through fresh editors', 
 
   const metadataDrawer = page.getByRole('dialog', { name: 'Edit key metadata' });
   await expect(metadataDrawer.getByText(/Loaded fresh from Vault/)).toBeVisible();
+  for (const width of [430, 390, 360, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const overflow = await metadataDrawer.evaluate((element) => {
+      const row = element.querySelector<HTMLElement>('[data-testid="metadata-field-row"]');
+      return {
+        dialog: element.scrollWidth - element.clientWidth,
+        row: row ? row.scrollWidth - row.clientWidth : Number.POSITIVE_INFINITY,
+        document: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+    expect(overflow.dialog).toBeLessThanOrEqual(1);
+    expect(overflow.row).toBeLessThanOrEqual(1);
+    expect(overflow.document).toBeLessThanOrEqual(1);
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
   await metadataDrawer.getByLabel('Maximum versions').fill('6');
   await metadataDrawer.getByLabel('Delete version after').fill('1h');
   await metadataDrawer.getByLabel('Require check-and-set').check();

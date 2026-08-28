@@ -25,10 +25,10 @@ describe('CreateSecretDrawer raw JSON', () => {
     await user.keyboard('{Control>}a{/Control}');
     await user.paste('{\n  "database": {\n    "port":,\n    "enabled": true\n  }\n}');
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'JSON syntax error at line 3, column 12: unexpected comma or missing value.',
-    );
     await user.click(screen.getByRole('button', { name: 'Review & create' }));
+    expect(screen.getByText(
+      'JSON syntax error at line 3, column 12: unexpected comma or missing value.',
+    )).toBeVisible();
     await waitFor(() => expect(screen.getByText('Ln 3, Col 12')).toBeVisible());
     expect(screen.getByText('Fix the highlighted JSON error before review.')).toBeVisible();
     expect(onSave).not.toHaveBeenCalled();

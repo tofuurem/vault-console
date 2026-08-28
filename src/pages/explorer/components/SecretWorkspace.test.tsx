@@ -1,9 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { KvV2Secret } from '@/domain/vault/contracts';
+import { LARGE_SECRET_JSON_BYTES } from '@/application/json/secret-json-validation';
 import SecretWorkspace from './SecretWorkspace';
 
 const secret: KvV2Secret = {
@@ -149,10 +150,10 @@ describe('SecretWorkspace', () => {
     renderWorkspace({ initialMode: 'edit', onClose });
 
     const editor = await replaceEditorContent(user, '{\n  "service":,\n}');
+    await user.click(screen.getByRole('button', { name: 'Save version 12' }));
     expect(editor).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByRole('alert')).toHaveTextContent('JSON syntax error at line 2, column 13: unexpected comma or missing value.');
     expect(screen.getByRole('button', { name: 'Go to line 2, column 13' })).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Save version 12' }));
     await waitFor(() => expect(screen.getByText('Ln 2, Col 13')).toBeVisible());
 
     await user.click(screen.getByRole('button', { name: 'Close secret workspace' }));
@@ -162,5 +163,28 @@ describe('SecretWorkspace', () => {
     confirm.mockReturnValue(true);
     await user.click(screen.getByRole('button', { name: 'Close secret workspace' }));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('uses a plain editor for large JSON and revalidates the exact content before save', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn(async () => undefined);
+    const largeSecret: KvV2Secret = {
+      ...secret,
+      data: { payload: 'x'.repeat(LARGE_SECRET_JSON_BYTES) },
+    };
+    renderWorkspace({ initialMode: 'edit', secret: largeSecret, onSave });
+
+    const editor = await screen.findByLabelText('Secret JSON editor');
+    expect(editor.tagName).toBe('TEXTAREA');
+    expect(screen.getByText(/Large JSON document/)).toBeVisible();
+
+    fireEvent.change(editor, {
+      target: { value: `{"payload":"${'x'.repeat(LARGE_SECRET_JSON_BYTES)}","broken":}` },
+    });
+    await user.click(screen.getByRole('button', { name: 'Save version 12' }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('JSON syntax error');
+    expect(screen.getByText(/Large JSON document/)).toBeVisible();
   });
 });

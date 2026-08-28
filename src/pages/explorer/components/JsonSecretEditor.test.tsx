@@ -42,4 +42,22 @@ describe('JsonSecretEditor', () => {
     );
     await waitFor(() => expect(editor).toHaveTextContent('"enabled": true'));
   });
+
+  it('uses a plain textarea and a content-free warning for large documents', () => {
+    render(
+      <JsonSecretEditor
+        value="{}"
+        onChange={vi.fn()}
+        onFormat={vi.fn()}
+        largeDocument
+        validationPending
+      />,
+    );
+
+    expect(screen.getByLabelText('Secret JSON editor').tagName).toBe('TEXTAREA');
+    expect(screen.getByText(/Large JSON document/)).toHaveTextContent(
+      'Live syntax highlighting is disabled',
+    );
+    expect(screen.getByText('Checking current JSON…')).toBeVisible();
+  });
 });

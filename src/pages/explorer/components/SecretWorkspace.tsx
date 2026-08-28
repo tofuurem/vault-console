@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
+import { useDeferredSecretJsonValidation } from '@/application/json/useDeferredSecretJsonValidation';
 import Button from '@/components/base/Button';
 import Tabs from '@/components/base/Tabs';
 import { useDialogFocus } from '@/components/base/useDialogFocus';
@@ -7,7 +8,6 @@ import type { KvV2Secret } from '@/domain/vault/contracts';
 import { normalizeVaultError } from '@/domain/vault/errors';
 import {
   formatSecretJson,
-  parseSecretJson,
   redactSecretValue,
   summarizeSecretChanges,
 } from '@/domain/vault/secret-json';
@@ -50,6 +50,9 @@ export default function SecretWorkspace({
   const [saveError, setSaveError] = useState('');
   const [copyStatus, setCopyStatus] = useState('');
   const [focusErrorSignal, setFocusErrorSignal] = useState(0);
+  const validation = useDeferredSecretJsonValidation(rawJson, {
+    enabled: open && mode === 'edit',
+  });
 
   useEffect(() => {
     if (!open || !secret) return;
@@ -72,11 +75,12 @@ export default function SecretWorkspace({
     return () => { document.body.style.overflow = previousOverflow; };
   }, [open]);
 
-  const parsed = useMemo(() => parseSecretJson(rawJson), [rawJson]);
   const dirty = rawJson !== initialJson;
-  const changes = parsed.ok && secret
-    ? summarizeSecretChanges(secret.data, parsed.data)
-    : { added: 0, changed: 0, removed: 0 };
+  const changes = useMemo(() => (
+    validation.result?.ok && secret
+      ? summarizeSecretChanges(secret.data, validation.result.data)
+      : { added: 0, changed: 0, removed: 0 }
+  ), [secret, validation.result]);
 
   const confirmDiscard = () => !dirty || window.confirm('Discard unsaved secret changes?');
   const requestClose = () => {
@@ -102,7 +106,8 @@ export default function SecretWorkspace({
     setMode('view');
   };
   const formatEditor = () => {
-    if (parsed.ok) setRawJson(formatSecretJson(parsed.data));
+    const exact = validation.validateNow();
+    if (exact.ok) setRawJson(formatSecretJson(exact.data));
   };
   const copyJson = async () => {
     try {
@@ -115,14 +120,15 @@ export default function SecretWorkspace({
   };
   const save = async () => {
     if (!dirty) return;
-    if (!parsed.ok) {
+    const exact = validation.validateNow();
+    if (!exact.ok) {
       setFocusErrorSignal((current) => current + 1);
       return;
     }
     setSaving(true);
     setSaveError('');
     try {
-      await onSave(parsed.data);
+      await onSave(exact.data);
       setSaving(false);
       onClose();
     } catch (cause) {
@@ -207,10 +213,12 @@ export default function SecretWorkspace({
               value={rawJson}
               onChange={setRawJson}
               onFormat={formatEditor}
-              validationError={parsed.ok === false ? parsed.message : undefined}
-              validationLocation={parsed.ok === false ? parsed.location : undefined}
+              validationError={validation.result?.ok === false ? validation.result.message : undefined}
+              validationLocation={validation.result?.ok === false ? validation.result.location : undefined}
               focusErrorSignal={focusErrorSignal}
               disabled={saving}
+              largeDocument={validation.isLarge}
+              validationPending={validation.status === 'pending'}
             />
             <footer className="flex shrink-0 flex-wrap items-center gap-3 rounded-lg border border-background-300 bg-background-50 px-3 py-2">
               <div className="flex items-center gap-1.5 text-[10px]">

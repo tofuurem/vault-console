@@ -1,5 +1,5 @@
 import { json } from '@codemirror/lang-json';
-import { linter, lintGutter, type Diagnostic } from '@codemirror/lint';
+import { lintGutter, setDiagnostics, type Diagnostic } from '@codemirror/lint';
 import {
   highlightActiveLine,
   highlightActiveLineGutter,
@@ -13,7 +13,7 @@ import {
 } from 'react';
 import { EditorView, minimalSetup } from 'codemirror';
 
-import { parseSecretJson } from '@/domain/vault/secret-json';
+import type { SecretJsonLocation } from '@/domain/vault/secret-json';
 
 export interface CodeMirrorJsonEditorHandle {
   readonly focusOffset: (offset: number) => void;
@@ -26,18 +26,23 @@ interface CodeMirrorJsonEditorProps {
   readonly describedBy: string;
   readonly invalid: boolean;
   readonly disabled: boolean;
+  readonly validationError?: string;
+  readonly validationLocation?: SecretJsonLocation;
 }
 
-function diagnosticsFor(source: string): readonly Diagnostic[] {
-  const parsed = parseSecretJson(source);
-  if (parsed.ok === true) return [];
-  const offset = parsed.location?.offset ?? 0;
+function diagnosticsFor(
+  sourceLength: number,
+  validationError?: string,
+  validationLocation?: SecretJsonLocation,
+): readonly Diagnostic[] {
+  if (!validationError) return [];
+  const offset = Math.max(0, Math.min(validationLocation?.offset ?? 0, sourceLength));
   return [{
     from: offset,
-    to: Math.min(source.length, offset + 1),
+    to: Math.min(sourceLength, offset + 1),
     severity: 'error',
     source: 'JSON',
-    message: parsed.message,
+    message: validationError,
   }];
 }
 
@@ -87,6 +92,8 @@ const CodeMirrorJsonEditor = forwardRef<CodeMirrorJsonEditorHandle, CodeMirrorJs
     describedBy,
     invalid,
     disabled,
+    validationError,
+    validationLocation,
   }, ref) {
     const hostRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
@@ -107,9 +114,6 @@ const CodeMirrorJsonEditor = forwardRef<CodeMirrorJsonEditorHandle, CodeMirrorJs
           highlightActiveLineGutter(),
           json(),
           lintGutter(),
-          linter((currentView) => diagnosticsFor(currentView.state.doc.toString()), {
-            delay: 150,
-          }),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
             if (update.docChanged || update.selectionSet) {
@@ -138,6 +142,15 @@ const CodeMirrorJsonEditor = forwardRef<CodeMirrorJsonEditorHandle, CodeMirrorJs
       if (!view || view.state.doc.toString() === value) return;
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } });
     }, [value]);
+
+    useEffect(() => {
+      const view = viewRef.current;
+      if (!view) return;
+      view.dispatch(setDiagnostics(
+        view.state,
+        diagnosticsFor(view.state.doc.length, validationError, validationLocation),
+      ));
+    }, [validationError, validationLocation]);
 
     useEffect(() => {
       const content = viewRef.current?.contentDOM;
