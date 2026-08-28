@@ -38,6 +38,7 @@ const history: KvV2SecretHistory = {
 
 const permissions: KvActionPermissions = {
   scope: 'applications/data/billing/database',
+  discovery: 'resolved',
   canReadData: true,
   canReadMetadata: false,
   canEdit: true,

@@ -5,6 +5,7 @@ import Drawer from '@/components/base/Drawer';
 import { Input } from '@/components/base/Input';
 import { normalizeVaultError } from '@/domain/vault/errors';
 import type { KvV2MountConfig } from '@/domain/vault/kv-v2';
+import { kvMountConfigFingerprint } from '@/domain/vault/kv-settings-snapshot';
 import { parseMountConfigForm } from '@/domain/vault/mount-config-form';
 
 interface KvMountConfigDrawerProps {
@@ -31,6 +32,15 @@ export default function KvMountConfigDrawer({
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [baseline, setBaseline] = useState('');
+  const [conflictConfig, setConflictConfig] = useState<KvV2MountConfig | null>(null);
+
+  const applyConfig = (config: KvV2MountConfig) => {
+    setMaxVersions(String(config.maxVersions));
+    setCasRequired(config.casRequired);
+    setDeleteVersionAfter(config.deleteVersionAfter);
+    setBaseline(kvMountConfigFingerprint(config));
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -40,11 +50,11 @@ export default function KvMountConfigDrawer({
     setErrors([]);
     setSaveError('');
     setSaving(false);
+    setConflictConfig(null);
+    setBaseline('');
     void onLoad(mount, controller.signal).then((config) => {
       if (controller.signal.aborted) return;
-      setMaxVersions(String(config.maxVersions));
-      setCasRequired(config.casRequired);
-      setDeleteVersionAfter(config.deleteVersionAfter);
+      applyConfig(config);
       setStatus('ready');
     }).catch((cause: unknown) => {
       if (controller.signal.aborted) return;
@@ -71,6 +81,12 @@ export default function KvMountConfigDrawer({
     setSaveError('');
     setSaving(true);
     try {
+      const fresh = await onLoad(mount, new AbortController().signal);
+      if (!baseline || kvMountConfigFingerprint(fresh) !== baseline) {
+        setConflictConfig(fresh);
+        setSaving(false);
+        return;
+      }
       await onSave(mount, parsed.data);
       setSaving(false);
       onClose();
@@ -115,6 +131,23 @@ export default function KvMountConfigDrawer({
             <p className="rounded-md border border-success-200 bg-success-50 px-3 py-2 text-[11px] text-success-700">
               Loaded fresh from Vault. Only KV v2 data-retention defaults are changed here.
             </p>
+            {conflictConfig && (
+              <div role="alert" className="rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
+                <p className="font-semibold">Mount configuration changed in Vault after this editor was opened.</p>
+                <p className="mt-1 leading-5">Your draft was not saved. Load the latest configuration before reviewing the change again.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    applyConfig(conflictConfig);
+                    setConflictConfig(null);
+                    setSaveError('');
+                  }}
+                  className="mt-2 font-semibold underline underline-offset-2"
+                >
+                  Load latest configuration
+                </button>
+              </div>
+            )}
             {(errors.length > 0 || saveError) && (
               <div role="alert" className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">
                 {errors.map((error) => <p key={error}>{error}</p>)}

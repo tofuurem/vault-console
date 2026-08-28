@@ -298,8 +298,8 @@ test('opens an exact path and replaces a write-only secret with an explicit stra
   await page.getByLabel('Secret path relative to applications').fill('write-only-existing');
   await page.getByRole('button', { name: 'Open exact path' }).click();
   await expect(page).toHaveURL(/secret=write-only-existing/);
-  await expect(page.getByText('Write-only access is available')).toBeVisible();
-  await page.getByRole('button', { name: 'Write new version…' }).click();
+  await expect(page.getByText('Write permission could not be preflighted')).toBeVisible();
+  await page.getByRole('button', { name: 'Try writing a new version…' }).click();
 
   const drawer = page.getByRole('dialog', { name: 'Write secret without read access' });
   await drawer.getByLabel('Secret key').first().fill('REPLACEMENT');
@@ -683,6 +683,33 @@ test('round-trips key metadata and KV v2 mount defaults through fresh editors', 
   await metadataDrawer.getByLabel('Require check-and-set').check();
   await metadataDrawer.getByLabel('Custom metadata key').fill('owner');
   await metadataDrawer.getByLabel('Custom metadata value for owner').fill('security');
+
+  const concurrentMetadata = await page.request.post(
+    '/v1/applications/metadata/metadata-roundtrip',
+    {
+      headers: { 'X-Vault-Token': vaultToken! },
+      data: {
+        max_versions: 8,
+        cas_required: false,
+        delete_version_after: '30m',
+        custom_metadata: { owner: 'concurrent-operator' },
+      },
+    },
+  );
+  expect(concurrentMetadata.ok()).toBe(true);
+  await metadataDrawer.getByRole('button', { name: 'Save key metadata' }).click();
+  await expect(metadataDrawer.getByText(
+    /Key metadata changed in Vault after this editor was opened/i,
+  )).toBeVisible();
+  await expect(metadataDrawer.getByLabel('Maximum versions')).toHaveValue('6');
+  await metadataDrawer.getByRole('button', { name: 'Load latest metadata' }).click();
+  await expect(metadataDrawer.getByLabel('Maximum versions')).toHaveValue('8');
+  await expect(metadataDrawer.getByLabel('Custom metadata value for owner'))
+    .toHaveValue('concurrent-operator');
+  await metadataDrawer.getByLabel('Maximum versions').fill('6');
+  await metadataDrawer.getByLabel('Delete version after').fill('1h');
+  await metadataDrawer.getByLabel('Require check-and-set').check();
+  await metadataDrawer.getByLabel('Custom metadata value for owner').fill('security');
   await metadataDrawer.getByRole('button', { name: 'Save key metadata' }).click();
   await expect(page.getByText(
     'Updated key metadata for applications/metadata-roundtrip.',
@@ -708,6 +735,25 @@ test('round-trips key metadata and KV v2 mount defaults through fresh editors', 
     await page.getByRole('button', { name: 'Configure mount' }).click();
     const mountDrawer = page.getByRole('dialog', { name: 'Configure KV v2 mount' });
     await expect(mountDrawer.getByText(/Loaded fresh from Vault/)).toBeVisible();
+    await mountDrawer.getByLabel('Default maximum versions').fill('12');
+    await mountDrawer.getByLabel('Default delete delay').fill('90m');
+
+    const concurrentConfig = await page.request.post('/v1/applications/config', {
+      headers: { 'X-Vault-Token': vaultToken! },
+      data: {
+        max_versions: 9,
+        cas_required: baseline.cas_required,
+        delete_version_after: baseline.delete_version_after,
+      },
+    });
+    expect(concurrentConfig.ok()).toBe(true);
+    await mountDrawer.getByRole('button', { name: 'Save mount configuration' }).click();
+    await expect(mountDrawer.getByText(
+      /Mount configuration changed in Vault after this editor was opened/i,
+    )).toBeVisible();
+    await expect(mountDrawer.getByLabel('Default maximum versions')).toHaveValue('12');
+    await mountDrawer.getByRole('button', { name: 'Load latest configuration' }).click();
+    await expect(mountDrawer.getByLabel('Default maximum versions')).toHaveValue('9');
     await mountDrawer.getByLabel('Default maximum versions').fill('12');
     await mountDrawer.getByLabel('Default delete delay').fill('90m');
     await mountDrawer.getByRole('button', { name: 'Save mount configuration' }).click();

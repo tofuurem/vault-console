@@ -6,7 +6,7 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-vault_test_image="${VAULT_TEST_IMAGE:-hashicorp/vault:1.20}"
+vault_test_image="${VAULT_TEST_IMAGE:-hashicorp/vault:2.0.3}"
 vault_test_container="vault-console-test-$$"
 vault_test_root_token="vault-console-test-$(openssl rand -hex 24)"
 

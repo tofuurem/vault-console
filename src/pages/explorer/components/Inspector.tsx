@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { VaultQueryState, KvSecretDetails } from '@/application/vault/useKvExplorerData';
-import type { KvActionPermissions } from '@/application/vault/useKvActionPermissions';
+import {
+  canAttemptKvAction,
+  type KvActionPermissions,
+} from '@/application/vault/useKvActionPermissions';
 import Badge from '@/components/base/Badge';
 import Button from '@/components/base/Button';
 import Tabs from '@/components/base/Tabs';
@@ -195,10 +198,12 @@ function VersionActionsMenu({
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const canSoftDelete = !deleted && (
-    current ? permissions?.canDeleteLatest : permissions?.canDeleteVersions
+    current
+      ? canAttemptKvAction(permissions, 'canDeleteLatest')
+      : canAttemptKvAction(permissions, 'canDeleteVersions')
   );
-  const canUndelete = deleted && permissions?.canUndelete;
-  const canDestroy = permissions?.canDestroy;
+  const canUndelete = deleted && canAttemptKvAction(permissions, 'canUndelete');
+  const canDestroy = canAttemptKvAction(permissions, 'canDestroy');
   const hasActions = canSoftDelete || canUndelete || canDestroy;
 
   useEffect(() => {
@@ -361,18 +366,26 @@ export default function Inspector({
               ) : (
                 <ScopedResourceError title="Secret data could not be loaded" onRetry={onRetry} />
               )}
-              {dataError?.code === 'authorization'
-                && (permissions?.canCreate || permissions?.canUpdate)
-                && onWriteOnly && (
+              {dataError?.code === 'authorization' && onWriteOnly && (
                 <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
-                  <p className="font-semibold">Write-only access is available</p>
-                  <p className="mt-1 leading-5">You can submit a complete new document, but existing fields cannot be shown or preserved.</p>
+                  <p className="font-semibold">
+                    {permissions?.discovery === 'unavailable'
+                      ? 'Write permission could not be preflighted'
+                      : 'Write-only access is available'}
+                  </p>
+                  <p className="mt-1 leading-5">
+                    {permissions?.discovery === 'unavailable'
+                      ? 'Vault will make the final authorization decision. A write still replaces the complete secret document.'
+                      : 'You can submit a complete new document, but existing fields cannot be shown or preserved.'}
+                  </p>
                   <button
                     type="button"
                     onClick={onWriteOnly}
                     className="mt-2 h-11 rounded-md bg-primary-500 px-3 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2"
                   >
-                    Write new version…
+                    {permissions?.discovery === 'unavailable'
+                      ? 'Try writing a new version…'
+                      : 'Write new version…'}
                   </button>
                 </div>
               )}
@@ -414,7 +427,7 @@ export default function Inspector({
                   </button>
                 </Tooltip>
               )}
-              {onEdit && permissions?.canEdit && <button type="button" onClick={onEdit} className="h-11 rounded-md bg-primary-500 px-3 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2">Edit secret</button>}
+              {onEdit && canAttemptKvAction(permissions, 'canEdit') && <button type="button" onClick={onEdit} className="h-11 rounded-md bg-primary-500 px-3 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2">Edit secret</button>}
             </div>
           </div>
           <p className="text-[10px] text-foreground-400">Created {formatTime(secret.metadata.createdTime)}</p>
@@ -503,7 +516,9 @@ export default function Inspector({
               {Object.entries(history.customMetadata).map(([key, value]) => <p key={key} className="mb-1 flex justify-between gap-3"><span className="font-mono text-foreground-600">{key}</span><span className="text-foreground-800">{value}</span></p>)}
             </div>
           )}
-          {permissions?.canReadMetadata && permissions.canUpdateMetadata && onEditMetadata && (
+          {canAttemptKvAction(permissions, 'canReadMetadata')
+            && canAttemptKvAction(permissions, 'canUpdateMetadata')
+            && onEditMetadata && (
             <Button size="sm" onClick={onEditMetadata}>
               <i className="ri-edit-line" aria-hidden="true" /> Edit key metadata
             </Button>
@@ -517,7 +532,7 @@ export default function Inspector({
           />
         )
         }
-        {permissions && permissions.canDeleteMetadata !== false && onDeleteMetadata && (
+        {canAttemptKvAction(permissions, 'canDeleteMetadata') && onDeleteMetadata && (
           <div className="border-t border-background-200 pt-3">
             <button type="button" aria-label="Delete key permanently" onClick={onDeleteMetadata} className="text-xs font-medium text-danger-600 hover:text-danger-700">Delete key permanently…</button>
           </div>

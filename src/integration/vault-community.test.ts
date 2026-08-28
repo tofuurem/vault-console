@@ -274,6 +274,9 @@ runAgainstVault('Vault Community integration', () => {
     await expect(
       kv.readSecret(degradedSession, kvMount, 'token-check/demo'),
     ).resolves.toMatchObject({ data: { status: 'ok' } });
+    await expect(
+      auth.getCapabilities(degradedSession, [`${kvMount}/data/token-check/demo`]),
+    ).rejects.toMatchObject({ code: 'authorization', status: 403 });
 
     await setupRequest('auth/token/revoke', 'POST', { token: rawToken });
     await expect(

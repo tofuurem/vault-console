@@ -99,7 +99,8 @@ export function useKvSecretDetails(
   const canReadMetadata = permissions?.status === 'success' ? permissions.data.canReadMetadata : undefined;
   const canCreate = permissions?.status === 'success' ? permissions.data.canCreate : undefined;
   const canUpdate = permissions?.status === 'success' ? permissions.data.canUpdate : undefined;
-  const canWriteWithoutRead = canCreate === true || canUpdate === true;
+  const discoveryUnavailable = permissions?.data?.discovery === 'unavailable';
+  const canWriteWithoutRead = canCreate === true || canUpdate === true || discoveryUnavailable;
   const waitingForPermissions = Boolean(
     permissionStatus
     && (
@@ -116,6 +117,7 @@ export function useKvSecretDetails(
         canReadMetadata,
         canCreate,
         canUpdate,
+        permissions?.data?.discovery,
       ]
     : ['unchecked'];
   const enabled = Boolean(mount && path && !waitingForPermissions);

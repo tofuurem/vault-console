@@ -26,6 +26,7 @@ import type {
 import { useKvV2Gateway } from '@/application/vault/KvV2GatewayContext';
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import {
+  canAttemptKvAction,
   kvActionPaths,
   useKvActionPermissions,
   useKvMountConfigPermissions,
@@ -192,6 +193,20 @@ export default function ExplorerPage() {
   const selectedPermissions = permissionsState.data?.scope === selectedPermissionScope
     ? permissionsState.data
     : undefined;
+  const canAttemptMountConfig = (
+    mountConfigPermissions.status === 'error'
+    && mountConfigPermissions.data.discovery === 'unavailable'
+  )
+    || (
+      mountConfigPermissions.status === 'success'
+      && mountConfigPermissions.data.canRead === true
+      && mountConfigPermissions.data.canUpdate === true
+    );
+  const canAttemptWriteOnly = selectedDetails?.dataError?.code === 'authorization'
+    && (
+      canAttemptKvAction(selectedPermissions, 'canCreate')
+      || canAttemptKvAction(selectedPermissions, 'canUpdate')
+    );
 
   useEffect(() => {
     if (!selectedPath || !selectedDetails?.secret) return;
@@ -877,18 +892,20 @@ export default function ExplorerPage() {
       onRetrySecret={refreshDetails}
       onCreateSecret={() => setCreateOpen(true)}
       onOpenExactPath={selectSecret}
-      onConfigureMount={mountConfigPermissions.status === 'success'
-        && mountConfigPermissions.data.canRead
-        && mountConfigPermissions.data.canUpdate
+      onConfigureMount={canAttemptMountConfig
         ? () => setMountConfigOpen(true)
         : undefined}
       onViewSecret={selectedDetails?.secret ? () => setWorkspaceMode('view') : undefined}
       onEditSecret={selectedDetails?.secret ? () => setWorkspaceMode('edit') : undefined}
-      onWriteOnlySecret={selectedPermissions?.canCreate || selectedPermissions?.canUpdate
+      onWriteOnlySecret={canAttemptWriteOnly
         ? () => setWriteOnlyOpen(true)
         : undefined}
       permissions={selectedPermissions}
-      onCompare={selectedDetails?.history && selectedPermissions?.canReadData ? () => setCompareOpen(true) : undefined}
+      onCompare={selectedDetails?.history
+        && selectedDetails.secret
+        && canAttemptKvAction(selectedPermissions, 'canReadData')
+        ? () => setCompareOpen(true)
+        : undefined}
       onDeleteLatest={(version) => openSelectedDestructiveAction({ kind: 'delete-latest', version })}
       onDeleteVersion={(version) => openSelectedDestructiveAction({ kind: 'delete-version', version })}
       onUndelete={(version) => void undeleteVersion(version)}
@@ -897,8 +914,8 @@ export default function ExplorerPage() {
         if (selectedPath) void beginPermanentDelete(selectedPath);
       }}
       onEditMetadata={selectedDetails?.history
-        && selectedPermissions?.canReadMetadata
-        && selectedPermissions.canUpdateMetadata
+        && canAttemptKvAction(selectedPermissions, 'canReadMetadata')
+        && canAttemptKvAction(selectedPermissions, 'canUpdateMetadata')
         ? () => setMetadataOpen(true)
         : undefined}
       onDeletePermanently={(path) => void beginPermanentDelete(path)}
@@ -957,7 +974,7 @@ export default function ExplorerPage() {
         open={workspaceMode !== null}
         initialMode={workspaceMode ?? 'view'}
         secret={selectedDetails?.secret}
-        canEdit={Boolean(selectedPermissions?.canEdit)}
+        canEdit={canAttemptKvAction(selectedPermissions, 'canEdit')}
         onClose={() => setWorkspaceMode(null)}
         onSave={editSecret}
       />

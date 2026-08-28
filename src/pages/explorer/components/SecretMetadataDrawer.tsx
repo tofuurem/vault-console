@@ -9,6 +9,10 @@ import type {
 import type { KvV2SecretMetadataInput } from '@/domain/vault/kv-v2';
 import { normalizeVaultError } from '@/domain/vault/errors';
 import {
+  kvSecretMetadataFingerprint,
+  secretMetadataInputFromHistory,
+} from '@/domain/vault/kv-settings-snapshot';
+import {
   parseSecretMetadataForm,
   type CustomMetadataField,
 } from '@/domain/vault/secret-metadata-form';
@@ -36,8 +40,8 @@ interface SecretMetadataDrawerProps {
 
 let nextFieldId = 0;
 
-function fieldsFrom(metadata: KvV2SecretHistory): EditableMetadataField[] {
-  const fields = Object.entries(metadata.customMetadata).map(([key, value]) => ({
+function fieldsFrom(metadata: Readonly<Record<string, string>>): EditableMetadataField[] {
+  const fields = Object.entries(metadata).map(([key, value]) => ({
     id: ++nextFieldId,
     key,
     value,
@@ -65,6 +69,17 @@ export default function SecretMetadataDrawer({
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [baseline, setBaseline] = useState('');
+  const [conflictMetadata, setConflictMetadata] = useState<KvV2SecretHistory | null>(null);
+
+  const applyMetadata = (metadata: KvV2SecretHistory) => {
+    const input = secretMetadataInputFromHistory(metadata);
+    setMaxVersions(String(input.maxVersions));
+    setCasRequired(input.casRequired);
+    setDeleteVersionAfter(input.deleteVersionAfter);
+    setFields(fieldsFrom(input.customMetadata));
+    setBaseline(kvSecretMetadataFingerprint(metadata));
+  };
 
   useEffect(() => {
     if (!open || !path) return;
@@ -74,12 +89,11 @@ export default function SecretMetadataDrawer({
     setValidationErrors([]);
     setSaveError('');
     setSaving(false);
+    setConflictMetadata(null);
+    setBaseline('');
     void onLoad(mount, path, controller.signal).then((metadata) => {
       if (controller.signal.aborted) return;
-      setMaxVersions(String(metadata.maxVersions));
-      setCasRequired(metadata.casRequired);
-      setDeleteVersionAfter(metadata.deleteVersionAfter);
-      setFields(fieldsFrom(metadata));
+      applyMetadata(metadata);
       setStatus('ready');
     }).catch((cause: unknown) => {
       if (controller.signal.aborted) return;
@@ -111,6 +125,12 @@ export default function SecretMetadataDrawer({
     setSaveError('');
     setSaving(true);
     try {
+      const fresh = await onLoad(mount, path, new AbortController().signal);
+      if (!baseline || kvSecretMetadataFingerprint(fresh) !== baseline) {
+        setConflictMetadata(fresh);
+        setSaving(false);
+        return;
+      }
       await onSave(mount, path, parsed.data);
       setSaving(false);
       onClose();
@@ -158,6 +178,24 @@ export default function SecretMetadataDrawer({
             <p className="rounded-md border border-success-200 bg-success-50 px-3 py-2 text-[11px] text-success-700">
               Loaded fresh from Vault. Saving replaces the complete supported metadata document.
             </p>
+
+            {conflictMetadata && (
+              <div role="alert" className="rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
+                <p className="font-semibold">Key metadata changed in Vault after this editor was opened.</p>
+                <p className="mt-1 leading-5">Your draft was not saved. Load the latest metadata before reviewing the change again.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    applyMetadata(conflictMetadata);
+                    setConflictMetadata(null);
+                    setSaveError('');
+                  }}
+                  className="mt-2 font-semibold underline underline-offset-2"
+                >
+                  Load latest metadata
+                </button>
+              </div>
+            )}
 
             {(validationErrors.length > 0 || saveError) && (
               <div role="alert" className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">

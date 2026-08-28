@@ -21,6 +21,7 @@ describe('KV action capabilities', () => {
 
     expect(permissions).toEqual({
       scope: paths.data,
+      discovery: 'resolved',
       canReadData: true,
       canReadMetadata: true,
       canCreate: true,
@@ -67,6 +68,7 @@ describe('KV action capabilities', () => {
       [path]: ['read'],
     }, path)).toEqual({
       scope: path,
+      discovery: 'resolved',
       canRead: true,
       canUpdate: false,
     });
@@ -77,6 +79,7 @@ describe('KV action capabilities', () => {
 
     expect(unavailableKvActionPermissions(paths)).toEqual({
       scope: paths.data,
+      discovery: 'unavailable',
     });
   });
 });

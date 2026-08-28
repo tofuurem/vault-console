@@ -171,10 +171,36 @@ describe('KV explorer queries', () => {
     await waitFor(() => expect(screen.getByTestId('secret')).toHaveTextContent('error'));
   });
 
+  it('preserves both scoped read errors when capability discovery is unavailable', async () => {
+    const deniedGateway = gateway();
+    deniedGateway.readSecret = vi.fn(async () => {
+      throw new VaultError('authorization', { status: 403 });
+    });
+    deniedGateway.readSecretMetadata = vi.fn(async () => {
+      throw new VaultError('authorization', { status: 403 });
+    });
+
+    renderProbe(deniedGateway, {
+      status: 'error',
+      error: new VaultError('authorization', { status: 403 }),
+      data: {
+        scope: 'applications/data/billing/database',
+        discovery: 'unavailable',
+      },
+    });
+
+    await waitFor(() => expect(screen.getByTestId('secret')).toHaveTextContent('undefined:vundefined'));
+    expect(screen.getByTestId('data-error')).toHaveTextContent('authorization');
+    expect(screen.getByTestId('history-error')).toHaveTextContent('authorization');
+    expect(deniedGateway.readSecret).toHaveBeenCalledOnce();
+    expect(deniedGateway.readSecretMetadata).toHaveBeenCalledOnce();
+  });
+
   it('keeps scoped read errors available for an explicitly write-only path', async () => {
     const deniedGateway = gateway();
     const writeOnlyPermissions: KvActionPermissions = {
       scope: 'applications/data/billing/database',
+      discovery: 'resolved',
       canReadData: false,
       canReadMetadata: false,
       canCreate: true,
@@ -205,6 +231,7 @@ describe('KV explorer queries', () => {
     const dataOnlyGateway = gateway();
     const permissions: KvActionPermissions = {
       scope: 'applications/data/billing/database',
+      discovery: 'resolved',
       canReadData: true,
       canReadMetadata: false,
       canEdit: false,

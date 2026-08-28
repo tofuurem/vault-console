@@ -7,7 +7,7 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 test_id="$$"
-vault_image="${VAULT_TEST_IMAGE:-hashicorp/vault:1.20}"
+vault_image="${VAULT_TEST_IMAGE:-hashicorp/vault:2.0.3}"
 vault_container="vault-console-e2e-vault-${test_id}"
 docker_network="vault-console-e2e-${test_id}"
 console_image="vault-console:e2e-${test_id}"
@@ -375,10 +375,6 @@ docker exec \
   "${vault_container}" vault policy write e2e-write-only - >/dev/null <<'HCL'
 path "sys/internal/ui/mounts" {
   capabilities = ["read"]
-}
-
-path "sys/capabilities-self" {
-  capabilities = ["update"]
 }
 
 path "applications/data/write-only-existing" {

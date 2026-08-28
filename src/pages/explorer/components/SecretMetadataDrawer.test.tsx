@@ -49,6 +49,7 @@ describe('SecretMetadataDrawer', () => {
     await user.type(screen.getByLabelText('Custom metadata value for owner'), 'security');
     await user.click(screen.getByRole('button', { name: 'Save key metadata' }));
 
+    await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(
       'applications',
       'team/database',
@@ -59,6 +60,44 @@ describe('SecretMetadataDrawer', () => {
         customMetadata: { owner: 'security' },
       },
     ));
+  });
+
+  it('preserves the draft and blocks a stale save until the user loads latest metadata', async () => {
+    const user = userEvent.setup();
+    const latest = {
+      ...metadata,
+      maxVersions: 14,
+      customMetadata: { owner: 'security' },
+    };
+    const onLoad = vi.fn()
+      .mockResolvedValueOnce(metadata)
+      .mockResolvedValueOnce(latest);
+    const onSave = vi.fn(async () => undefined);
+    render(
+      <SecretMetadataDrawer
+        open
+        mount="applications"
+        path="team/database"
+        onClose={vi.fn()}
+        onLoad={onLoad}
+        onSave={onSave}
+      />,
+    );
+
+    await screen.findByText(/Loaded fresh from Vault/);
+    await user.clear(screen.getByLabelText('Maximum versions'));
+    await user.type(screen.getByLabelText('Maximum versions'), '12');
+    await user.click(screen.getByRole('button', { name: 'Save key metadata' }));
+
+    expect(await screen.findByText(/metadata changed in Vault after this editor was opened/i))
+      .toBeVisible();
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Maximum versions')).toHaveValue('12');
+    expect(screen.getByLabelText('Custom metadata value for owner')).toHaveValue('platform');
+
+    await user.click(screen.getByRole('button', { name: 'Load latest metadata' }));
+    expect(screen.getByLabelText('Maximum versions')).toHaveValue('14');
+    expect(screen.getByLabelText('Custom metadata value for owner')).toHaveValue('security');
   });
 
   it('does not expose editable fields when the fresh read fails', async () => {

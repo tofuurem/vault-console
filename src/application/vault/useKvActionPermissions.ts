@@ -16,6 +16,7 @@ export interface KvActionPaths {
 
 export interface KvActionPermissions {
   readonly scope: string;
+  readonly discovery: 'resolved' | 'unavailable';
   readonly canReadData?: boolean;
   readonly canReadMetadata?: boolean;
   readonly canCreate?: boolean;
@@ -31,6 +32,7 @@ export interface KvActionPermissions {
 
 export interface KvMountConfigPermissions {
   readonly scope: string;
+  readonly discovery: 'resolved' | 'unavailable';
   readonly canRead?: boolean;
   readonly canUpdate?: boolean;
 }
@@ -59,6 +61,7 @@ export function resolveKvActionPermissions(
 ): KvActionPermissions {
   return {
     scope: paths.data,
+    discovery: 'resolved',
     canReadData: allows(capabilities[paths.data], 'read'),
     canReadMetadata: allows(capabilities[paths.metadata], 'read'),
     canCreate: allows(capabilities[paths.data], 'create'),
@@ -75,12 +78,23 @@ export function resolveKvActionPermissions(
 
 const NO_PERMISSIONS: KvActionPermissions = {
   scope: '',
+  discovery: 'unavailable',
 };
 
 export function unavailableKvActionPermissions(
   paths: KvActionPaths,
 ): KvActionPermissions {
-  return { scope: paths.data };
+  return { scope: paths.data, discovery: 'unavailable' };
+}
+
+type KvActionPermissionName = Exclude<keyof KvActionPermissions, 'scope' | 'discovery'>;
+
+export function canAttemptKvAction(
+  permissions: KvActionPermissions | undefined,
+  action: KvActionPermissionName,
+): boolean {
+  if (!permissions) return false;
+  return permissions.discovery === 'unavailable' || permissions[action] === true;
 }
 
 export function kvMountConfigPath(mount: string): string {
@@ -93,6 +107,7 @@ export function resolveKvMountConfigPermissions(
 ): KvMountConfigPermissions {
   return {
     scope: path,
+    discovery: 'resolved',
     canRead: allows(capabilities[path], 'read'),
     canUpdate: allows(capabilities[path], 'update'),
   };
@@ -142,16 +157,16 @@ export function useKvMountConfigPermissions(
     },
   });
 
-  if (!mount) return [{ status: 'idle', data: { scope: '' } }, () => {}];
+  if (!mount) return [{ status: 'idle', data: { scope: '', discovery: 'unavailable' } }, () => {}];
   if (query.isError) {
     return [{
       status: 'error',
       error: normalizeVaultError(query.error),
-      data: { scope: kvMountConfigPath(mount) },
+      data: { scope: kvMountConfigPath(mount), discovery: 'unavailable' },
     }, () => { void query.refetch(); }];
   }
   if (query.isPending || !query.data) {
-    return [{ status: 'loading', data: { scope: kvMountConfigPath(mount) } }, () => { void query.refetch(); }];
+    return [{ status: 'loading', data: { scope: kvMountConfigPath(mount), discovery: 'unavailable' } }, () => { void query.refetch(); }];
   }
   return [{ status: 'success', data: query.data }, () => { void query.refetch(); }];
 }

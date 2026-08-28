@@ -23,6 +23,7 @@ const session: VaultSession = {
 };
 
 function authGateway(options: {
+  capabilitiesUnavailable?: boolean;
   metadataRead?: boolean;
   mountAdmin?: boolean;
   mountConfig?: boolean;
@@ -34,8 +35,11 @@ function authGateway(options: {
     loginUserpass: vi.fn(async (_input: UserpassLogin) => session),
     renewSelf: vi.fn(async () => ({ renewable: false })),
     revokeSelf: vi.fn(async () => undefined),
-    getCapabilities: vi.fn(async (_session, paths): Promise<VaultCapabilityMap> => Object.fromEntries(
-      paths.map((path) => [
+    getCapabilities: vi.fn(async (_session, paths): Promise<VaultCapabilityMap> => {
+      if (options.capabilitiesUnavailable) {
+        throw new VaultError('authorization', { status: 403 });
+      }
+      return Object.fromEntries(paths.map((path) => [
         path,
         path.startsWith('sys/mounts/') && options.mountAdmin
           ? ['create', 'update', 'sudo']
@@ -52,8 +56,8 @@ function authGateway(options: {
                 ? ['list']
                 : ['read', 'list', 'update', 'delete']
               : ['update'],
-      ]),
-    ) as VaultCapabilityMap),
+      ])) as VaultCapabilityMap;
+    }),
   };
 }
 
@@ -342,6 +346,56 @@ describe('ExplorerPage', () => {
     )).toBeVisible();
     expect(gateway.readSecret).not.toHaveBeenCalled();
     expect(gateway.readSecretMetadata).not.toHaveBeenCalled();
+  });
+
+  it('allows a guarded write attempt when capability discovery and reads are denied', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    gateway.readSecret = vi.fn(async () => {
+      throw new VaultError('authorization', { status: 403 });
+    });
+    gateway.readSecretMetadata = vi.fn(async () => {
+      throw new VaultError('authorization', { status: 403 });
+    });
+    window.history.replaceState({}, '', '/login');
+    render(<App
+      authGateway={authGateway({ capabilitiesUnavailable: true })}
+      kvV2Gateway={gateway}
+    />);
+    await login(user);
+
+    await user.click((await screen.findAllByText('shared'))[0]);
+    expect(await screen.findByText('Write permission could not be preflighted')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Try writing a new version…' }));
+    await user.type(screen.getAllByLabelText('Secret key')[0], 'TOKEN');
+    await user.type(screen.getByLabelText('Value for TOKEN'), 'authoritative-value');
+    await user.click(screen.getByRole('button', { name: 'Review write' }));
+    await user.click(screen.getByRole('button', { name: 'Write complete secret' }));
+
+    await waitFor(() => expect(gateway.writeSecret).toHaveBeenCalledWith(
+      session,
+      'applications',
+      'shared',
+      { TOKEN: 'authoritative-value' },
+      { type: 'create-only' },
+    ));
+  });
+
+  it('keeps readable metadata and mount configuration actions available without preflight', async () => {
+    const user = userEvent.setup();
+    const gateway = kvGateway();
+    window.history.replaceState({}, '', '/login');
+    render(<App
+      authGateway={authGateway({ capabilitiesUnavailable: true })}
+      kvV2Gateway={gateway}
+    />);
+    await login(user);
+
+    expect(await screen.findByRole('button', { name: 'Configure mount' })).toBeVisible();
+    await user.click((await screen.findAllByText('shared'))[0]);
+    await screen.findByText('API_KEY');
+    await user.click(screen.getByRole('tab', { name: 'Metadata' }));
+    expect(screen.getByRole('button', { name: 'Edit key metadata' })).toBeVisible();
   });
 
   it('fresh-loads and updates complete key metadata', async () => {
