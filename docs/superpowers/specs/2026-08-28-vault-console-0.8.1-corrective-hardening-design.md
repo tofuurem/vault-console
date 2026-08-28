@@ -1,6 +1,6 @@
 # Vault Console 0.8.1 Corrective Hardening Design
 
-**Status:** approved design, pending written-spec review
+**Status:** approved for implementation
 
 **Date:** 2026-08-28
 
@@ -183,9 +183,9 @@ JSON validation is separated from every keystroke:
   environments;
 - the editor never persists or logs document contents as part of diagnostics.
 
-Syntax highlighting may be reduced for documents above the threshold if needed
-to keep interaction responsive. The raw document remains editable and no new
-server-side size limit is introduced.
+Documents above the threshold use a plain monospaced textarea without live syntax
+highlighting to keep interaction responsive. The raw document remains editable
+and no new server-side size limit is introduced.
 
 Tests cover debounce cancellation, stale worker results, the large-document
 warning, explicit final validation, and secret-value non-disclosure.
