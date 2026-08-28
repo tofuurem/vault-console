@@ -65,6 +65,12 @@ services:
   vault-console:
     image: vault-console:local
     restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     environment:
       VAULT_UPSTREAM: http://vault:8200
       VAULT_UI_USERPASS_MOUNT: userpass
@@ -81,6 +87,11 @@ networks:
 Если Vault использует другое имя сервиса или network alias, измените
 `VAULT_UPSTREAM`. Не передавайте Vault token, username или password через
 Compose environment.
+
+Образ объявляет пользователя `nginx` и не требует root или Linux capabilities
+для порта `8080`. Read-only root filesystem обязателен для рекомендуемого
+production-профиля; runtime-конфиг, Nginx PID/temp files и CA bundle создаются
+только в `/tmp/vault-console` внутри ограниченного tmpfs.
 
 ## Готовый образ — необязательно
 
@@ -246,6 +257,10 @@ vault-console.example.com {
 2. оставьте существующий read-only mount этого каталога из `compose.yml`;
 3. пересоздайте контейнер.
 
+Non-root entrypoint объединит системные и дополнительные сертификаты в
+эфемерный `/tmp/vault-console/ca-certificates.crt`; системное trust store и
+слои образа останутся read-only.
+
 Не помещайте туда private keys или credentials. Отключение проверки TLS не
 поддерживается. Подробнее:
 [`deploy/ca-certificates/README.md`](deploy/ca-certificates/README.md).
@@ -375,8 +390,13 @@ credentials в `.env.local`. Проверки:
 
 ```bash
 npm run quality
+npm run test:coverage
 npm run build
-npm run test:vault
+npm run audit:production
+npm run audit
+npm run test:container
+VAULT_TEST_IMAGE=hashicorp/vault:2.0.3 npm run test:vault
+VAULT_TEST_IMAGE=hashicorp/vault:1.21.3 npm run test:vault
 npm run test:e2e
 ```
 

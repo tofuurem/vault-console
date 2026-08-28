@@ -387,6 +387,35 @@ self_service_token="$(vault_exec token create -policy=e2e-userpass -ttl=10m -ren
 
 docker compose up --detach --build
 
+console_image_user="$(docker image inspect --format '{{.Config.User}}' "${console_image}")"
+case "${console_image_user}" in
+  ""|0|0:*|root|root:*)
+    echo "Production image must declare a non-root OCI user." >&2
+    exit 1
+    ;;
+esac
+console_container_id="$(docker compose ps --quiet vault-console)"
+if [ -z "${console_container_id}" ]; then
+  echo "Compose did not create the Vault Console container." >&2
+  exit 1
+fi
+if [ "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "${console_container_id}")" != "true" ]; then
+  echo "Compose did not enable a read-only root filesystem." >&2
+  exit 1
+fi
+if ! docker inspect --format '{{json .HostConfig.CapDrop}}' "${console_container_id}" | grep -F 'ALL' >/dev/null; then
+  echo "Compose did not drop all Linux capabilities." >&2
+  exit 1
+fi
+if ! docker inspect --format '{{json .HostConfig.SecurityOpt}}' "${console_container_id}" | grep -F 'no-new-privileges:true' >/dev/null; then
+  echo "Compose did not enforce no-new-privileges." >&2
+  exit 1
+fi
+if ! docker inspect --format '{{json .HostConfig.Tmpfs}}' "${console_container_id}" | grep -F '/tmp' >/dev/null; then
+  echo "Compose did not mount the minimal writable tmpfs." >&2
+  exit 1
+fi
+
 console_origin="http://127.0.0.1:${console_port}"
 console_ready=false
 for _attempt in $(seq 1 120); do
@@ -401,6 +430,15 @@ done
 if [ "${console_ready}" != true ]; then
   echo "Vault Console or its real-Vault proxy did not become ready." >&2
   docker compose logs --no-color >&2 || true
+  exit 1
+fi
+
+if [ "$(docker compose exec -T vault-console id -u)" = "0" ]; then
+  echo "Vault Console unexpectedly runs as root." >&2
+  exit 1
+fi
+if ! docker compose exec -T vault-console test -s /tmp/vault-console/ca-certificates.crt; then
+  echo "Vault Console runtime CA bundle was not generated." >&2
   exit 1
 fi
 

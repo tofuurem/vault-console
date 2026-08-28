@@ -13,7 +13,7 @@ server {
     }
 
     location = /runtime-config.js {
-        try_files $uri =404;
+        alias /tmp/vault-console/runtime-config.js;
         add_header Cache-Control "no-store";
         include /etc/nginx/security-headers.conf;
     }
@@ -37,7 +37,7 @@ server {
         proxy_ssl_name $proxy_host;
         proxy_ssl_verify on;
         proxy_ssl_verify_depth 5;
-        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        proxy_ssl_trusted_certificate /tmp/vault-console/ca-certificates.crt;
     }
 
     location /assets/ {

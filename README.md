@@ -47,7 +47,10 @@ curl --fail http://127.0.0.1:8080/healthz
 
 Перед запуском проверьте в `.env` значения `VAULT_DOCKER_NETWORK` и
 `VAULT_UPSTREAM`. Compose собирает локальный образ `vault-console:local` и не
-изменяет существующий Vault.
+изменяет существующий Vault. Production-контейнер работает как non-root,
+использует read-only root filesystem, сбрасывает Linux capabilities и оставляет
+записываемым только ограниченный `/tmp` tmpfs для runtime-конфига Nginx и CA
+bundle.
 
 ## Опубликованный образ
 

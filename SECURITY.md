@@ -57,43 +57,21 @@ readable. Unconditional replacement requires a separate strategy choice and a
 second acknowledgement. Metadata and mount-configuration editors require a
 fresh readable snapshot before they can save the complete supported settings.
 
-## Reviewed dependency advisories
+## Dependency audit policy
 
-### GHSA-qwww-vcr4-c8h2 — not reachable
+Reviewed: 2026-08-28
 
-Reviewed: 2026-07-29
+Both the production and complete dependency trees are required to pass at the
+moderate audit level. Run `npm run audit:production` and `npm run audit`; CI runs
+the same commands from the committed lockfile.
 
-`npm audit --omit=dev` reports the React Router advisory
-[GHSA-qwww-vcr4-c8h2](https://github.com/advisories/GHSA-qwww-vcr4-c8h2)
-for the currently resolved React Router 7 release. The upstream advisory states
-that it affects applications only when they use the unstable RSC APIs.
+The 0.8.1 dependency refresh resolves the previous React Router RSC advisory by
+pinning `react-router-dom` and `react-router` to 7.18.2. It also resolves the
+development-tree `brace-expansion`, `js-yaml`, `nanoid`, `postcss`, and `undici`
+advisories with compatible patched versions. There are no accepted advisory
+exceptions for this release.
 
-Vault Console uses declarative `<BrowserRouter>` exclusively and contains no
-unstable RSC API, React Server Component, or React Router server action path.
-The vulnerable flow is therefore not reachable in this application. The
-advisory is retained here instead of being silently suppressed. Reassess this
-exception whenever React Router is upgraded or the routing architecture
-changes.
-
-The review was repeated against resolved `react-router-dom@7.18.1` and
-`react-router@7.18.1`. `npm audit fix --omit=dev --dry-run` did not propose a
-production dependency version that removes the advisory; it only pruned
-development dependencies for the omitted install. Do not treat that command as
-a remediation. Track the upstream range and upgrade once a fixed declarative
-router release is available.
-
-### GHSA-mh99-v99m-4gvg — build tooling only
-
-Reviewed: 2026-07-29
-
-The full development-tree audit reports the `brace-expansion` denial-of-service
-advisory through ESLint and TypeScript ESLint glob matching. It is absent from
-`npm audit --omit=dev` and from the final Nginx image, which contains only the
-compiled static application. The repository invokes ESLint with the fixed
-trusted path `src`; no Vault response or browser input can control its glob
-patterns.
-
-`npm audit fix --force` currently proposes the breaking ESLint 10 upgrade.
-Keep this advisory visible and upgrade the lint toolchain in a separately
-validated maintenance change rather than forcing a major dependency rewrite
-inside a release build.
+Do not suppress or force past a new advisory. If a future advisory cannot be
+fixed immediately, document its identifier, dependency path, production
+reachability, owner, and next review date here, then add a deterministic audit
+policy that fails when the reviewed advisory set changes.

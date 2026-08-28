@@ -7,6 +7,13 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     environment:
       VAULT_UPSTREAM: ${VAULT_UPSTREAM:?Set VAULT_UPSTREAM to the existing Vault URL on the Docker network}
       VAULT_UI_ALLOW_CUSTOM_ADDRESS: ${VAULT_UI_ALLOW_CUSTOM_ADDRESS:-false}

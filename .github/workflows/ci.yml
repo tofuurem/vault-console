@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: "1"
+  NODE_VERSION: 22.23.2
+
+jobs:
+  quality:
+    name: Quality, coverage, build, and audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Run quality gate
+        run: npm run quality
+      - name: Enforce security-boundary coverage
+        run: npm run test:coverage
+      - name: Build production assets
+        run: npm run build
+      - name: Audit production dependencies
+        run: npm run audit:production
+      - name: Audit complete dependency tree
+        run: npm run audit
+
+  vault-integration:
+    name: Vault ${{ matrix.tier }} (${{ matrix.version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: 2.0.3
+            tier: primary
+          - version: 1.21.3
+            tier: compatibility
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Run Vault integration suite
+        env:
+          VAULT_TEST_IMAGE: hashicorp/vault:${{ matrix.version }}
+        run: npm run test:vault
+
+  production-e2e:
+    name: Production container E2E (Vault 2.0.3)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Install Chromium runtime
+        run: npx playwright install --with-deps chromium
+      - name: Smoke-test hardened production image
+        run: npm run test:container
+      - name: Run production-container browser suite
+        env:
+          VAULT_TEST_IMAGE: hashicorp/vault:2.0.3
+        run: npm run test:e2e
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-e2e-failure-${{ github.run_id }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
