@@ -61,7 +61,7 @@ export default function RolesList({
       <header className="shrink-0 border-b border-background-200 px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
               Reserved ACL policies
             </p>
             <div className="flex items-center gap-2">
@@ -133,13 +133,13 @@ export default function RolesList({
                         <span className="block text-sm font-semibold text-foreground-800">
                           {managedRoleName(role.name)}
                         </span>
-                        <span className="mt-0.5 block font-mono text-[9px] text-foreground-400">
+                        <span className="mt-0.5 block font-mono text-[10px] text-foreground-400">
                           {role.name}
                         </span>
                       </button>
                     </td>
                     <td className="px-4 py-2.5">
-                      <span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${badge.classes}`}>
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${badge.classes}`}>
                         {badge.label}
                       </span>
                     </td>

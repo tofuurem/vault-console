@@ -19,7 +19,7 @@ function Setting({
 }) {
   return (
     <div className="rounded-md border border-background-200 bg-background-50 px-3 py-2.5">
-      <dt className="font-mono text-[9px] uppercase tracking-[0.12em] text-foreground-400">
+      <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground-400">
         {label}
       </dt>
       <dd className="mt-1 break-all font-mono text-[11px] font-semibold text-foreground-800">
@@ -48,7 +48,7 @@ export default function UserAccountStep({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
           Account identity
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">
@@ -88,14 +88,14 @@ export default function UserAccountStep({
       <section aria-labelledby="token-settings-heading">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-foreground-400">
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-400">
               Read-only
             </p>
             <h3 id="token-settings-heading" className="mt-0.5 text-sm font-semibold text-foreground-900">
               Userpass token settings
             </h3>
           </div>
-          <span className="rounded-sm border border-background-300 bg-background-100 px-2 py-1 font-mono text-[9px] text-foreground-500">
+          <span className="rounded-sm border border-background-300 bg-background-100 px-2 py-1 font-mono text-[10px] text-foreground-500">
             preserved exactly
           </span>
         </div>

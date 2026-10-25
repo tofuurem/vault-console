@@ -83,7 +83,7 @@ export default function UserDirectKvStep({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
           Effective KV v2
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">

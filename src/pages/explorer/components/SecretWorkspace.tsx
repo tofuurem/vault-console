@@ -13,6 +13,7 @@ import {
 } from '@/domain/vault/secret-json';
 import JsonSecretEditor from './JsonSecretEditor';
 import SecretDataTree from './SecretDataTree';
+import { formatDateTime } from '@/shared/format/date-time';
 
 export type SecretWorkspaceMode = 'view' | 'edit';
 
@@ -23,12 +24,6 @@ interface SecretWorkspaceProps {
   readonly canEdit: boolean;
   readonly onClose: () => void;
   readonly onSave: (data: Readonly<Record<string, unknown>>) => Promise<void>;
-}
-
-function formatTime(value: string): string {
-  return new Date(value).toLocaleString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
 }
 
 export default function SecretWorkspace({
@@ -144,7 +139,7 @@ export default function SecretWorkspace({
   );
 
   return (
-    <div className="fixed inset-0 z-[90] bg-background-50">
+    <div className="fixed inset-0 z-workspace bg-background-50">
       <div
         ref={dialogRef}
         role="dialog"
@@ -163,9 +158,9 @@ export default function SecretWorkspace({
               <div className="flex flex-wrap items-center gap-2">
                 <h2 id={titleId} className="break-all font-mono text-sm font-semibold text-foreground-900">{secret.mount}/{secret.path}</h2>
                 <span className="rounded bg-primary-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-primary-700">v{secret.metadata.version}</span>
-                <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${mode === 'edit' ? 'bg-warning-100 text-warning-700' : 'bg-background-200 text-foreground-500'}`}>{mode}</span>
+                <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${mode === 'edit' ? 'bg-warning-100 text-warning-700' : 'bg-background-200 text-foreground-500'}`}>{mode}</span>
               </div>
-              <p className="mt-0.5 text-[10px] text-foreground-400">Created {formatTime(secret.metadata.createdTime)} · save creates v{secret.metadata.version + 1}</p>
+              <p className="mt-0.5 text-[10px] text-foreground-400">Created {formatDateTime(secret.metadata.createdTime)} · save creates v{secret.metadata.version + 1}</p>
             </div>
 
             <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">

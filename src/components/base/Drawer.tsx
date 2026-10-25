@@ -40,7 +40,7 @@ export default function Drawer({
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-[70]">
+    <div className="fixed inset-0 z-drawer">
       <div aria-hidden="true" className={`absolute inset-0 bg-overlay/30 ${open ? 'modal-backdrop-enter' : ''}`} onClick={onClose} />
       <div
         ref={dialogRef}

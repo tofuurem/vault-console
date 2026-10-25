@@ -72,7 +72,7 @@ export default function ReportCompleteness({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <p className="text-xs font-semibold">{presentation.label}</p>
             {completeness.reasons.length > 0 && (
-              <span className="rounded-full bg-background-50/70 px-1.5 py-0.5 font-mono text-[9px] font-semibold">
+              <span className="rounded-full bg-background-50/70 px-1.5 py-0.5 font-mono text-[10px] font-semibold">
                 {completeness.reasons.length} unresolved
               </span>
             )}

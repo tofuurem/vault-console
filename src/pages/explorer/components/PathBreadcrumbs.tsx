@@ -64,7 +64,7 @@ export default function PathBreadcrumbs({
           <span key={crumb.path} className="flex shrink-0 items-center gap-1.5">
             {showCollapseControl && (
               <>
-                <span className="text-foreground-300">/</span>
+                <span className="text-foreground-300" aria-hidden="true">/</span>
                 <button
                   type="button"
                   aria-label={`Show ${hiddenCount} hidden path segments`}
@@ -76,7 +76,7 @@ export default function PathBreadcrumbs({
                 </button>
               </>
             )}
-            <span className="text-foreground-300">/</span>
+            <span className="text-foreground-300" aria-hidden="true">/</span>
             <button
               type="button"
               onClick={() => onNavigate(crumb.path)}

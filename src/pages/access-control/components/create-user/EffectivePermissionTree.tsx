@@ -95,7 +95,7 @@ export default function EffectivePermissionTree({
             <div className="flex min-w-0 items-center gap-2">
               <span className="truncate font-mono text-xs font-medium text-foreground-800">{node.label}</span>
               {direct && (
-                <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${direct.level === 'deny' ? 'bg-danger-100 text-danger-700' : 'bg-primary-100 text-primary-700'}`}>
+                <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${direct.level === 'deny' ? 'bg-danger-100 text-danger-700' : 'bg-primary-100 text-primary-700'}`}>
                   {direct.level === 'deny' ? 'Direct deny' : 'Direct'}
                 </span>
               )}
@@ -136,7 +136,7 @@ export default function EffectivePermissionTree({
               : 'The middle badge is the Vault result. The selector adds a per-user exception.'}
           </p>
         </div>
-        <div className="hidden shrink-0 items-center gap-3 text-[9px] font-semibold uppercase tracking-wider text-foreground-400 md:flex">
+        <div className="hidden shrink-0 items-center gap-3 text-[10px] font-semibold uppercase tracking-wider text-foreground-400 md:flex">
           <span>Effective</span>
           {!readOnly && <span className="w-[118px]">Direct rule</span>}
         </div>

@@ -83,10 +83,10 @@ function AccessWorkspaceShell({
             </button>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-primary-600">
+                <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary-600">
                   {eyebrow}
                 </p>
-                <span className="inline-flex items-center gap-1 rounded-sm border border-warning-200 bg-warning-50 px-1.5 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.12em] text-warning-800">
+                <span className="inline-flex items-center gap-1 rounded-sm border border-warning-200 bg-warning-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-800">
                   <span className="h-1 w-1 rounded-full bg-warning-500" aria-hidden="true" />
                   {stateLabel}
                 </span>
@@ -99,7 +99,7 @@ function AccessWorkspaceShell({
                 {title}
               </h1>
               {subtitle && (
-                <p className="mt-0.5 truncate font-mono text-[9px] text-foreground-400">
+                <p className="mt-0.5 truncate font-mono text-[10px] text-foreground-400">
                   {subtitle}
                 </p>
               )}
@@ -107,7 +107,7 @@ function AccessWorkspaceShell({
           </div>
           <div className="hidden items-center gap-2 rounded-md border border-background-200 bg-background-100/80 px-2.5 py-1.5 sm:flex">
             <i className="ri-lock-2-line text-xs text-foreground-400" aria-hidden="true" />
-            <span className="font-mono text-[9px] text-foreground-500">
+            <span className="font-mono text-[10px] text-foreground-500">
               Vault writes occur only after Review
             </span>
           </div>
@@ -135,7 +135,7 @@ function AccessWorkspaceShell({
                         : 'text-foreground-600 hover:bg-background-100 hover:text-foreground-900'
                     }`}
                   >
-                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border font-mono text-[9px] font-semibold ${
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px] font-semibold ${
                       active
                         ? 'border-background-50/20 bg-background-50/10 text-background-50'
                         : step.invalid
@@ -151,7 +151,7 @@ function AccessWorkspaceShell({
                     <span className="min-w-0">
                       <span className="block text-[11px] font-semibold">{step.label}</span>
                       {step.description && (
-                        <span className={`mt-0.5 hidden truncate text-[9px] lg:block ${
+                        <span className={`mt-0.5 hidden truncate text-[10px] lg:block ${
                           active ? 'text-background-300' : 'text-foreground-400'
                         }`}>
                           {step.description}

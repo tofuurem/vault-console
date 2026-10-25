@@ -74,15 +74,15 @@ function EndpointCard({
       <div className="flex items-start justify-between gap-2">
         <div>
           <h4 className="text-[11px] font-semibold text-foreground-800">{label}</h4>
-          <p className="mt-0.5 text-[9px] leading-3.5 text-foreground-400">{description}</p>
+          <p className="mt-0.5 text-[10px] leading-3.5 text-foreground-400">{description}</p>
         </div>
         {access.denied && (
-          <span className="rounded-full bg-danger-100 px-1.5 py-0.5 text-[9px] font-semibold text-danger-800">
+          <span className="rounded-full bg-danger-100 px-1.5 py-0.5 text-[10px] font-semibold text-danger-800">
             Denied
           </span>
         )}
       </div>
-      <p className="mt-2 truncate font-mono text-[9px] text-foreground-500" title={access.requestPath}>
+      <p className="mt-2 truncate font-mono text-[10px] text-foreground-500" title={access.requestPath}>
         {access.requestPath}
       </p>
       <div className="mt-2 flex min-h-5 flex-wrap gap-1">
@@ -91,7 +91,7 @@ function EndpointCard({
             key={capability}
             aria-label={`${capability} from ${capabilitySourceLabel(access, capability)}`}
             title={`${capability} — ${capabilitySourceLabel(access, capability)}`}
-            className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold ${
+            className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold ${
               capability === 'deny'
                 ? 'bg-danger-100 text-danger-800'
                 : 'bg-primary-100 text-primary-800'
@@ -103,7 +103,7 @@ function EndpointCard({
           <span className="text-[10px] text-foreground-400">No capabilities</span>
         )}
       </div>
-      <dl className="mt-2 space-y-1 border-t border-background-200 pt-2 text-[9px]">
+      <dl className="mt-2 space-y-1 border-t border-background-200 pt-2 text-[10px]">
         <div className="grid grid-cols-[52px_1fr] gap-2">
           <dt className="text-foreground-400">Pattern</dt>
           <dd className="truncate font-mono text-foreground-600" title={access.matchedPattern ?? 'No matched rule'}>
@@ -136,7 +136,7 @@ export default function AccessExplanation({
     >
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-primary-600">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-primary-600">
             Why this result
           </p>
           <h3
@@ -147,7 +147,7 @@ export default function AccessExplanation({
             {fullPath}
           </h3>
         </div>
-        <span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${
+        <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
           target.level === 'deny'
             ? 'bg-danger-100 text-danger-800'
             : target.level === 'none'
@@ -163,7 +163,7 @@ export default function AccessExplanation({
           {target.patterns.map((pattern) => (
             <code
               key={pattern}
-              className="max-w-full truncate rounded bg-background-200 px-1.5 py-0.5 font-mono text-[9px] text-foreground-600"
+              className="max-w-full truncate rounded bg-background-200 px-1.5 py-0.5 font-mono text-[10px] text-foreground-600"
               title={pattern}
             >
               {pattern}

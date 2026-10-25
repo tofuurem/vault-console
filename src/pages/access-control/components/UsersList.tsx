@@ -47,7 +47,7 @@ export default function UsersList({
     <section aria-labelledby="users-heading" className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="shrink-0 border-b border-background-200 px-5 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">Userpass + Identity</p><div className="flex items-center gap-2"><h1 id="users-heading" className="text-sm font-semibold text-foreground-900">Users</h1><span className="text-xs text-foreground-400">{users.length}</span></div></div>
+          <div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">Userpass + Identity</p><div className="flex items-center gap-2"><h1 id="users-heading" className="text-sm font-semibold text-foreground-900">Users</h1><span className="text-xs text-foreground-400">{users.length}</span></div></div>
           <div className="flex w-full items-center gap-2 sm:w-auto">
             <label className="relative min-w-0 flex-1 sm:flex-none"><span className="sr-only">Search users</span><i className="ri-search-line absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground-400" aria-hidden="true" /><input type="search" value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search users" className="h-11 w-full rounded-md border border-background-300 bg-background-50 pl-6 pr-2.5 text-xs focus:border-primary-400 focus:outline-none sm:h-7 sm:w-48" /></label>
             <button type="button" aria-label="Refresh users" onClick={onRefresh} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"><i className="ri-refresh-line" aria-hidden="true" /></button>
@@ -87,9 +87,9 @@ export default function UsersList({
                     {user.username}
                   </button>
                 </td>
-                <td className="px-4 py-2.5"><span className="text-sm text-foreground-700">{user.entity ? user.displayName : 'Open profile to load'}</span></td>
+                <td className="px-4 py-2.5">{user.entity ? <span className="text-xs text-foreground-700">{user.displayName}</span> : <span className="text-xs text-foreground-400">Open profile to load</span>}</td>
                 <td className="px-4 py-2.5 font-mono text-xs text-foreground-500">{user.mount}/</td>
-                <td className="px-4 py-2.5"><div className="flex flex-wrap gap-1">{user.groups.length ? user.groups.map((group) => <span key={group.id} className="rounded bg-secondary-100 px-1.5 py-0.5 text-[10px] font-medium text-secondary-700">{group.name}</span>) : <span className="text-xs text-foreground-400">—</span>}</div></td>
+                <td className="px-4 py-2.5"><div className="flex flex-wrap gap-1">{user.groups.length ? user.groups.map((group) => <span key={group.id} className="rounded bg-secondary-100 px-1.5 py-0.5 text-[10px] font-medium text-secondary-700">{group.name}</span>) : <span className="text-xs text-foreground-400" title={user.entity ? undefined : 'Group membership is resolved in the profile'}>{user.entity ? 'None' : '—'}</span>}</div></td>
                 <td className="px-4 py-2.5"><div className="flex flex-wrap gap-1">{[...user.directRolePolicyNames, ...user.directPolicyNames, ...user.externalPolicyNames].length ? [...user.directRolePolicyNames, ...user.directPolicyNames, ...user.externalPolicyNames].map((policy) => <span key={policy} className="rounded bg-primary-100 px-1.5 py-0.5 font-mono text-[10px] text-primary-700">{policy}</span>) : <span className="text-xs text-foreground-400">default only</span>}</div></td>
               </tr>
             ))}</tbody>

@@ -24,7 +24,7 @@ export default function GroupOverviewStep({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
           Group identity
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">
@@ -47,7 +47,7 @@ export default function GroupOverviewStep({
           required
         />
         <div className="rounded-md border border-background-200 bg-background-100 px-3 py-2.5">
-          <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-foreground-400">
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground-400">
             Group type
           </p>
           <p className="mt-1 text-xs font-semibold text-foreground-800">
@@ -69,7 +69,7 @@ export default function GroupOverviewStep({
       {group && (
         <section className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-background-300 bg-background-50 p-3">
-            <p className="font-mono text-[9px] uppercase text-foreground-400">Ownership</p>
+            <p className="font-mono text-[10px] uppercase text-foreground-400">Ownership</p>
             <p className="mt-1 text-xs font-semibold text-foreground-800">
               {assessIdentityOwnership(group.metadata) === 'managed'
                 ? 'Vault Console managed'
@@ -77,13 +77,13 @@ export default function GroupOverviewStep({
             </p>
           </div>
           <div className="rounded-lg border border-background-300 bg-background-50 p-3">
-            <p className="font-mono text-[9px] uppercase text-foreground-400">Nested groups</p>
+            <p className="font-mono text-[10px] uppercase text-foreground-400">Nested groups</p>
             <p className="mt-1 font-mono text-xs font-semibold text-foreground-800">
               {group.memberGroupIds.length}
             </p>
           </div>
           <div className="rounded-lg border border-background-300 bg-background-50 p-3">
-            <p className="font-mono text-[9px] uppercase text-foreground-400">Parent groups</p>
+            <p className="font-mono text-[10px] uppercase text-foreground-400">Parent groups</p>
             <p className="mt-1 font-mono text-xs font-semibold text-foreground-800">
               {snapshot.parentGroups.length}
             </p>

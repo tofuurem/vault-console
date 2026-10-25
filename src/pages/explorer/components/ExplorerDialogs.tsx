@@ -166,7 +166,7 @@ export default function ExplorerDialogs({
 
 function LazyBulkDialogFallback({ label }: { readonly label: string }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-overlay/40">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-overlay/40">
       <div
         role="status"
         className="flex items-center gap-2 rounded-lg border border-background-300 bg-background-50 px-4 py-3 text-xs text-foreground-700 shadow-sm"

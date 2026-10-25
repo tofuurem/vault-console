@@ -153,11 +153,11 @@ export default function TombstoneDetail({
             <i className="ri-arrow-left-line" aria-hidden="true" /> Removed
           </Button>
           <div className="min-w-0">
-            <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-danger-600">
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-danger-600">
               Disabled Identity tombstone
             </p>
             <h1 className="truncate text-sm font-semibold text-foreground-900">{entity.name}</h1>
-            <p className="truncate font-mono text-[9px] text-foreground-400">{entity.id}</p>
+            <p className="truncate font-mono text-[10px] text-foreground-400">{entity.id}</p>
           </div>
         </div>
       </header>
@@ -165,19 +165,19 @@ export default function TombstoneDetail({
         <div className="mx-auto max-w-[1180px] space-y-5">
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border border-background-300 bg-background-50 p-3">
-              <p className="font-mono text-[9px] uppercase text-foreground-400">Removed login</p>
+              <p className="font-mono text-[10px] uppercase text-foreground-400">Removed login</p>
               <p className="mt-1 font-mono text-xs text-foreground-800">
                 {entity.metadata?.username ?? 'Unknown'}
               </p>
             </div>
             <div className="rounded-lg border border-background-300 bg-background-50 p-3">
-              <p className="font-mono text-[9px] uppercase text-foreground-400">Auth mount</p>
+              <p className="font-mono text-[10px] uppercase text-foreground-400">Auth mount</p>
               <p className="mt-1 font-mono text-xs text-foreground-800">
                 auth/{entity.metadata?.auth_mount ?? 'unknown'}
               </p>
             </div>
             <div className="rounded-lg border border-warning-300 bg-warning-50 p-3">
-              <p className="font-mono text-[9px] uppercase text-warning-700">Token state</p>
+              <p className="font-mono text-[10px] uppercase text-warning-700">Token state</p>
               <p className="mt-1 text-xs font-semibold text-warning-900">
                 Blocked by Identity, not revoked
               </p>

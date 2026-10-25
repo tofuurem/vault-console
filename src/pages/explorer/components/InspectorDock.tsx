@@ -226,7 +226,7 @@ export default function InspectorDock({
       {!visible && path && <OpenInspectorButton onOpen={onOpen} />}
 
       {fullScreenVisible && (
-        <div className="fixed inset-0 z-[85] bg-background-50">
+        <div className="fixed inset-0 z-fullscreen bg-background-50">
           <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={path ?? 'Secret inspector'} tabIndex={-1} className="flex h-full min-h-0 flex-col">
             <InspectorHeader
               path={path}

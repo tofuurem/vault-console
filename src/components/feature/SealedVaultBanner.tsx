@@ -12,7 +12,7 @@ export default function SealedVaultBanner({ onDismiss }: SealedVaultBannerProps)
     >
       <i className="ri-lock-2-line shrink-0 text-sm text-warning-700" aria-hidden="true" />
       <span className="min-w-0 flex-1">
-        Vault is sealed, so requests are failing. It must be unsealed with key shares before the console can continue.
+        Vault is sealed. Requests fail until key holders unseal it.
       </span>
       <div className="flex items-center gap-1">
         <Link

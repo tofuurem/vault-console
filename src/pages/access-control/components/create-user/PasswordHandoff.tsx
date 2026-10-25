@@ -46,7 +46,7 @@ export default function PasswordHandoff({
             <p className="text-xs font-semibold text-warning-900">One-time password handoff</p>
             <p className="mt-0.5 text-[10px] leading-4 text-warning-700">Leaving this dialog permanently removes the password from the UI state.</p>
           </div>
-          <span className="shrink-0 rounded bg-warning-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-warning-800">Not stored</span>
+          <span className="shrink-0 rounded bg-warning-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning-800">Not stored</span>
         </div>
 
         <dl className="grid grid-cols-[90px_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">

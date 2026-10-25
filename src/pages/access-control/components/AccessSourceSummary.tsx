@@ -121,7 +121,7 @@ export default function AccessSourceSummary({
     <section aria-labelledby="access-sources-heading">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
             Provenance
           </p>
           <h2 id="access-sources-heading" className="mt-0.5 text-sm font-semibold text-foreground-900">
@@ -149,7 +149,7 @@ export default function AccessSourceSummary({
                   <h3 id={`source-section-${section.key}`} className="text-xs font-semibold text-foreground-800">
                     {section.label}
                   </h3>
-                  <span className="font-mono text-[9px] text-foreground-400">
+                  <span className="font-mono text-[10px] text-foreground-400">
                     {section.sources.length}
                   </span>
                 </div>
@@ -184,7 +184,7 @@ export default function AccessSourceSummary({
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
-                          <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${status.classes}`}>
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${status.classes}`}>
                             {status.label}
                           </span>
                           {retryable(source.resolution) && (

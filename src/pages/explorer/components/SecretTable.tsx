@@ -104,7 +104,7 @@ export default function SecretTable({
           )}
           <th aria-label="Type" className="w-10 px-3 py-2" />
           <th className="px-0 py-2 text-left text-[11px] font-medium text-foreground-500">Name</th>
-          <th className="w-28 px-3 py-2 text-left text-[11px] font-medium text-foreground-500">Type</th>
+          <th className="hidden w-28 px-3 py-2 text-left text-[11px] font-medium text-foreground-500 sm:table-cell">Type</th>
           <th className="hidden px-3 py-2 text-left text-[11px] font-medium text-foreground-500 md:table-cell">Logical path</th>
           {onToggleFavorite && <th aria-label="Favorite" className="w-10 px-2 py-2" />}
           {onDeletePermanently && <th aria-label="Actions" className="w-10 px-2 py-2" />}
@@ -201,7 +201,7 @@ function SecretTableRow({
           {presentation.name}
         </button>
       </td>
-      <td className="px-3 py-2.5 text-xs text-foreground-500">{presentation.type}</td>
+      <td className="hidden px-3 py-2.5 text-xs text-foreground-500 sm:table-cell">{presentation.type}</td>
       <td className="hidden px-3 py-2.5 font-mono text-[11px] text-foreground-400 md:table-cell">{entry.path}</td>
       {onToggleFavorite && (
         <td className="px-2 py-2">

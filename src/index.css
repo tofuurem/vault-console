@@ -272,7 +272,7 @@ body {
   transform: translateY(0);
 }
 
-:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
   outline: 2px solid oklch(var(--primary-500));
   outline-offset: 2px;
 }
@@ -289,16 +289,6 @@ button,
 
 .font-mono {
   font-family: var(--font-mono);
-}
-
-/* Anti-spam honeypot */
-.contact-alt-field {
-  position: absolute;
-  left: -9999px;
-  opacity: 0;
-  height: 0;
-  width: 0;
-  overflow: hidden;
 }
 
 /* Scrollbar styling */

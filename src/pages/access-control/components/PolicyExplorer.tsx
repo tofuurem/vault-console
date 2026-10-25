@@ -38,7 +38,7 @@ export default function PolicyExplorer({
       <header className="shrink-0 border-b border-background-200 px-5 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">Vault ACL</p>
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">Vault ACL</p>
             <div className="flex items-center gap-2">
               <h1 id="policies-heading" className="text-sm font-semibold text-foreground-900">Policy explorer</h1>
               <span className="text-xs text-foreground-400">{policyNames.length}</span>
@@ -68,13 +68,13 @@ export default function PolicyExplorer({
                   onSelect(name);
                   setShowHcl(false);
                 }}
-                className={`w-full border-b border-background-100 px-4 py-3 text-left transition-colors ${selectedName === name ? 'border-l-2 border-l-primary-500 bg-primary-50' : 'hover:bg-background-100'}`}
+                className={`w-full border-b border-background-100 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 ${selectedName === name ? 'border-l-2 border-l-primary-500 bg-primary-50' : 'hover:bg-background-100'}`}
               >
                 <div className="flex items-center gap-2">
                   <span className="truncate font-mono text-xs font-medium text-foreground-800">{name}</span>
                   <PolicyBadge kind={kind} />
                 </div>
-                <p className="mt-1 text-[10px] text-foreground-400">Select to read policy body</p>
+                <p className="mt-1 text-[10px] text-foreground-500">{selectedName === name ? 'Showing policy body' : 'Select to read policy body'}</p>
               </button>
             );
           })}

@@ -157,7 +157,7 @@ export default function SearchResults({
                     <HighlightedText value={entry.path} query={query} />
                   </span>
                 </span>
-                <span className="rounded bg-background-200 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-foreground-500">
+                <span className="rounded bg-background-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground-500">
                   {entry.kind}
                 </span>
               </button>

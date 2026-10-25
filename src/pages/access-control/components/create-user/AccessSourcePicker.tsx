@@ -70,7 +70,7 @@ export default function AccessSourcePicker({
                     <span className="block truncate text-xs font-medium text-foreground-800">{group.name}</span>
                     <span className="mt-1 flex flex-wrap gap-1">
                       {group.roleIds.map((roleId) => (
-                        <span key={roleId} className="rounded bg-background-200 px-1.5 py-0.5 text-[9px] text-foreground-500">
+                        <span key={roleId} className="rounded bg-background-200 px-1.5 py-0.5 text-[10px] text-foreground-500">
                           {rolesById.get(roleId)?.name ?? roleId}
                         </span>
                       ))}
@@ -103,9 +103,9 @@ export default function AccessSourcePicker({
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block text-xs font-medium text-foreground-700">{role.name}</span>
-                  <span className="block truncate font-mono text-[9px] text-foreground-400">{role.policyNames.join(', ')}</span>
+                  <span className="block truncate font-mono text-[10px] text-foreground-400">{role.policyNames.join(', ')}</span>
                 </span>
-                {inherited && <span className="rounded bg-success-50 px-1.5 py-0.5 text-[9px] font-medium text-success-700">Via group</span>}
+                {inherited && <span className="rounded bg-success-50 px-1.5 py-0.5 text-[10px] font-medium text-success-700">Via group</span>}
               </label>
             );
           })}

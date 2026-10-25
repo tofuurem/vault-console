@@ -236,7 +236,7 @@ function DestroyCandidate({
               className="h-4 w-4 accent-danger-600"
             />
             <span className="font-mono text-xs font-semibold text-foreground-800">v{version.version}</span>
-            {version.deletionTime && <span className="rounded bg-warning-100 px-1.5 py-0.5 text-[9px] font-semibold text-warning-800">soft-deleted</span>}
+            {version.deletionTime && <span className="rounded bg-warning-100 px-1.5 py-0.5 text-[10px] font-semibold text-warning-800">soft-deleted</span>}
           </label>
         ))}
       </div>

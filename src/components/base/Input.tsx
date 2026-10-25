@@ -3,29 +3,34 @@ import { forwardRef, useId, type InputHTMLAttributes, type TextareaHTMLAttribute
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  hint?: string;
   icon?: string;
   monospace?: boolean;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, icon, monospace, className = '', id, ...props }, ref) => {
+  ({ label, error, hint, icon, monospace, className = '', id, ...props }, ref) => {
     const generatedId = useId();
     const inputId = id ?? generatedId;
     const errorId = `${inputId}-error`;
+    const hintId = `${inputId}-hint`;
+    const describedBy = [error ? errorId : undefined, hint ? hintId : undefined]
+      .filter(Boolean)
+      .join(' ') || undefined;
     return (
       <div className="flex flex-col gap-1">
         {label && <label htmlFor={inputId} className="text-xs font-medium text-foreground-700">{label}</label>}
         <div className="relative">
           {icon && (
-            <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground-400">
-              <i className={`${icon} text-sm`} />
+            <div className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground-400">
+              <i className={`${icon} text-sm`} aria-hidden="true" />
             </div>
           )}
           <input
             ref={ref}
             id={inputId}
             aria-invalid={Boolean(error)}
-            aria-describedby={error ? errorId : undefined}
+            aria-describedby={describedBy}
             className={`h-11 w-full rounded-md border border-background-300 bg-background-50 px-2.5 text-sm sm:h-8
               text-foreground-900 placeholder:text-foreground-400
               focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-400/30
@@ -37,7 +42,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
         </div>
-        {error && <span id={errorId} className="text-xs text-danger-500">{error}</span>}
+        {error && <span id={errorId} className="text-xs text-danger-600">{error}</span>}
+        {hint && <span id={hintId} className="text-[11px] leading-4 text-foreground-500">{hint}</span>}
       </div>
     );
   }
@@ -73,7 +79,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             ${className}`}
           {...props}
         />
-        {error && <span id={errorId} className="text-xs text-danger-500">{error}</span>}
+        {error && <span id={errorId} className="text-xs text-danger-600">{error}</span>}
       </div>
     );
   }

@@ -146,7 +146,7 @@ export default function ToastViewport({
   return createPortal(
     <div
       aria-label="Notifications"
-      className="pointer-events-none fixed inset-x-3 bottom-3 z-[100] flex max-h-[calc(100dvh-24px)] flex-col-reverse gap-2 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-[360px]"
+      className="pointer-events-none fixed inset-x-3 bottom-3 z-toast flex max-h-[calc(100dvh-24px)] flex-col-reverse gap-2 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-[360px]"
     >
       <div aria-live="polite" aria-relevant="additions" className="contents">
         {politeToasts.map((toast) => (

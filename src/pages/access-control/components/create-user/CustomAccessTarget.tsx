@@ -143,7 +143,7 @@ export default function CustomAccessTarget({
               {preview.map((rule) => (
                 <div key={rule.pattern} className="min-w-0 rounded border border-background-200 bg-background-50 px-2 py-1.5">
                   <p className="break-all font-mono text-[10px] text-foreground-700">{rule.pattern}</p>
-                  <p className="mt-0.5 break-all font-mono text-[9px] text-primary-600">{rule.capabilities.join(', ')}</p>
+                  <p className="mt-0.5 break-all font-mono text-[10px] text-primary-600">{rule.capabilities.join(', ')}</p>
                 </div>
               ))}
             </div>
@@ -152,7 +152,7 @@ export default function CustomAccessTarget({
 
         {directRules.length > 0 && (
           <div>
-            <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-foreground-400">Current direct targets</p>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-400">Current direct targets</p>
             <div className="space-y-1.5">
               {directRules.map((rule) => {
                 const node: KvAccessTreeNode = {
@@ -167,7 +167,7 @@ export default function CustomAccessTarget({
                   <div key={rule.nodeId} className="flex flex-col gap-2 rounded-md border border-background-200 px-2.5 py-2 sm:flex-row sm:items-center">
                     <div className="min-w-0 flex-1">
                       <p className="break-all font-mono text-[11px] text-foreground-800">{rule.mount}/{rule.path || '*'}</p>
-                      <p className="text-[9px] uppercase tracking-wider text-foreground-400">{rule.target}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-foreground-400">{rule.target}</p>
                     </div>
                     <DirectAccessEditor
                       label={`${rule.mount}/${rule.path || '*'}`}

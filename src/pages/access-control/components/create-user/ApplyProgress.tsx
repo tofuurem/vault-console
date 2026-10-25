@@ -32,7 +32,7 @@ export default function ApplyProgress({ operations, error }: ApplyProgressProps)
             <div key={operation.id} className={`flex items-center gap-2.5 rounded-md border px-3 py-2 text-xs ${style.row}`}>
               <i className={`${style.icon} ${style.iconColor} text-sm`} aria-hidden="true" />
               <span className="font-medium text-foreground-700">{operation.label}</span>
-              <span className="ml-auto text-[9px] font-semibold uppercase tracking-wider text-foreground-400">{style.label}</span>
+              <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider text-foreground-400">{style.label}</span>
             </div>
           );
         })}

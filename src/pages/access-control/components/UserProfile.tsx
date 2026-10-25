@@ -12,6 +12,7 @@ import Button from '@/components/base/Button';
 import AccessSourceSummary from './AccessSourceSummary';
 import EffectiveAccessMatrix from './EffectiveAccessMatrix';
 import ReportCompleteness from './ReportCompleteness';
+import { identityTitle } from '@/domain/access-control/identity-names';
 
 interface UserProfileProps {
   readonly resource: UserAccessReportResource;
@@ -109,20 +110,21 @@ export default function UserProfile({
     headingRef.current?.focus();
   }, [resource.report.account.mount, resource.report.account.username]);
 
+  const title = identityTitle(resource.user.displayName, resource.user.username);
   return (
     <section
       aria-labelledby="user-profile-heading"
       className="flex min-h-0 flex-1 flex-col bg-background-100/40"
     >
       <header className="shrink-0 border-b border-background-200 bg-background-50 px-4 py-3 sm:px-5">
-        <div className="mx-auto flex max-w-[1480px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <Button size="sm" onClick={onBack} aria-label="Back to users">
               <i className="ri-arrow-left-line" aria-hidden="true" />
               <span className="hidden sm:inline">Users</span>
             </Button>
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary-200 bg-primary-100 font-mono text-sm font-semibold text-primary-700">
-              {resource.user.displayName.charAt(0).toUpperCase()}
+              {title.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -132,9 +134,9 @@ export default function UserProfile({
                   tabIndex={-1}
                   className="truncate text-base font-semibold tracking-tight text-foreground-900 focus:outline-none"
                 >
-                  {resource.user.displayName}
+                  {title}
                 </h2>
-                <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${identity.classes}`}>
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${identity.classes}`}>
                   {identity.label}
                 </span>
               </div>
@@ -143,14 +145,7 @@ export default function UserProfile({
               </p>
             </div>
           </div>
-          <div className="flex w-full flex-wrap items-center gap-2 lg:max-w-2xl lg:justify-end">
-            <div className="min-w-0 flex-[1_1_320px]">
-              <ReportCompleteness
-                completeness={resource.report.completeness}
-                refreshing={refreshing}
-                onRetry={actions.retryIncomplete}
-              />
-            </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             {onEdit && (
               <Button size="sm" variant="primary" onClick={onEdit}>
                 <i className="ri-edit-line" aria-hidden="true" />
@@ -159,6 +154,13 @@ export default function UserProfile({
             )}
             {lifecycleActions}
           </div>
+        </div>
+        <div className="mx-auto mt-3 max-w-[1480px]">
+          <ReportCompleteness
+            completeness={resource.report.completeness}
+            refreshing={refreshing}
+            onRetry={actions.retryIncomplete}
+          />
         </div>
       </header>
 

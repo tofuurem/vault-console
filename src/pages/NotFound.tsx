@@ -22,7 +22,7 @@ export default function NotFound() {
         <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-primary-100 text-primary-700">
           <i className="ri-compass-3-line text-xl" aria-hidden="true" />
         </div>
-        <p className="mt-4 font-mono text-[9px] font-semibold uppercase tracking-[0.17em] text-primary-600">
+        <p className="mt-4 font-mono text-[10px] font-semibold uppercase tracking-[0.17em] text-primary-600">
           Route not found
         </p>
         <h1 id="not-found-title" className="mt-1 text-xl font-semibold text-foreground-900">

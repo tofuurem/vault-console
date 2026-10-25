@@ -426,19 +426,19 @@ function ExplorerDirectoryHeader({
       <PathBreadcrumbs mount={mount} currentPath={currentPath} onNavigate={onNavigateToBreadcrumb} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">KV version 2</p>
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">KV version 2</p>
           <div className="flex items-center gap-2">
             <h1 id="directory-heading" className="text-sm font-semibold text-foreground-900">{currentMount?.description || `${mount}/`}</h1>
             {directory.status === 'success' && <span className="text-xs text-foreground-400">{searchModel.searchQuery.trim().length > 0 ? `${searchModel.searchMatches.length} matches` : `${searchModel.entries.length} items`}</span>}
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Tooltip content="Refresh directory"><button type="button" aria-label="Refresh directory" onClick={onRefresh} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"><i className={`${directory.status === 'loading' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} text-sm`} aria-hidden="true" /></button></Tooltip>
           <Tooltip content={clipboard.copiedTarget === 'path' ? 'Path copied' : 'Copy logical path'}><button type="button" aria-label="Copy logical path" onClick={() => void clipboard.copy(`${mount}/${currentPath}`, 'path')} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"><i className={`${clipboard.copiedTarget === 'path' ? 'ri-check-line text-success-600' : 'ri-file-copy-line'} text-sm`} aria-hidden="true" /></button></Tooltip>
           <Tooltip content={clipboard.copiedTarget === 'cli' ? 'CLI command copied' : 'Copy Vault CLI command'}><button type="button" aria-label="Copy Vault CLI command" onClick={() => void clipboard.copy(`vault kv list -mount=${mount} ${currentPath || '/'}`, 'cli')} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"><i className={`${clipboard.copiedTarget === 'cli' ? 'ri-check-line text-success-600' : 'ri-terminal-line'} text-sm`} aria-hidden="true" /></button></Tooltip>
-          {onOpenExactPath && !denied && <Button size="sm" onClick={() => setExactPathOpen((open) => !open)} aria-expanded={exactPathOpen}><i className="ri-route-line" aria-hidden="true" /> Open exact path</Button>}
-          {onConfigureMount && <Button size="sm" onClick={onConfigureMount}><i className="ri-settings-3-line" aria-hidden="true" /> Configure mount</Button>}
-          {onCreateSecret && <Button size="sm" variant="primary" onClick={onCreateSecret}><i className="ri-add-line" aria-hidden="true" /> Create secret</Button>}
+          {onOpenExactPath && !denied && <Button size="sm" onClick={() => setExactPathOpen((open) => !open)} aria-expanded={exactPathOpen} aria-label="Open exact path"><i className="ri-route-line" aria-hidden="true" /><span className="hidden sm:inline">Open exact path</span></Button>}
+          {onConfigureMount && <Button size="sm" onClick={onConfigureMount} aria-label="Configure mount"><i className="ri-settings-3-line" aria-hidden="true" /><span className="hidden sm:inline">Configure mount</span></Button>}
+          {onCreateSecret && <Button size="sm" variant="primary" onClick={onCreateSecret}><i className="ri-add-line" aria-hidden="true" />Create secret</Button>}
         </div>
       </div>
       {exactPathOpen && onOpenExactPath && !denied && <div className="mt-3 rounded-lg border border-background-200 bg-background-100 p-3"><OpenExactPathForm mount={mount} autoFocus onCancel={() => setExactPathOpen(false)} onOpen={openExactPath} /></div>}

@@ -21,7 +21,7 @@ export default function GroupMembersStep({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
           Direct membership
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">
@@ -38,7 +38,7 @@ export default function GroupMembersStep({
           <p className="text-xs font-semibold text-warning-900">Nested groups are read-only</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {snapshot.group.memberGroupIds.map((id) => (
-              <span key={id} className="rounded bg-warning-100 px-2 py-1 font-mono text-[9px] text-warning-800">
+              <span key={id} className="rounded bg-warning-100 px-2 py-1 font-mono text-[10px] text-warning-800">
                 {id}
               </span>
             ))}
@@ -50,7 +50,7 @@ export default function GroupMembersStep({
         <header className="flex items-center justify-between border-b border-background-200 px-4 py-3">
           <div>
             <h3 className="text-xs font-semibold text-foreground-900">Readable entities</h3>
-            <p className="mt-0.5 text-[9px] text-foreground-400">
+            <p className="mt-0.5 text-[10px] text-foreground-400">
               {draft.memberEntityIds.length} selected
             </p>
           </div>
@@ -74,12 +74,12 @@ export default function GroupMembersStep({
                 <span className="block truncate text-xs font-semibold text-foreground-800">
                   {entity.name}
                 </span>
-                <span className="block truncate font-mono text-[9px] text-foreground-400">
+                <span className="block truncate font-mono text-[10px] text-foreground-400">
                   {entity.id}
                 </span>
               </span>
               {entity.disabled && (
-                <span className="rounded bg-warning-100 px-1.5 py-0.5 text-[9px] font-semibold text-warning-800">
+                <span className="rounded bg-warning-100 px-1.5 py-0.5 text-[10px] font-semibold text-warning-800">
                   Disabled
                 </span>
               )}

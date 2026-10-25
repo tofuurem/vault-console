@@ -110,7 +110,7 @@ export default function CommandPalette() {
             spellCheck={false}
             className="h-11 min-w-0 flex-1 bg-transparent text-sm text-foreground-900 outline-none placeholder:text-foreground-400 sm:h-10"
           />
-          <kbd className="rounded border border-background-300 bg-background-50 px-1.5 py-0.5 font-mono text-[9px] text-foreground-400">
+          <kbd className="rounded border border-background-300 bg-background-50 px-1.5 py-0.5 font-mono text-[10px] text-foreground-400">
             Esc
           </kbd>
         </div>
@@ -158,7 +158,7 @@ export default function CommandPalette() {
                   </span>
                 </span>
                 {command.shortcut && (
-                  <kbd className="rounded border border-background-300 bg-background-50 px-1.5 py-0.5 font-mono text-[9px] text-foreground-400">
+                  <kbd className="rounded border border-background-300 bg-background-50 px-1.5 py-0.5 font-mono text-[10px] text-foreground-400">
                     {command.shortcut}
                   </kbd>
                 )}

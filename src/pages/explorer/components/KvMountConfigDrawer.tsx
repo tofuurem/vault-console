@@ -156,6 +156,7 @@ export default function KvMountConfigDrawer({
             )}
             <Input
               label="Default maximum versions"
+              hint="0 uses Vault's default of 10 versions."
               value={maxVersions}
               onChange={(event) => setMaxVersions(event.target.value)}
               inputMode="numeric"
@@ -163,6 +164,7 @@ export default function KvMountConfigDrawer({
             />
             <Input
               label="Default delete delay"
+              hint="Duration such as 30d or 720h; 0s keeps versions."
               value={deleteVersionAfter}
               onChange={(event) => setDeleteVersionAfter(event.target.value)}
               placeholder="0s"

@@ -28,7 +28,7 @@ export default function GroupRolesStep({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
           Policy attachments
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">
@@ -45,7 +45,7 @@ export default function GroupRolesStep({
           <p className="text-xs font-semibold text-warning-900">Preserved external policies</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {externalPolicies.map((name) => (
-              <span key={name} className="rounded bg-warning-100 px-2 py-1 font-mono text-[9px] text-warning-800">
+              <span key={name} className="rounded bg-warning-100 px-2 py-1 font-mono text-[10px] text-warning-800">
                 {name}
               </span>
             ))}
@@ -84,10 +84,10 @@ export default function GroupRolesStep({
                   <span className="block text-xs font-semibold text-foreground-900">
                     {role.name}
                   </span>
-                  <span className="mt-0.5 block truncate font-mono text-[9px] text-foreground-400">
+                  <span className="mt-0.5 block truncate font-mono text-[10px] text-foreground-400">
                     {policyName}
                   </span>
-                  <span className="mt-2 block text-[9px] text-foreground-500">
+                  <span className="mt-2 block text-[10px] text-foreground-500">
                     {rules.length} visual KV rule{rules.length === 1 ? '' : 's'}
                   </span>
                 </span>

@@ -23,7 +23,7 @@ export default function TombstonesList({
               <i className="ri-arrow-left-line" aria-hidden="true" /> Users
             </Button>
             <div>
-              <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-danger-600">
+              <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-danger-600">
                 Advanced lifecycle
               </p>
               <div className="flex items-center gap-2">
@@ -95,7 +95,7 @@ export default function TombstonesList({
                     auth/{record.mount}
                   </td>
                   <td className="px-4 py-2.5">
-                    <span className="rounded-full bg-warning-100 px-2 py-1 text-[9px] font-semibold text-warning-800">
+                    <span className="rounded-full bg-warning-100 px-2 py-1 text-[10px] font-semibold text-warning-800">
                       Disabled tombstone
                     </span>
                   </td>

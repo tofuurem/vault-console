@@ -78,7 +78,7 @@ export default function Tooltip({
         <div
           id={tooltipId}
           role="tooltip"
-          className={`pointer-events-none absolute z-50 whitespace-nowrap rounded-md bg-foreground-900 px-2 py-1 text-xs font-medium text-background-50 ${positionClasses[position]}`}
+          className={`pointer-events-none absolute z-popover whitespace-nowrap rounded-md bg-foreground-900 px-2 py-1 text-xs font-medium text-background-50 ${positionClasses[position]}`}
         >
           {content}
         </div>

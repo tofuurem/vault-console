@@ -75,7 +75,7 @@ function SecretTreeNode({
         ) : <span className="h-11 w-11 shrink-0 sm:h-6 sm:w-6" aria-hidden="true" />}
 
         <span className="max-w-[min(42vw,440px)] break-all font-mono font-medium text-foreground-800">{label}</span>
-        <span className="rounded bg-background-200 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-foreground-500">{type}</span>
+        <span className="rounded bg-background-200 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-foreground-500">{type}</span>
 
         {container ? (
           <span className="font-mono text-[10px] text-foreground-400">

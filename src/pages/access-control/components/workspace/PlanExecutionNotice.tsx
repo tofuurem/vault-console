@@ -46,14 +46,14 @@ export default function PlanExecutionNotice({
 
       {result.missingRequirements && result.missingRequirements.length > 0 && (
         <div className="mt-2 border-t border-current/10 pt-2">
-          <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.12em]">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em]">
             Missing Vault capabilities
           </p>
           <ul className="mt-1 space-y-1">
             {result.missingRequirements.map((requirement) => (
               <li
                 key={`${requirement.path}:${requirement.anyOf.join(',')}`}
-                className="break-all font-mono text-[9px] leading-4"
+                className="break-all font-mono text-[10px] leading-4"
               >
                 {requirement.path} [{requirement.anyOf.join(' or ')}]
               </li>
@@ -64,10 +64,10 @@ export default function PlanExecutionNotice({
 
       {result.operations.length > 0 && (
         <div className="mt-2 border-t border-current/10 pt-2">
-          <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.12em]">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em]">
             Verified operation state
           </p>
-          <ul className="mt-1 space-y-1 font-mono text-[9px]">
+          <ul className="mt-1 space-y-1 font-mono text-[10px]">
             {result.operations.map((operation) => (
               <li key={operation.operationId}>
                 {operation.operationId}: {operation.state}
@@ -79,7 +79,7 @@ export default function PlanExecutionNotice({
 
       {result.recovery.length > 0 && (
         <div className="mt-2 border-t border-current/10 pt-2">
-          <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.12em]">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em]">
             Recovery
           </p>
           <ol className="mt-1 list-decimal space-y-1 pl-4 text-[10px] leading-4">

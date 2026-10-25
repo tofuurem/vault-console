@@ -19,4 +19,30 @@ describe('Drawer', () => {
     await user.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it('lets only the topmost of nested dialogs react to Escape', async () => {
+    const user = userEvent.setup();
+    const closeOuter = vi.fn();
+    const closeInner = vi.fn();
+    const { rerender } = render(
+      <Drawer open title="Outer" onClose={closeOuter}>
+        <button type="button">Outer action</button>
+      </Drawer>,
+    );
+    rerender(
+      <>
+        <Drawer open title="Outer" onClose={closeOuter}>
+          <button type="button">Outer action</button>
+        </Drawer>
+        <Drawer open title="Inner" onClose={closeInner}>
+          <button type="button">Inner action</button>
+        </Drawer>
+      </>,
+    );
+
+    await user.keyboard('{Escape}');
+
+    expect(closeInner).toHaveBeenCalledOnce();
+    expect(closeOuter).not.toHaveBeenCalled();
+  });
 });

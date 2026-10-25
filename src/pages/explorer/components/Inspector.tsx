@@ -11,6 +11,7 @@ import Tabs from '@/components/base/Tabs';
 import Tooltip from '@/components/base/Tooltip';
 import type { VaultError } from '@/domain/vault/errors';
 import { secretContainerSize, secretValueType } from '@/domain/vault/secret-json';
+import { formatDateTime } from '@/shared/format/date-time';
 
 interface InspectorProps {
   readonly state: VaultQueryState<KvSecretDetails>;
@@ -90,7 +91,7 @@ function MaskedValue({
   };
 
   return (
-    <div className="flex min-w-0 items-start gap-1.5">
+    <div className="flex min-w-0 items-center gap-1.5 sm:items-start">
       <div className="min-w-0 flex-1">
         {revealed && container ? (
           <pre className="max-h-48 overflow-auto whitespace-pre rounded bg-background-100 p-2 font-mono text-[11px] leading-5 text-foreground-800"><code>{printable}</code></pre>
@@ -145,12 +146,6 @@ function InspectorValue({
       onClipboardFeedback={onClipboardFeedback}
     />
   );
-}
-
-function formatTime(value: string): string {
-  return new Date(value).toLocaleString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
 }
 
 function ScopedResourceError({
@@ -395,12 +390,12 @@ function InspectorDataTab({
         <div><span className="text-[11px] font-medium text-foreground-500">Current version</span><span className="ml-1.5 font-mono text-xs text-foreground-800">v{secret.metadata.version}</span></div>
         <InspectorSecretActions mount={mount} path={path} favorite={favorite} onToggleFavorite={onToggleFavorite} onView={onView} onEdit={onEdit} permissions={permissions} />
       </div>
-      <p className="text-[10px] text-foreground-400">Created {formatTime(secret.metadata.createdTime)}</p>
+      <p className="text-[10px] text-foreground-400">Created {formatDateTime(secret.metadata.createdTime)}</p>
       <div className="overflow-hidden rounded-md border border-background-200">
         <div className="grid grid-cols-[minmax(90px,120px)_1fr] border-b border-background-200 bg-background-100 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-500"><span>Key</span><span>Value</span></div>
         <div className="divide-y divide-background-100">
           {Object.entries(secret.data).map(([key, value]) => (
-            <div key={`${mount}\u001f${path}\u001f${secret.metadata.version}\u001f${key}`} className="grid grid-cols-[minmax(90px,120px)_1fr] px-2.5 py-2">
+            <div key={`${mount}\u001f${path}\u001f${secret.metadata.version}\u001f${key}`} className="grid grid-cols-[minmax(90px,120px)_1fr] items-center px-2.5 py-1 sm:items-start sm:py-2">
               <span className="break-all pr-2 font-mono text-xs font-medium text-foreground-700">{key}</span>
               <InspectorValue label={key} value={value} onClipboardFeedback={onClipboardFeedback} />
             </div>
@@ -472,7 +467,7 @@ function InspectorVersionsTab({
               {version.deletionTime && <Badge variant="danger">Deleted</Badge>}
               {version.destroyed && <Badge variant="danger">Destroyed</Badge>}
               {!current && !version.deletionTime && !version.destroyed && <Badge variant="info">Older</Badge>}
-              <p className="mt-0.5 truncate text-[10px] text-foreground-400">{formatTime(version.createdTime)}</p>
+              <p className="mt-0.5 truncate text-[10px] text-foreground-400">{formatDateTime(version.createdTime)}</p>
             </div>
             {!version.destroyed && (
               <div className="flex shrink-0 items-center gap-1">
@@ -498,24 +493,24 @@ function InspectorMetadataTab({
 }: InspectorContentProps) {
   const { history, historyError } = details;
   return (
-    <div className="space-y-3 p-3 text-xs">
+    <div className="max-w-2xl space-y-3 p-3 text-xs">
       {history ? (
         <>
           <dl className="space-y-2">
             <div className="flex justify-between gap-3"><dt className="text-foreground-500">Logical path</dt><dd className="break-all text-right font-mono text-foreground-800">{mount}/{path}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="text-foreground-500">Created</dt><dd className="text-right text-foreground-800">{formatTime(history.createdTime)}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="text-foreground-500">Updated</dt><dd className="text-right text-foreground-800">{formatTime(history.updatedTime)}</dd></div>
-            <div className="flex justify-between"><dt className="text-foreground-500">Current version</dt><dd className="font-mono text-foreground-800">{history.currentVersion}</dd></div>
-            <div className="flex justify-between"><dt className="text-foreground-500">Oldest version</dt><dd className="font-mono text-foreground-800">{history.oldestVersion}</dd></div>
-            <div className="flex justify-between"><dt className="text-foreground-500">Maximum versions</dt><dd className="font-mono text-foreground-800">{history.maxVersions === 0 ? 'Mount default' : history.maxVersions}</dd></div>
-            <div className="flex justify-between"><dt className="text-foreground-500">Check-and-set required</dt><dd className="font-medium text-foreground-800">{history.casRequired ? 'Yes' : 'No'}</dd></div>
-            <div className="flex justify-between"><dt className="text-foreground-500">Delete version after</dt><dd className="font-mono text-foreground-800">{history.deleteVersionAfter === '0s' ? 'Disabled' : history.deleteVersionAfter}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-foreground-500">Created</dt><dd className="text-right text-foreground-800">{formatDateTime(history.createdTime)}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-foreground-500">Updated</dt><dd className="text-right text-foreground-800">{formatDateTime(history.updatedTime)}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-foreground-500">Current version</dt><dd className="font-mono text-foreground-800">{history.currentVersion}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-foreground-500">Oldest version</dt><dd className="font-mono text-foreground-800">{history.oldestVersion}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-foreground-500">Maximum versions</dt><dd className="font-mono text-foreground-800">{history.maxVersions === 0 ? 'Mount default' : history.maxVersions}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-foreground-500">Check-and-set required</dt><dd className="font-medium text-foreground-800">{history.casRequired ? 'Yes' : 'No'}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-foreground-500">Delete version after</dt><dd className="font-mono text-foreground-800">{history.deleteVersionAfter === '0s' ? 'Disabled' : history.deleteVersionAfter}</dd></div>
           </dl>
           {Object.keys(history.customMetadata).length > 0 && <CustomMetadata metadata={history.customMetadata} />}
           {canAttemptKvAction(permissions, 'canReadMetadata') && canAttemptKvAction(permissions, 'canUpdateMetadata') && onEditMetadata && <Button size="sm" onClick={onEditMetadata}><i className="ri-edit-line" aria-hidden="true" /> Edit key metadata</Button>}
         </>
       ) : <ScopedResourceError title={historyError?.code === 'authorization' ? 'Secret metadata is not allowed' : 'Secret metadata could not be loaded'} error={historyError} onRetry={onRetry} />}
-      {canAttemptKvAction(permissions, 'canDeleteMetadata') && onDeleteMetadata && <div className="border-t border-background-200 pt-3"><button type="button" aria-label="Delete key permanently" onClick={onDeleteMetadata} className="text-xs font-medium text-danger-600 hover:text-danger-700">Delete key permanently…</button></div>}
+      {canAttemptKvAction(permissions, 'canDeleteMetadata') && onDeleteMetadata && <div className="border-t border-background-200 pt-3"><button type="button" aria-label="Delete key permanently" onClick={onDeleteMetadata} className="min-h-11 rounded px-1 text-xs font-medium text-danger-600 hover:text-danger-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400 sm:min-h-7">Delete key permanently…</button></div>}
     </div>
   );
 }
@@ -524,7 +519,7 @@ function CustomMetadata({ metadata }: { readonly metadata: Readonly<Record<strin
   return (
     <div className="border-t border-background-200 pt-3">
       <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-foreground-500">Custom metadata</p>
-      {Object.entries(metadata).map(([key, value]) => <p key={key} className="mb-1 flex justify-between gap-3"><span className="font-mono text-foreground-600">{key}</span><span className="text-foreground-800">{String(value)}</span></p>)}
+      {Object.entries(metadata).map(([key, value]) => <p key={key} className="mb-1 flex justify-between gap-3"><span className="min-w-0 break-all font-mono text-foreground-600">{key}</span><span className="min-w-0 break-all text-right text-foreground-800">{String(value)}</span></p>)}
     </div>
   );
 }

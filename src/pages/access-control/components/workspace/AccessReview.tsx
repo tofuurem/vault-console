@@ -33,7 +33,7 @@ function PermissionList({
         <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground-500">
           {title}
         </h3>
-        <span className={`rounded-sm px-1.5 py-0.5 font-mono text-[9px] ${
+        <span className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] ${
           tone === 'added'
             ? 'bg-success-100 text-success-800'
             : 'bg-danger-100 text-danger-800'
@@ -54,7 +54,7 @@ function PermissionList({
             }`}>
               {tone === 'added' ? '+' : '−'} {point.capability}
             </span>
-            <span className="truncate font-mono text-[9px] text-foreground-600">
+            <span className="truncate font-mono text-[10px] text-foreground-600">
               {point.pattern}
             </span>
           </div>
@@ -78,7 +78,7 @@ export default function AccessReview({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
           Change ledger
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">
@@ -111,7 +111,7 @@ export default function AccessReview({
 
       <section aria-labelledby="operation-plan-heading" className="rounded-lg border border-background-300 bg-background-50">
         <header className="border-b border-background-200 px-4 py-3">
-          <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-foreground-400">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-400">
             Ordered execution
           </p>
           <h3 id="operation-plan-heading" className="mt-0.5 text-sm font-semibold text-foreground-900">
@@ -121,14 +121,14 @@ export default function AccessReview({
         <ol className="divide-y divide-background-200">
           {plan.operations.map((operation, index) => (
             <li key={operation.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[28px_1fr_auto] sm:items-start">
-              <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-foreground-950 font-mono text-[9px] text-background-50">
+              <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-foreground-950 font-mono text-[10px] text-background-50">
                 {String(index + 1).padStart(2, '0')}
               </span>
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-foreground-800">{operation.label}</p>
                 <div className="mt-1 space-y-0.5">
                   {operation.requirements.map((requirement) => (
-                    <p key={requirement.path} className="break-all font-mono text-[9px] text-foreground-400">
+                    <p key={requirement.path} className="break-all font-mono text-[10px] text-foreground-400">
                       {requirement.path}
                       <span className="ml-1 text-foreground-300">
                         [{requirement.anyOf.join(' or ')}]
@@ -137,7 +137,7 @@ export default function AccessReview({
                   ))}
                 </div>
               </div>
-              <span className={`inline-flex w-fit items-center gap-1 rounded-sm border px-1.5 py-1 text-[9px] font-medium ${
+              <span className={`inline-flex w-fit items-center gap-1 rounded-sm border px-1.5 py-1 text-[10px] font-medium ${
                 operation.effectTiming === 'destructive-cleanup'
                   ? 'border-danger-200 bg-danger-50 text-danger-700'
                   : operation.effectTiming === 'does-not-revoke'

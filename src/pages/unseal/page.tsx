@@ -169,7 +169,7 @@ export default function UnsealPage() {
             <i className="ri-lock-unlock-fill text-base" aria-hidden="true" />
           </div>
           <div>
-            <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.17em] text-primary-600">Operator recovery</p>
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.17em] text-primary-600">Operator recovery</p>
             <h1 id="unseal-heading" className="text-lg font-semibold tracking-tight text-foreground-900">Unseal Vault</h1>
           </div>
         </div>
@@ -228,15 +228,17 @@ export default function UnsealPage() {
       </div>
 
       <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-background-200 bg-background-100 px-6 py-3">
-        <Link
-          to={authenticated ? '/explorer' : '/login'}
-          state={authenticated ? undefined : { serverUrl }}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded px-1 text-[11px] font-medium text-foreground-600 hover:text-foreground-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-7"
-        >
-          <i className="ri-arrow-left-line" aria-hidden="true" />
-          {authenticated ? 'Back to console' : 'Back to sign in'}
-        </Link>
-        <div className="flex items-center gap-1">
+        {phase !== 'unsealed' && (
+          <Link
+            to={authenticated ? '/explorer' : '/login'}
+            state={authenticated ? undefined : { serverUrl }}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded px-1 text-[11px] font-medium text-foreground-600 hover:text-foreground-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-7"
+          >
+            <i className="ri-arrow-left-line" aria-hidden="true" />
+            {authenticated ? 'Back to console' : 'Back to sign in'}
+          </Link>
+        )}
+        <div className="ml-auto flex items-center gap-1">
           {status && phase === 'awaiting-shares' && (
             <ResetAttempt status={status} busy={busy} onReset={workflow.resetProgress} />
           )}

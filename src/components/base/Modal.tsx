@@ -42,7 +42,7 @@ export default function Modal({
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+    <div className="fixed inset-0 z-modal flex items-center justify-center">
       <div aria-hidden="true" className={`absolute inset-0 bg-overlay/40 ${open ? 'modal-backdrop-enter' : ''}`} onClick={onClose} />
       <div
         ref={dialogRef}

@@ -214,7 +214,7 @@ function Summary({
   return (
     <div className={`rounded-md border px-2.5 py-2 ${classes[tone]}`}>
       <p className="text-lg font-semibold tabular-nums">{value}</p>
-      <p className="text-[9px] font-semibold uppercase tracking-wide">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wide">{label}</p>
     </div>
   );
 }

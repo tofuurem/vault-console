@@ -27,7 +27,7 @@ export default function RoleOverviewStep({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
           Role identity
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">
@@ -86,7 +86,7 @@ export default function RoleOverviewStep({
           </div>
         ) : (
           <div className="rounded-md border border-background-200 bg-background-100 px-3 py-2.5">
-            <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-foreground-400">
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground-400">
               Immutable policy name
             </p>
             <p className="mt-1 break-all font-mono text-xs font-semibold text-foreground-800">
@@ -95,7 +95,7 @@ export default function RoleOverviewStep({
           </div>
         )}
         <div className="rounded-md border border-background-200 bg-background-100 px-3 py-2.5">
-          <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-foreground-400">
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground-400">
             Ownership state
           </p>
           <p className="mt-1 text-xs font-semibold capitalize text-foreground-800">

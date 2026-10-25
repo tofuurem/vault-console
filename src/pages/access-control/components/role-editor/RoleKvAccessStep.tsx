@@ -55,7 +55,7 @@ export default function RoleKvAccessStep({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
           Canonical KV v2
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">
@@ -88,7 +88,7 @@ export default function RoleKvAccessStep({
                 <span className="font-mono text-xs text-foreground-700">
                   {rule.mount}/{rule.path || '*'}
                 </span>
-                <span className="rounded bg-primary-100 px-2 py-1 text-[9px] font-semibold text-primary-700">
+                <span className="rounded bg-primary-100 px-2 py-1 text-[10px] font-semibold text-primary-700">
                   {rule.level} · {rule.target}
                 </span>
               </div>
@@ -112,18 +112,18 @@ export default function RoleKvAccessStep({
               onDirectRuleChange={updateRule}
             />
             <aside className="rounded-lg border border-background-300 bg-background-50 p-4 xl:sticky xl:top-4">
-              <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-primary-600">
+              <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-primary-600">
                 Role output
               </p>
               <dl className="mt-3 grid grid-cols-2 gap-2 text-center">
                 <div className="rounded-md bg-background-100 p-2">
-                  <dt className="text-[9px] uppercase text-foreground-400">Targets</dt>
+                  <dt className="text-[10px] uppercase text-foreground-400">Targets</dt>
                   <dd className="mt-1 font-mono text-lg font-semibold text-foreground-900">
                     {draft.directRules.length}
                   </dd>
                 </div>
                 <div className="rounded-md bg-background-100 p-2">
-                  <dt className="text-[9px] uppercase text-foreground-400">HCL paths</dt>
+                  <dt className="text-[10px] uppercase text-foreground-400">HCL paths</dt>
                   <dd className="mt-1 font-mono text-lg font-semibold text-foreground-900">
                     {compiled.rules.length}
                   </dd>

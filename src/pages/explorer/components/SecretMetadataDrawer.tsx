@@ -207,6 +207,7 @@ export default function SecretMetadataDrawer({
             <div className="grid gap-3 sm:grid-cols-2">
               <Input
                 label="Maximum versions"
+                hint="0 uses the mount default."
                 value={maxVersions}
                 onChange={(event) => setMaxVersions(event.target.value)}
                 inputMode="numeric"
@@ -214,6 +215,7 @@ export default function SecretMetadataDrawer({
               />
               <Input
                 label="Delete version after"
+                hint="Duration such as 30d or 720h; 0s keeps versions."
                 value={deleteVersionAfter}
                 onChange={(event) => setDeleteVersionAfter(event.target.value)}
                 placeholder="0s"

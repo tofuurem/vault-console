@@ -6,6 +6,16 @@ export default {
     ],
     theme: {
       extend: {
+        // One stacking scale: full-screen surfaces stay below the dialogs and
+        // drawers they open, and toasts stay above everything.
+        zIndex: {
+          popover: '50',
+          fullscreen: '55',
+          workspace: '58',
+          modal: '60',
+          drawer: '70',
+          toast: '100',
+        },
         fontFamily: {
           sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
           body: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],

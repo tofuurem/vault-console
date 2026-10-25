@@ -351,7 +351,7 @@ function WriteOnlyReviewStep({
   const needsAcknowledgement = strategy.type === 'unconditional';
   return (
     <>
-      <div><p className="font-mono text-[9px] font-semibold uppercase tracking-[0.15em] text-warning-700">{strategyLabel(strategy)}</p><h3 className="mt-1 text-sm font-semibold text-foreground-900">Confirm complete secret write</h3></div>
+      <div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.15em] text-warning-700">{strategyLabel(strategy)}</p><h3 className="mt-1 text-sm font-semibold text-foreground-900">Confirm complete secret write</h3></div>
       <dl className="space-y-2 rounded-md border border-background-200 bg-background-100/60 p-3 text-xs">
         <div className="flex justify-between gap-4"><dt className="text-foreground-500">Target path</dt><dd className="break-all text-right font-mono text-foreground-800">{mount}/{path}</dd></div>
         <div className="flex justify-between"><dt className="text-foreground-500">Submitted keys</dt><dd className="font-mono text-foreground-800">{keyCount}</dd></div>

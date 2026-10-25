@@ -10,7 +10,7 @@ export default function RoleDependenciesStep({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
           Blast radius
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">
@@ -49,7 +49,7 @@ export default function RoleDependenciesStep({
                     <span className="block truncate text-xs font-semibold text-foreground-800">
                       {dependency.name}
                     </span>
-                    <span className="block truncate font-mono text-[9px] text-foreground-400">
+                    <span className="block truncate font-mono text-[10px] text-foreground-400">
                       {dependency.id}
                     </span>
                   </span>

@@ -32,7 +32,7 @@ export default function UserGroupsRolesStep({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
           Access sources
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">
@@ -49,7 +49,7 @@ export default function UserGroupsRolesStep({
           <header className="border-b border-background-200 px-4 py-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-foreground-400">
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground-400">
                   Identity
                 </p>
                 <h3 className="mt-0.5 text-sm font-semibold text-foreground-900">Internal groups</h3>
@@ -85,7 +85,7 @@ export default function UserGroupsRolesStep({
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground-800">
                       {group.name}
-                      <span className={`rounded-sm px-1 py-0.5 font-mono text-[8px] uppercase ${
+                      <span className={`rounded-sm px-1 py-0.5 font-mono text-[10px] uppercase ${
                         group.metadata.managed_by === 'vault-console'
                           ? 'bg-primary-100 text-primary-700'
                           : 'bg-background-200 text-foreground-500'
@@ -93,7 +93,7 @@ export default function UserGroupsRolesStep({
                         {group.metadata.managed_by === 'vault-console' ? 'managed' : 'existing'}
                       </span>
                     </span>
-                    <span className="mt-0.5 block font-mono text-[9px] text-foreground-400">
+                    <span className="mt-0.5 block font-mono text-[10px] text-foreground-400">
                       {group.policies.length} policies · {group.memberEntityIds.length} members
                     </span>
                   </span>
@@ -112,7 +112,7 @@ export default function UserGroupsRolesStep({
           <header className="border-b border-background-200 px-4 py-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-foreground-400">
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground-400">
                   Userpass
                 </p>
                 <h3 className="mt-0.5 text-sm font-semibold text-foreground-900">Direct managed roles</h3>
@@ -145,11 +145,11 @@ export default function UserGroupsRolesStep({
                   />
                   <span className="min-w-0 flex-1">
                     <span className="text-xs font-semibold text-foreground-800">{role.name}</span>
-                    <span className="mt-0.5 block font-mono text-[9px] text-foreground-400">
+                    <span className="mt-0.5 block font-mono text-[10px] text-foreground-400">
                       {role.policyNames.join(', ')}
                     </span>
                     {inherited && (
-                      <span className="mt-1 inline-flex rounded-sm bg-secondary-100 px-1.5 py-0.5 text-[9px] text-secondary-700">
+                      <span className="mt-1 inline-flex rounded-sm bg-secondary-100 px-1.5 py-0.5 text-[10px] text-secondary-700">
                         inherited from selected group
                       </span>
                     )}
@@ -173,7 +173,7 @@ export default function UserGroupsRolesStep({
       )) && (
         <aside className="rounded-lg border border-warning-200 bg-warning-50 p-3">
           <p className="text-[10px] font-semibold text-warning-900">External token policies are preserved</p>
-          <p className="mt-1 break-all font-mono text-[9px] leading-4 text-warning-800">
+          <p className="mt-1 break-all font-mono text-[10px] leading-4 text-warning-800">
             {snapshot.account.tokenPolicies
               .filter((name) => (
                 name !== 'default'

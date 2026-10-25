@@ -36,7 +36,7 @@ export default function AccessSummary({
   return (
     <aside aria-labelledby="access-summary-heading" className="rounded-lg border border-background-300 bg-background-50 xl:sticky xl:top-4">
       <div className="border-b border-background-200 px-3.5 py-3">
-        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.15em] text-primary-600">Live result</p>
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.15em] text-primary-600">Live result</p>
         <h3 id="access-summary-heading" className="mt-0.5 text-xs font-semibold text-foreground-800">Access summary</h3>
       </div>
 
@@ -44,35 +44,35 @@ export default function AccessSummary({
         <div className="grid grid-cols-3 gap-1.5 text-center">
           <div className="rounded-md bg-background-100 px-1 py-2">
             <strong className="block font-mono text-sm text-foreground-800">{groupNames.length}</strong>
-            <span className="text-[9px] uppercase tracking-wider text-foreground-400">Groups</span>
+            <span className="text-[10px] uppercase tracking-wider text-foreground-400">Groups</span>
           </div>
           <div className="rounded-md bg-background-100 px-1 py-2">
             <strong className="block font-mono text-sm text-foreground-800">{effectiveNodes.length}</strong>
-            <span className="text-[9px] uppercase tracking-wider text-foreground-400">Paths</span>
+            <span className="text-[10px] uppercase tracking-wider text-foreground-400">Paths</span>
           </div>
           <div className={`rounded-md px-1 py-2 ${denies.length ? 'bg-danger-50' : 'bg-background-100'}`}>
             <strong className={`block font-mono text-sm ${denies.length ? 'text-danger-700' : 'text-foreground-800'}`}>{denies.length}</strong>
-            <span className={`text-[9px] uppercase tracking-wider ${denies.length ? 'text-danger-500' : 'text-foreground-400'}`}>Denies</span>
+            <span className={`text-[10px] uppercase tracking-wider ${denies.length ? 'text-danger-500' : 'text-foreground-400'}`}>Denies</span>
           </div>
         </div>
 
         <div>
-          <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-foreground-400">Groups</p>
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-400">Groups</p>
           {groupNames.length ? (
             <div className="flex flex-wrap gap-1">{groupNames.map((name) => <span key={name} className="rounded bg-secondary-100 px-1.5 py-0.5 text-secondary-700">{name}</span>)}</div>
           ) : <p className="text-foreground-400">No group membership</p>}
         </div>
 
         <div>
-          <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-foreground-400">Roles</p>
-          {inheritedRoleNames.map((name) => <p key={`inherited-${name}`} className="mb-1 flex items-center gap-1.5 text-foreground-600"><i className="ri-git-merge-line text-success-600" aria-hidden="true" />{name}<span className="ml-auto text-[9px] text-foreground-400">via group</span></p>)}
-          {directRoleNames.map((name) => <p key={`direct-${name}`} className="mb-1 flex items-center gap-1.5 text-foreground-600"><i className="ri-shield-check-line text-primary-600" aria-hidden="true" />{name}<span className="ml-auto text-[9px] text-primary-500">direct</span></p>)}
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-400">Roles</p>
+          {inheritedRoleNames.map((name) => <p key={`inherited-${name}`} className="mb-1 flex items-center gap-1.5 text-foreground-600"><i className="ri-git-merge-line text-success-600" aria-hidden="true" />{name}<span className="ml-auto text-[10px] text-foreground-400">via group</span></p>)}
+          {directRoleNames.map((name) => <p key={`direct-${name}`} className="mb-1 flex items-center gap-1.5 text-foreground-600"><i className="ri-shield-check-line text-primary-600" aria-hidden="true" />{name}<span className="ml-auto text-[10px] text-primary-500">direct</span></p>)}
           {!inheritedRoleNames.length && !directRoleNames.length && <p className="text-foreground-400">No roles selected</p>}
         </div>
 
         {(grants.length > 0 || denies.length > 0) && (
           <div className="border-t border-background-200 pt-3">
-            <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-foreground-400">Per-user rules</p>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-400">Per-user rules</p>
             {directRules.map((rule) => (
               <p key={rule.nodeId} className="mb-1 flex items-start gap-1.5">
                 <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${rule.level === 'deny' ? 'bg-danger-500' : 'bg-primary-500'}`} />
