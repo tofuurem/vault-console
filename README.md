@@ -60,11 +60,11 @@ bundle.
 
 ## Опубликованный образ
 
-Версия `0.8.1` опубликована для `linux/amd64` и `linux/arm64`. Для
+Версия `0.9.0` опубликована для `linux/amd64` и `linux/arm64`. Для
 воспроизводимого развёртывания используйте immutable digest:
 
 ```text
-zero-noise-registry.registry.twcstorage.ru/vault-console:0.8.1@sha256:b7d10e153b507d40c389887966b92e8ec2cbcd1ef82b34b83395569f0d1a88e3
+zot.rabbit666.dev/vault-console:0.9.0@sha256:3fa378697e25071dbbee2f09e1d83e6af891e875dc1d669386a9d3ae46d48b38
 ```
 
 ## Документация
