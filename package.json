@@ -1,7 +1,7 @@
 {
   "name": "vault-console",
   "private": true,
-  "version": "0.8.1",
+  "version": "0.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,7 +19,8 @@
     "test:container": "./scripts/test-container.sh",
     "test:e2e": "./scripts/test-compose-e2e.sh",
     "test:e2e:playwright": "playwright test",
-    "quality": "npm run type-check && npm run lint && npm run lint:complexity && npm run test:run"
+    "quality": "npm run type-check && npm run lint && npm run lint:complexity && npm run test:run",
+    "prepare": "node scripts/install-git-hooks.mjs"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",

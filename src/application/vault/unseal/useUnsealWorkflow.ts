@@ -151,10 +151,14 @@ export function useUnsealWorkflow({
         setFeedback('reset-by-operator');
       } catch (cause) {
         const nextError = normalizeVaultError(cause);
-        if (nextError.code !== 'aborted') setError(nextError);
+        if (nextError.code === 'aborted') return;
+        // Another operator may have finished unsealing meanwhile; Vault then
+        // rejects the reset and the fresh status explains the outcome.
+        const fresh = await fetchStatus(signal).catch(() => undefined);
+        if (!fresh || fresh.sealed) setError(nextError);
       }
     });
-  }, [applyStatus, gateway, runExclusive, serverUrl]);
+  }, [applyStatus, fetchStatus, gateway, runExclusive, serverUrl]);
 
   useEffect(() => {
     statusRef.current = undefined;

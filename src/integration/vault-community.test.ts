@@ -62,6 +62,7 @@ import {
 import { VaultAccessControlAdapter } from '@/infrastructure/vault/access-control/vault-access-control-adapter';
 import { VaultAuthAdapter } from '@/infrastructure/vault/auth/vault-auth-adapter';
 import { VaultKvV2Adapter } from '@/infrastructure/vault/kv-v2/vault-kv-v2-adapter';
+import { VaultSealAdapter } from '@/infrastructure/vault/seal/vault-seal-adapter';
 
 const vaultAddress = env.VAULT_TEST_ADDR;
 const rootToken = env.VAULT_TEST_TOKEN;
@@ -243,6 +244,20 @@ runAgainstVault('Vault Community integration', () => {
     ].map((name) => access.deletePolicy(rootSession, name).catch(() => undefined)));
     await setupRequest(`sys/auth/${userpassMount}`, 'DELETE').catch(() => undefined);
     await setupRequest(`sys/mounts/${kvMount}`, 'DELETE').catch(() => undefined);
+  });
+
+  it('reads seal status without a token and rejects unseal resets on an unsealed server', async () => {
+    const seal = new VaultSealAdapter();
+
+    await expect(seal.getSealStatus(vaultAddress!)).resolves.toMatchObject({
+      initialized: true,
+      sealed: false,
+      progress: 0,
+    });
+    await expect(seal.resetUnseal(vaultAddress!)).rejects.toMatchObject({
+      code: 'invalid-request',
+      status: 400,
+    });
   });
 
   it('distinguishes invalid tokens from valid lookup-forbidden tokens', async () => {

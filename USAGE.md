@@ -340,6 +340,34 @@ path "auth/token/renew-self" { capabilities = ["update"] }
 path "auth/token/revoke-self" { capabilities = ["update"] }
 ```
 
+### Unseal после рестарта
+
+После перезапуска Vault остаётся sealed, пока держатели ключей не введут
+нужное число долей (threshold). Страница `/unseal` доступна без входа и
+открывается из статуса на экране входа, из баннера внутри консоли (если Vault
+запечатался во время работы) и из статуса в боковой панели.
+
+- Страница показывает тип seal, threshold, число принятых долей и nonce
+  текущей попытки, а прогресс обновляется каждые 5 секунд, поэтому несколько
+  операторов могут вводить свои доли из разных браузеров.
+- Каждая доля вводится отдельно в hex или base64, как её выдал
+  `vault operator init`. Поле очищается сразу после отправки; значение не
+  попадает в React state, storage, URL, логи или diagnostics.
+- Повторно введённую долю Vault игнорирует, и UI об этом сообщает. Если
+  набранные доли не расшифровали root key, Vault сбрасывает попытку, и UI
+  просит начать заново.
+- `Reset attempt` после подтверждения отбрасывает уже введённые доли.
+- Для auto-unseal (KMS/HSM) страница только показывает статус: recovery keys
+  не распечатывают Vault.
+- Инициализация (`vault operator init`) намеренно не поддерживается, так как
+  возвращает root token.
+
+`sys/seal-status` и `sys/unseal` в Vault не требуют token, поэтому отдельная
+policy не нужна; запросы идут через тот же same-origin `/v1/*` proxy. В HA
+кластере каждый узел распечатывается отдельно, а страница работает с узлом, на
+который указывает `VAULT_UPSTREAM`. Ввод unseal keys через браузер допустим
+только по HTTPS и на доверенном устройстве.
+
 ### KV v2
 
 Explorer показывает доступные mounts, папки и secrets. Можно:
@@ -378,7 +406,9 @@ comfortable layout; переключатель Compact/Comfortable удалён.
 
 ## Сессия и данные в браузере
 
-- Vault token хранится в `sessionStorage` текущей вкладки до logout или expiry.
+- Vault token хранится в `sessionStorage` текущей вкладки
+  (`vc-console.session.v1`) до logout или expiry.
+- Unseal key shares никуда не сохраняются.
 - Vault Console не сохраняет пароль `userpass`; password manager браузера
   может сохранить его по выбору пользователя.
 - Recent paths остаются в `sessionStorage`.
@@ -397,6 +427,11 @@ browser preferences. Версия `0.7.1` автоматически перен�
 любые browser keys штатного Vault UI сохраняются.
 
 Версия `0.8.1` не добавляет Vault data, policy или browser-storage migrations.
+
+Версия `0.9.0` переносит tab-scoped keys в namespace `vc-console.*`. Recent
+paths и session favorites переносятся автоматически. Старая запись token
+(`vault-console.session.v1`) удаляется без копирования, поэтому вкладки,
+открытые во время обновления, один раз попросят войти снова.
 
 Сессии двух интерфейсов намеренно независимы. Вход в Vault Console на `/` не
 авторизует вкладку штатного UI на `/ui/`; войдите в нативный UI отдельно. Если
@@ -429,23 +464,28 @@ docker compose pull vault-console
 docker compose up -d --no-build vault-console
 ```
 
-Обновление `0.8.0` → `0.8.1` не требует миграции Vault data, policies или
-browser storage. После rollout
-проверьте `/healthz`, вход token/userpass, exact-path read и одну разрешённую
-metadata capability. При необходимости можно вернуть immutable контейнер
-`0.8.0`; уже
-выполненные permanent delete, revoke-self и другие Vault mutations откат образа
-не отменяет.
+Обновление `0.8.1` → `0.9.0` не требует миграции Vault data или policies.
+Открытые вкладки один раз попросят войти снова (см. «Сессия и данные в
+браузере»). После rollout проверьте `/healthz`, вход token/userpass,
+exact-path read, одну разрешённую metadata capability и открытие `/unseal`.
+При необходимости можно вернуть immutable контейнер `0.8.1`; уже выполненные
+permanent delete, revoke-self, unseal и другие Vault mutations откат образа не
+отменяет.
 
 ## Локальная разработка
 
 ```bash
 npm ci
-VITE_VAULT_ADDR=http://127.0.0.1:8200 npm run dev
+VAULT_DEV_UPSTREAM=http://127.0.0.1:8200 npm run dev
 ```
 
-Требуются Node.js 22+ и npm. Откройте `http://localhost:3000`; не сохраняйте
-credentials в `.env.local`. Проверки:
+Требуются Node.js 22+ и npm. Dev-сервер проксирует `/v1/*` в
+`VAULT_DEV_UPSTREAM`, повторяя same-origin схему production Nginx, поэтому CORS
+на Vault не нужен. `VITE_VAULT_ADDR` по-прежнему позволяет обращаться к Vault
+напрямую, если на нём настроен CORS. Откройте `http://localhost:3000`; не
+сохраняйте credentials в `.env.local`. `npm ci` подключает `.githooks`
+(pre-commit: type-check, lint, unit tests; pre-push: дополнительно build).
+Проверки:
 
 ```bash
 npm run quality
@@ -482,6 +522,8 @@ curl -i http://127.0.0.1:8080/v1/sys/health
 | --- | --- |
 | UI не запускается | Docker logs, занятость порта и `/healthz` |
 | Vault недоступен | `VAULT_UPSTREAM`, общую network, DNS-имя сервиса и sealed state |
+| После рестарта Vault sealed | Откройте `/unseal` и введите threshold долей ключа |
+| Unseal не продвигается | Доля уже введена в этой попытке или принадлежит другому кластеру; при HA распечатайте каждый узел |
 | HTTPS upstream не работает | Имя в сертификате и подключённый private CA |
 | Раздел или действие отсутствует | Capabilities текущего token на точные API paths |
 | После login пустой Explorer | Права на `sys/internal/ui/mounts` и KV metadata/data |

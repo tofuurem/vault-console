@@ -21,6 +21,9 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community: рабо
   визуальные роли и ACL policies с Review перед применением.
 - **Рабочий интерфейс:** нативный autofill для `userpass`, настраиваемый
   Inspector, Command palette, избранное, недавние пути и светлая/тёмная тема.
+- **Unseal после рестарта:** страница `/unseal` для пошагового ввода долей
+  ключа несколькими операторами, с прогрессом, сбросом попытки и подсказками,
+  без сохранения ключей.
 - **Текущая сессия:** безопасное копирование token в clipboard, renew,
   revoke-self и отдельный локальный sign-out.
 - **Least privilege:** интерфейс показывает только доступные текущему Vault
@@ -66,8 +69,10 @@ zero-noise-registry.registry.twcstorage.ru/vault-console:0.8.1@sha256:b7d10e153b
 
 ## Документация
 
-- [USAGE.md](USAGE.md) — установка, Compose, Vault ACL, TLS, обновление и
-  диагностика.
+- [USAGE.md](USAGE.md) — установка, Compose, Vault ACL, TLS, unseal,
+  обновление и диагностика.
+- [Caddy site](deploy/caddy/vault-console.caddy) — отдельный сайт консоли
+  рядом с существующим сайтом Vault, без изменений в нём.
 - [SECURITY.md](SECURITY.md) — модель безопасности и dependency advisories.
 - [Admin policy example](deploy/vault-console-admin-policy.hcl.example) —
   полный шаблон прав оператора, который необходимо сузить под окружение.
@@ -81,5 +86,6 @@ Vault остаётся единственным источником автор�
 его сохранением и autofill может управлять браузер. Не передавайте credentials,
 unseal key или recovery key через Git, `.env`, Compose или proxy headers.
 
+Unseal key shares передаются напрямую в `sys/unseal` и нигде не сохраняются.
 Используйте HTTPS, доверенный образ и минимальные Vault policies. Проект
 проверен с HashiCorp Vault Community `1.21.3` и `2.0.3`.

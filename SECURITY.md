@@ -19,6 +19,24 @@ logs. Sign out only clears local session state. Revoke token calls Vault
 `auth/token/revoke-self` and can also revoke child tokens, leases, and dynamic
 secrets created by the calling token.
 
+## Unseal key shares
+
+Reviewed: 2026-10-25
+
+The `/unseal` page talks to the unauthenticated `sys/seal-status` and
+`sys/unseal` endpoints through the same-origin `/v1/*` proxy and never attaches
+a Vault token. The key share input is uncontrolled and marked to be ignored by
+password managers. Its value is read once on submit, wrapped in a memory-only
+sensitive value for the single request, and cleared from the field before the
+request completes. Shares are never placed in React state, browser storage,
+URLs, history state, toasts, or diagnostics, and Vault error bodies are not
+surfaced. A 400 response is classified by re-reading seal status rather than by
+echoing Vault's message. Initialization is intentionally unsupported because it
+returns a root token. Enter key shares only over HTTPS on a trusted device.
+
+A structured `Vault is sealed` marker on any response is classified as a sealed
+error so the authenticated workspace can direct operators to the unseal page.
+
 ## Vault response and proxy metadata
 
 Reviewed: 2026-07-27
