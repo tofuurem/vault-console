@@ -174,6 +174,13 @@ path "applications/metadata/team/*" {
 Права на запись и версии выдавайте отдельно по соответствующим KV v2 API
 paths. `LIST` раскрывает имена путей, даже если чтение data запрещено.
 
+Права для рабочих пространств Database, Transit, PKI и SSH собраны в
+[`deploy/vault-console-engines-policy.hcl.example`](deploy/vault-console-engines-policy.hcl.example)
+(проверен на Vault 1.21.3). Замените в нём пути mounts на свои и удалите
+ненужные разделы. Для настройки engine (описание, lease TTL) нужны `read` и
+`update` на `sys/mounts/<mount>/tune`, для отключения — `delete` на
+`sys/mounts/<mount>`.
+
 Готовый daily-KV шаблон находится в
 [`deploy/vault-console-kv-daily-policy.hcl.example`](deploy/vault-console-kv-daily-policy.hcl.example).
 Основные действия требуют разных точных capabilities:
@@ -473,6 +480,52 @@ Soft delete обратим и предлагает короткий Undo. Для
 удаляет версию, которая является current в момент выполнения; UI перечитывает
 metadata и привязывает Undo к фактически затронутому номеру. Destroy version и
 Delete key permanently необратимы и требуют явного подтверждения.
+
+### Secrets engines
+
+Все engines, кроме KV v2, перечислены в разделе **Secrets engines** сайдбара,
+на Overview и в Command palette. Кнопка **+** открывает диалог включения:
+тип (KV v2, Database, Transit, PKI, SSH), путь, описание и, по желанию, лимиты
+lease TTL. Кнопка **Settings** на странице engine меняет описание и lease TTL;
+Vault показывает фактические значения, поэтому консоль отправляет только
+изменённые поля, и унаследованные системные значения остаются
+унаследованными. Отключение требует ввести путь mount: Vault отзывает все
+leases этого engine и удаляет его данные без возможности восстановления.
+
+Адрес страницы повторяет путь Vault, например `/engines/pki/roles/web` или
+`/engines/transit/keys/app/encrypt`, поэтому перезагрузка и кнопка «назад»
+возвращают в то же место. Секретные значения в адрес не попадают.
+
+- **Database** — connections с выбором plugin и примером URL, verify при
+  сохранении, Reset и Rotate root; динамические роли с шаблонами SQL;
+  статические роли с ротацией по периоду или cron. **Generate credentials**
+  каждый раз создаёт нового пользователя БД: значения скрыты, рядом показан
+  lease с Renew и Revoke. Пароль connection только записывается и никогда не
+  отображается.
+- **Transit** — ключи всех типов, версии с отметками min decryption/encryption,
+  Rotate, Trim и удаление (только после **Allow deletion**). Рабочая панель
+  показывает лишь операции, которые поддерживает ключ: encrypt, decrypt,
+  rewrap, data key, sign, verify, HMAC. Вкладка **Tools** — случайные байты и
+  хеши.
+- **PKI** — пустой mount предлагает создать root CA, intermediate (подписать
+  CSR на другом PKI mount консоли или вставить внешний сертификат) или
+  импортировать CA. Issuers, роли, **Issue certificate** и **Sign CSR**,
+  список сертификатов с отзывом, tidy, URLs и CRL. Сертификаты разбираются
+  прямо в браузере: subject, SAN, срок действия, ключ. Закрытый ключ
+  показывается один раз, скрыт до явного показа и предлагает скопировать или
+  скачать его перед закрытием. Вложенный путь вроде `pki/int` работает только
+  если `pki/` сам не является mount.
+- **SSH** — генерация или импорт signing CA с готовыми строками для
+  `sshd_config` и `known_hosts`, роли `ca` и `otp`, **Sign key** с разбором
+  выданного сертификата (principals, срок, расширения) и одноразовые пароли
+  для хостов с `vault-ssh-helper`.
+- **Остальные engines** (AWS, TOTP и другие) открываются в универсальном
+  браузере: LIST выполняется сразу, а **Read** — только по кнопке, потому что
+  чтение путей вроде `creds/` выпускает новые учётные данные.
+
+Если Vault отклоняет операцию engine, консоль показывает его объяснение
+(«common name evil.org not allowed by this role») после очистки от паролей,
+токенов и PEM-блоков.
 
 ### Access Center
 

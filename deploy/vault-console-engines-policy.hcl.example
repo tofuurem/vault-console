@@ -1,0 +1,240 @@
+# Operator policy for the Database, Transit, PKI, and SSH workspaces.
+# Mount paths below assume the defaults (database/, transit/, pki/, ssh/).
+# Replace them with your mount paths and remove the sections you do not use.
+# Combine with the default policy and, for enabling or tuning engines, the
+# sys/mounts/* stanza from vault-console-admin-policy.hcl.example.
+
+# Sidebar, Overview, and route resolution list visible engines.
+path "sys/internal/ui/mounts" {
+  capabilities = ["read"]
+}
+
+# Optional preflight so the console can disable forbidden actions in advance.
+path "sys/capabilities-self" {
+  capabilities = ["update"]
+}
+
+# --- Database -------------------------------------------------------------
+
+# Connections: list, read, write, delete. Writes carry the database password.
+path "database/config" {
+  capabilities = ["list"]
+}
+
+path "database/config/*" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+
+# Reset a connection and rotate its root credential (afterwards only Vault
+# knows the password). Drop these for operators who must not rotate.
+path "database/reset/*" {
+  capabilities = ["update"]
+}
+
+path "database/rotate-root/*" {
+  capabilities = ["update"]
+}
+
+# Dynamic and static roles.
+path "database/roles" {
+  capabilities = ["list"]
+}
+
+path "database/roles/*" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+
+path "database/static-roles" {
+  capabilities = ["list"]
+}
+
+path "database/static-roles/*" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+
+path "database/rotate-role/*" {
+  capabilities = ["update"]
+}
+
+# Credentials. Each read of creds/ creates a new database user.
+path "database/creds/*" {
+  capabilities = ["read"]
+}
+
+path "database/static-creds/*" {
+  capabilities = ["read"]
+}
+
+# Renew and revoke the lease shown after generating credentials.
+path "sys/leases/renew" {
+  capabilities = ["update"]
+}
+
+path "sys/leases/revoke" {
+  capabilities = ["update"]
+}
+
+# --- Transit --------------------------------------------------------------
+
+path "transit/keys" {
+  capabilities = ["list"]
+}
+
+# Create, read, configure, rotate, trim, and delete keys. Deletion still
+# requires deletion_allowed on the key itself.
+path "transit/keys/*" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+
+# The operations workbench. Remove the operations a role must not perform.
+path "transit/encrypt/*" {
+  capabilities = ["update"]
+}
+
+path "transit/decrypt/*" {
+  capabilities = ["update"]
+}
+
+path "transit/rewrap/*" {
+  capabilities = ["update"]
+}
+
+path "transit/datakey/*" {
+  capabilities = ["update"]
+}
+
+path "transit/sign/*" {
+  capabilities = ["update"]
+}
+
+path "transit/verify/*" {
+  capabilities = ["update"]
+}
+
+path "transit/hmac/*" {
+  capabilities = ["update"]
+}
+
+# Tools tab: random bytes and hashing.
+path "transit/random*" {
+  capabilities = ["update"]
+}
+
+path "transit/hash*" {
+  capabilities = ["update"]
+}
+
+# --- PKI ------------------------------------------------------------------
+
+# Root and intermediate generation, signing an intermediate, and installing it.
+path "pki/root/generate/*" {
+  capabilities = ["update"]
+}
+
+path "pki/root/sign-intermediate" {
+  capabilities = ["update"]
+}
+
+path "pki/intermediate/generate/*" {
+  capabilities = ["update"]
+}
+
+path "pki/intermediate/set-signed" {
+  capabilities = ["update"]
+}
+
+# Issuers: list, read, default, edit, import, delete, CRL.
+path "pki/issuers" {
+  capabilities = ["list"]
+}
+
+path "pki/issuers/import/bundle" {
+  capabilities = ["update"]
+}
+
+path "pki/issuer/*" {
+  capabilities = ["read", "update", "delete"]
+}
+
+path "pki/keys" {
+  capabilities = ["list"]
+}
+
+path "pki/config/*" {
+  capabilities = ["read", "update"]
+}
+
+# Roles, issuing, signing CSRs.
+path "pki/roles" {
+  capabilities = ["list"]
+}
+
+path "pki/roles/*" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+
+path "pki/issue/*" {
+  capabilities = ["update"]
+}
+
+path "pki/sign/*" {
+  capabilities = ["update"]
+}
+
+# Certificates list, details, and revocation.
+path "pki/certs" {
+  capabilities = ["list"]
+}
+
+path "pki/cert/*" {
+  capabilities = ["read"]
+}
+
+path "pki/revoke" {
+  capabilities = ["update"]
+}
+
+# Tidy and CRL maintenance.
+path "pki/tidy" {
+  capabilities = ["update"]
+}
+
+path "pki/tidy-status" {
+  capabilities = ["read"]
+}
+
+path "pki/crl/rotate" {
+  capabilities = ["read"]
+}
+
+# --- SSH ------------------------------------------------------------------
+
+# Signing CA: read, generate or import, delete.
+path "ssh/config/ca" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+
+path "ssh/config/zeroaddress" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+
+path "ssh/roles" {
+  capabilities = ["list"]
+}
+
+path "ssh/roles/*" {
+  capabilities = ["create", "read", "update", "delete"]
+}
+
+# Sign public keys and create one-time passwords.
+path "ssh/sign/*" {
+  capabilities = ["update"]
+}
+
+path "ssh/creds/*" {
+  capabilities = ["update"]
+}
+
+path "ssh/verify" {
+  capabilities = ["update"]
+}

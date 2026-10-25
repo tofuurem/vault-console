@@ -17,6 +17,13 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community: рабо
 - **KV v2:** mounts, папки, exact-path и рекурсивный поиск, вложенный JSON,
   версии, metadata/config, write-only CAS и одиночные или bulk-операции вплоть
   до полного удаления ключа.
+- **Secrets engines:** включение, настройка lease TTL и отключение любого
+  engine; рабочие пространства для Database (connections, роли, динамические и
+  статические учётные данные, leases), Transit (ключи, версии, шифрование,
+  подпись, HMAC), PKI (root/intermediate CA, issuers, роли, выпуск и отзыв
+  сертификатов с разбором X.509 в браузере, CRL и tidy) и SSH (signing CA,
+  роли, подпись ключей с разбором сертификата, OTP). Остальные engines
+  открываются в универсальном браузере путей.
 - **Управление доступом:** пользователи `userpass`, Identity groups,
   визуальные роли и ACL policies с Review перед применением.
 - **Рабочий интерфейс:** нативный autofill для `userpass`, настраиваемый
@@ -42,8 +49,9 @@ Self-hosted веб-интерфейс для HashiCorp Vault Community: рабо
 
 ## Поддерживаемый scope
 
-Проект ориентирован на KV v2 и `userpass` в self-hosted Vault Community.
-Database, Transit, PKI, SSH, облачные secrets engines, OIDC и аудит-аналитика
+Проект ориентирован на self-hosted Vault Community: KV v2, Database, Transit,
+PKI, SSH и `userpass`. Облачные secrets engines (AWS, Azure, GCP и другие)
+доступны только через универсальный браузер путей; OIDC и аналитика аудита
 пока не поддерживаются.
 
 ## Быстрый запуск
@@ -86,6 +94,8 @@ zot.rabbit666.dev/vault-console:0.9.0@sha256:3fa378697e25071dbbee2f09e1d83e6af89
   полный шаблон прав оператора, который необходимо сузить под окружение.
 - [Daily KV policy example](deploy/vault-console-kv-daily-policy.hcl.example) —
   точные KV v2 paths для ежедневного чтения, записи и lifecycle-операций.
+- [Engines policy example](deploy/vault-console-engines-policy.hcl.example) —
+  права для рабочих пространств Database, Transit, PKI и SSH.
 
 ## Безопасность
 

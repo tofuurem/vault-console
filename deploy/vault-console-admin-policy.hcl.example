@@ -18,10 +18,12 @@ path "sys/capabilities-self" {
 }
 
 # Enabling a secrets engine is root-protected and requires sudo in addition to
-# create/update. Narrow this glob when operators may create mounts only below a
-# controlled prefix, for example sys/mounts/team/*.
+# create/update. read and update on <mount>/tune power the engine Settings
+# drawer; delete disables an engine and destroys all of its data. Narrow this
+# glob when operators may manage mounts only below a controlled prefix, for
+# example sys/mounts/team/*, and drop delete where disabling is not wanted.
 path "sys/mounts/*" {
-  capabilities = ["create", "update", "sudo"]
+  capabilities = ["create", "read", "update", "delete", "sudo"]
 }
 
 path "sys/auth" {

@@ -87,6 +87,31 @@ the error. The default Nginx `/v1/*` proxy location has access logging disabled
 because mount names, logical secret paths, and usernames are sensitive
 metadata. Use a Vault audit device for the authoritative operation trail.
 
+## Secrets engines
+
+Reviewed: 2026-10-25
+
+Engine workspaces follow the same memory-only rule as KV values. Generated
+database credentials, decrypted plaintext, data keys, issued private keys,
+signed SSH certificates, and one-time passwords come from mutations that are
+never written to the query cache (`gcTime: 0`), and they are dropped when the
+operator clears them, navigates away, or changes the key, role, or path they
+belong to. URLs carry only mount, role, key, issuer, and serial names.
+
+Reads in the generic engine browser are explicit actions because many engines
+mint credentials on read. Private keys returned by PKI and imported into SSH
+are wrapped so they print as `[REDACTED]`, revealed only on request, and
+re-hidden after a short delay.
+
+Engine adapters opt in to Vault's own error text (`includeReason`) because
+their validation messages are the only useful explanation of a rejected
+operation. The text is sanitized before it is attached to the error: anything
+after a PEM header is dropped, URL credentials, password-like `key=value`
+pairs, SQL password literals, and Vault tokens are replaced with `***`, and the
+result is capped at 300 characters. It is shown to the operator and never
+stored in diagnostics or logs. Permission denials keep the fixed message, and
+all other console requests continue to discard upstream error text.
+
 ## Destructive and write-only KV operations
 
 Reviewed: 2026-08-27
