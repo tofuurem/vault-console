@@ -14,6 +14,7 @@ export default function Button({
   loading,
   className = '',
   disabled,
+  type = 'button',
   ...props
 }: ButtonProps) {
   // Pressed state appears on pointer-down so the control feels physically engaged.
@@ -33,7 +34,9 @@ export default function Button({
   };
 
   return (
+    // Defaults to `button` so a control inside a form never submits it by accident; submits opt in.
     <button
+      type={type}
       className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
       disabled={disabled || loading}
       {...props}

@@ -33,7 +33,7 @@ export default function EnginePageShell({
 }: EnginePageShellProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   return (
-    <main id="main-content" tabIndex={-1} className="flex min-h-0 flex-1 flex-col bg-background-50">
+    <main id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col bg-background-50">
       <header className="shrink-0 border-b border-background-200 px-4 pt-3 sm:px-5">
         <div className="flex flex-wrap items-start justify-between gap-3 pb-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -61,7 +61,7 @@ export default function EnginePageShell({
           </div>
         </div>
         {tabs && tabs.length > 0 && (
-          <nav aria-label={`${engine.path} sections`} className="-mb-px flex gap-1 overflow-x-auto">
+          <nav aria-label={`${engine.path} sections`} className="scrollbar-none -mb-px flex gap-1 overflow-x-auto">
             {tabs.map((tab) => {
               const active = tab.key === activeTab;
               return (

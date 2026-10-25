@@ -325,6 +325,15 @@ button,
   background: oklch(var(--background-400));
 }
 
+/* Swipeable strips such as section tabs scroll without a visible bar. */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* Drawer animation */
 @keyframes slideInRight {
   from { transform: translateX(100%); }

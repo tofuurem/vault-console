@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { env } from 'node:process';
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
@@ -36,8 +37,11 @@ if (!globalThis.ResizeObserver) {
   };
 }
 
-// Tests must inject gateways or stub fetch; nothing reaches the network.
-globalThis.fetch = (input) => Promise.reject(new TypeError(`Network access is disabled in tests: ${String(input)}`));
+// Unit tests must inject gateways or stub fetch; only the disposable-Vault
+// integration run (scripts/test-vault.sh sets VAULT_TEST_ADDR) reaches the network.
+if (!env.VAULT_TEST_ADDR) {
+  globalThis.fetch = (input) => Promise.reject(new TypeError(`Network access is disabled in tests: ${String(input)}`));
+}
 
 afterEach(() => {
   cleanup();
