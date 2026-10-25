@@ -6,6 +6,7 @@ import {
   engineLabel,
   enginePath,
   formatTtlSeconds,
+  secondsToDuration,
 } from './engines';
 
 describe('engines', () => {
@@ -33,5 +34,12 @@ describe('engines', () => {
   it('joins mount-relative API paths', () => {
     expect(enginePath('db/', '/roles/')).toBe('db/roles');
     expect(enginePath('pki')).toBe('pki');
+  });
+
+  it('renders TTL seconds as the shortest whole-unit duration', () => {
+    expect(secondsToDuration(2_764_800)).toBe('768h');
+    expect(secondsToDuration(90)).toBe('90s');
+    expect(secondsToDuration(1_800)).toBe('30m');
+    expect(secondsToDuration(0)).toBe('');
   });
 });

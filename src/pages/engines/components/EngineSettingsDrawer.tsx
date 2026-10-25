@@ -11,6 +11,7 @@ import {
   durationError,
   engineLabel,
   formatTtlSeconds,
+  secondsToDuration,
   type SecretEngine,
 } from '@/domain/engines/engines';
 import { normalizeVaultError } from '@/domain/vault/errors';
@@ -19,10 +20,6 @@ interface EngineSettingsDrawerProps {
   readonly engine: SecretEngine;
   readonly open: boolean;
   readonly onClose: () => void;
-}
-
-function ttlInput(seconds: number): string {
-  return seconds > 0 ? `${seconds}s` : '';
 }
 
 function DisableEngineSection({ engine, onDisabled }: { readonly engine: SecretEngine; readonly onDisabled: () => void }) {
@@ -78,8 +75,8 @@ export default function EngineSettingsDrawer({ engine, open, onClose }: EngineSe
   useEffect(() => {
     if (!open || !tune.data) return;
     setDescription(tune.data.description);
-    setDefaultTtl(ttlInput(tune.data.defaultLeaseTtlSeconds));
-    setMaxTtl(ttlInput(tune.data.maxLeaseTtlSeconds));
+    setDefaultTtl(secondsToDuration(tune.data.defaultLeaseTtlSeconds));
+    setMaxTtl(secondsToDuration(tune.data.maxLeaseTtlSeconds));
     mutation.reset();
     // Reset only when fresh tune data arrives for an open drawer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,8 +90,14 @@ export default function EngineSettingsDrawer({ engine, open, onClose }: EngineSe
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (defaultError || maxError) return;
+    const initial = tune.data;
     mutation.mutate(
-      { description, defaultLeaseTtl: defaultTtl, maxLeaseTtl: maxTtl },
+      {
+        description,
+        // Vault reports effective TTLs; send only edits so inherited defaults stay inherited.
+        defaultLeaseTtl: initial && defaultTtl === secondsToDuration(initial.defaultLeaseTtlSeconds) ? undefined : defaultTtl,
+        maxLeaseTtl: initial && maxTtl === secondsToDuration(initial.maxLeaseTtlSeconds) ? undefined : maxTtl,
+      },
       { onSuccess: () => toast.success(`Saved settings for ${engine.path}/.`) },
     );
   };

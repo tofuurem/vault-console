@@ -111,8 +111,8 @@ export class VaultEnginesAdapter implements SecretEnginesGateway {
       token: session.token,
       body: {
         description: input.description.trim(),
-        default_lease_ttl: input.defaultLeaseTtl.trim() || 'system',
-        max_lease_ttl: input.maxLeaseTtl.trim() || 'system',
+        ...(input.defaultLeaseTtl === undefined ? {} : { default_lease_ttl: input.defaultLeaseTtl.trim() || 'system' }),
+        ...(input.maxLeaseTtl === undefined ? {} : { max_lease_ttl: input.maxLeaseTtl.trim() || 'system' }),
       },
       signal,
     });

@@ -89,6 +89,46 @@ function WriteDialog({
   );
 }
 
+const COMMON_PATHS = ['roles', 'keys', 'config', 'creds'] as const;
+
+function OpenPathForm({ subPath, navigateTo }: { readonly subPath: string; readonly navigateTo: (path: string) => void }) {
+  const [value, setValue] = useState(subPath);
+  return (
+    <form
+      className="flex flex-wrap items-end gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        navigateTo(value.trim().replace(/^\/+|\/+$/g, ''));
+      }}
+    >
+      <div className="min-w-[12rem] flex-1">
+        <Input
+          label="Open path"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder="roles/web"
+          spellCheck={false}
+          monospace
+        />
+      </div>
+      <Button type="submit" size="sm">Open</Button>
+      <div className="flex flex-wrap items-center gap-1 text-[11px] text-foreground-500">
+        <span>Common:</span>
+        {COMMON_PATHS.map((path) => (
+          <button
+            key={path}
+            type="button"
+            onClick={() => navigateTo(path)}
+            className="min-h-11 rounded px-1.5 font-mono text-primary-700 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-6"
+          >
+            {path}/
+          </button>
+        ))}
+      </div>
+    </form>
+  );
+}
+
 function KeyList({ keys, subPath, navigateTo }: { readonly keys: readonly string[]; readonly subPath: string; readonly navigateTo: (path: string) => void }) {
   return (
     <ul className="divide-y divide-background-200 overflow-hidden rounded-lg border border-background-300 bg-background-50">
@@ -175,6 +215,7 @@ function BrowserBody({ engine, subPath, navigateTo }: EnginePageProps) {
         This engine has no dedicated workspace yet. Browse with LIST; reading is explicit because some paths
         (such as <span className="font-mono">creds/</span>) create new credentials each time.
       </p>
+      <OpenPathForm subPath={subPath} navigateTo={navigateTo} />
 
       {readError && (
         <p role="alert" className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">{readError.message}</p>
@@ -190,9 +231,9 @@ function BrowserBody({ engine, subPath, navigateTo }: EnginePageProps) {
         </p>
       )}
       {list.isSuccess && keys.length > 0 && <KeyList keys={keys} subPath={subPath} navigateTo={navigateTo} />}
-      {list.isSuccess && keys.length === 0 && (
+      {list.isSuccess && keys.length === 0 && !response && (
         <p className="text-xs text-foreground-500">
-          Nothing to list here.{subPath ? ' Use Read to fetch this path.' : ' Open a path by URL or write to one.'}
+          Nothing to list here.{subPath ? ' Use Read to fetch this path.' : ' Most engines list below a path such as roles/ or keys/.'}
         </p>
       )}
       <WriteDialog

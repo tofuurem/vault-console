@@ -281,11 +281,10 @@ function EnginesSection({
       <div className={`${wideOnly(mobile, 'flex')} h-6 items-center justify-between px-3`}>
         <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-500">Secrets engines</span>
         {onEnableEngine && (
-          <Tooltip content="Enable secrets engine" position="right">
-            <button type="button" aria-label="Enable secrets engine" onClick={onEnableEngine} className={`flex items-center justify-center rounded text-primary-600 hover:bg-primary-100 ${FOCUS_RING} ${mobile ? 'h-11 w-11' : 'h-6 w-6'}`}>
-              <i className="ri-add-line text-sm" aria-hidden="true" />
-            </button>
-          </Tooltip>
+          // A tooltip here would overflow the scrolling nav, so the native title is used.
+          <button type="button" aria-label="Enable secrets engine" title="Enable secrets engine" onClick={onEnableEngine} className={`flex items-center justify-center rounded text-primary-600 hover:bg-primary-100 ${FOCUS_RING} ${mobile ? 'h-11 w-11' : 'h-6 w-6'}`}>
+            <i className="ri-add-line text-sm" aria-hidden="true" />
+          </button>
         )}
       </div>
       {engines.length === 0 && (

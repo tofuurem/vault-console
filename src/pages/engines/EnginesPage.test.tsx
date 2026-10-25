@@ -87,7 +87,7 @@ describe('EnginesPage', () => {
     await waitFor(() => expect(engines.tuneEngine).toHaveBeenCalledWith(
       expect.anything(),
       'pki/int',
-      { description: '', defaultLeaseTtl: '', maxLeaseTtl: '87600h' },
+      { description: '', defaultLeaseTtl: undefined, maxLeaseTtl: '87600h' },
     ));
 
     const disable = within(drawer).getByRole('button', { name: 'Disable pki/int' });

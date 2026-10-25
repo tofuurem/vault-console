@@ -102,8 +102,9 @@ export interface EnableEngineInput {
 
 export interface TuneEngineInput {
   readonly description: string;
-  readonly defaultLeaseTtl: string;
-  readonly maxLeaseTtl: string;
+  /** Omitted fields stay unchanged; an empty string resets to the system default. */
+  readonly defaultLeaseTtl?: string;
+  readonly maxLeaseTtl?: string;
 }
 
 export interface SecretEnginesGateway {
@@ -158,6 +159,14 @@ export function formatTtlSeconds(seconds: number): string {
     }
   }
   return parts.slice(0, 2).join(' ');
+}
+
+/** Shortest whole-unit Vault duration for a TTL in seconds, e.g. 2764800 → `768h`. */
+export function secondsToDuration(seconds: number): string {
+  if (seconds <= 0) return '';
+  if (seconds % 3_600 === 0) return `${seconds / 3_600}h`;
+  if (seconds % 60 === 0) return `${seconds / 60}m`;
+  return `${seconds}s`;
 }
 
 /** Joins a mount and a relative API path without doubled or trailing slashes. */
