@@ -426,7 +426,6 @@ function ExplorerDirectoryHeader({
       <PathBreadcrumbs mount={mount} currentPath={currentPath} onNavigate={onNavigateToBreadcrumb} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">KV version 2</p>
           <div className="flex items-center gap-2">
             <h1 id="directory-heading" className="text-sm font-semibold text-foreground-900">{currentMount?.description || `${mount}/`}</h1>
             {directory.status === 'success' && <span className="text-xs text-foreground-400">{searchModel.searchQuery.trim().length > 0 ? `${searchModel.searchMatches.length} matches` : `${searchModel.entries.length} items`}</span>}

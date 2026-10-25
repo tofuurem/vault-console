@@ -9,6 +9,7 @@ import Badge from '@/components/base/Badge';
 import Button from '@/components/base/Button';
 import Tabs from '@/components/base/Tabs';
 import Tooltip from '@/components/base/Tooltip';
+import type { KvV2VersionMetadata } from '@/domain/vault/contracts';
 import type { VaultError } from '@/domain/vault/errors';
 import { secretContainerSize, secretValueType } from '@/domain/vault/secret-json';
 import { formatDateTime } from '@/shared/format/date-time';
@@ -146,6 +147,15 @@ function InspectorValue({
       onClipboardFeedback={onClipboardFeedback}
     />
   );
+}
+
+/** Deleted versions are identified by when they were deleted, not created. */
+function versionTimeline(version: KvV2VersionMetadata): string {
+  const created = formatDateTime(version.createdTime);
+  if (version.deletionTime && !version.destroyed) {
+    return `Deleted ${formatDateTime(version.deletionTime)} · created ${created}`;
+  }
+  return `Created ${created}`;
 }
 
 function ScopedResourceError({
@@ -434,7 +444,7 @@ function WriteOnlyNotice({ permissions, onWriteOnly }: Pick<InspectorContentProp
   const preflightUnavailable = permissions?.discovery === 'unavailable';
   return (
     <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-800">
-      <p className="font-semibold">{preflightUnavailable ? 'Write permission could not be preflighted' : 'Write-only access is available'}</p>
+      <p className="font-semibold">{preflightUnavailable ? 'Write permission could not be checked in advance' : 'Write-only access is available'}</p>
       <p className="mt-1 leading-5">{preflightUnavailable ? 'Vault will make the final authorization decision. A write still replaces the complete secret document.' : 'You can submit a complete new document, but existing fields cannot be shown or preserved.'}</p>
       <button type="button" onClick={onWriteOnly} className="mt-2 h-11 rounded-md bg-primary-500 px-3 text-[11px] font-medium text-background-50 hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:px-2">{preflightUnavailable ? 'Try writing a new version…' : 'Write new version…'}</button>
     </div>
@@ -467,7 +477,7 @@ function InspectorVersionsTab({
               {version.deletionTime && <Badge variant="danger">Deleted</Badge>}
               {version.destroyed && <Badge variant="danger">Destroyed</Badge>}
               {!current && !version.deletionTime && !version.destroyed && <Badge variant="info">Older</Badge>}
-              <p className="mt-0.5 truncate text-[10px] text-foreground-400">{formatDateTime(version.createdTime)}</p>
+              <p className="mt-0.5 truncate text-[10px] text-foreground-500">{versionTimeline(version)}</p>
             </div>
             {!version.destroyed && (
               <div className="flex shrink-0 items-center gap-1">
@@ -501,7 +511,7 @@ function InspectorMetadataTab({
             <div className="flex justify-between gap-3"><dt className="text-foreground-500">Created</dt><dd className="text-right text-foreground-800">{formatDateTime(history.createdTime)}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-foreground-500">Updated</dt><dd className="text-right text-foreground-800">{formatDateTime(history.updatedTime)}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-foreground-500">Current version</dt><dd className="font-mono text-foreground-800">{history.currentVersion}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="text-foreground-500">Oldest version</dt><dd className="font-mono text-foreground-800">{history.oldestVersion}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-foreground-500">Oldest kept version</dt><dd className="font-mono text-foreground-800">{history.oldestVersion > 0 ? `v${history.oldestVersion}` : 'All versions kept'}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-foreground-500">Maximum versions</dt><dd className="font-mono text-foreground-800">{history.maxVersions === 0 ? 'Mount default' : history.maxVersions}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-foreground-500">Check-and-set required</dt><dd className="font-medium text-foreground-800">{history.casRequired ? 'Yes' : 'No'}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-foreground-500">Delete version after</dt><dd className="font-mono text-foreground-800">{history.deleteVersionAfter === '0s' ? 'Disabled' : history.deleteVersionAfter}</dd></div>

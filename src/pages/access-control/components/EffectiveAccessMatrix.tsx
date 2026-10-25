@@ -383,7 +383,7 @@ export default function EffectiveAccessMatrix({
     <section aria-labelledby="effective-access-heading">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+          <p className="text-[11px] font-medium text-foreground-500">
             Effective KV v2
           </p>
           <h2 id="effective-access-heading" className="mt-0.5 text-sm font-semibold text-foreground-900">

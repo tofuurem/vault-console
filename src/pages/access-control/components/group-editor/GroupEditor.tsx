@@ -20,6 +20,7 @@ import {
 } from '../workspace/usePlanApplyWorkflow';
 import { useWorkspaceSteps } from '../workspace/useWorkspaceSteps';
 import WorkspaceErrorSummary from '../workspace/WorkspaceErrorSummary';
+import { useRevealedErrors } from '../workspace/useRevealedErrors';
 import WorkspaceLoadError from '../workspace/WorkspaceLoadError';
 import WorkspaceStepFooter from '../workspace/WorkspaceStepFooter';
 import GroupMembersStep from './GroupMembersStep';
@@ -110,7 +111,8 @@ function GroupEditorForm({
   const { step } = steps;
   const dirty = groupEditorDraftKey(draft) !== groupEditorDraftKey(initial);
   const errors = useMemo(() => groupEditorErrors(draft.name), [draft.name]);
-  const groupNameError = errors.find(({ fieldId }) => fieldId === 'group-name')?.message;
+  const validation = useRevealedErrors(errors, steps);
+  const groupNameError = validation.visibleErrors.find(({ fieldId }) => fieldId === 'group-name')?.message;
   const domainDraft = useMemo(
     () => toGroupDraft(snapshot, draft, catalog),
     [catalog, draft, snapshot],
@@ -162,9 +164,9 @@ function GroupEditorForm({
       eyebrow={groupId ? 'Group access change' : 'New managed group'}
       title={groupId ? snapshot.group?.name ?? 'Managed group' : 'Create group'}
       subtitle={groupId ? `identity/group/id/${groupId}` : 'identity/group'}
-      steps={groupEditorSteps(step, errors)}
+      steps={groupEditorSteps(step, validation.visibleErrors)}
       activeStep={step}
-      onStepChange={steps.goTo}
+      onStepChange={validation.goTo}
       onClose={onClose}
       dirty={dirty && workflow.result?.status !== 'completed'}
       stateLabel={workflow.applying ? 'Applying' : groupId ? 'Draft' : 'New'}
@@ -173,9 +175,8 @@ function GroupEditorForm({
           summary={dirty ? '1 staged Vault operation' : 'No draft changes'}
           stepIndex={steps.stepIndex}
           reviewing={step === 'review'}
-          continueDisabled={step === 'overview' && errors.length > 0}
           onBack={steps.goBack}
-          onContinue={steps.goNext}
+          onContinue={validation.goNext}
           applyLabel={groupId ? 'Apply group change' : 'Create group'}
           applying={workflow.applying}
           canApply={canApply}
@@ -183,7 +184,7 @@ function GroupEditorForm({
         />
       )}
     >
-      <WorkspaceErrorSummary errors={errors} onNavigate={steps.goTo} />
+      <WorkspaceErrorSummary errors={validation.visibleErrors} onNavigate={validation.goTo} />
       {step === 'overview' && (
         <GroupOverviewStep
           snapshot={snapshot}

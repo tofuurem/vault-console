@@ -31,7 +31,7 @@ export default function AccountForm({
   return (
     <section aria-labelledby="account-heading" className="mx-auto w-full max-w-3xl px-6 py-7">
       <div className="mb-6">
-        <p className="mb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+        <p className="mb-1 text-[11px] font-medium text-foreground-500">
           Authentication
         </p>
         <h2 id="account-heading" className="text-base font-semibold text-foreground-900">

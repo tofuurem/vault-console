@@ -153,7 +153,7 @@ export default function TombstoneDetail({
             <i className="ri-arrow-left-line" aria-hidden="true" /> Removed
           </Button>
           <div className="min-w-0">
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-danger-600">
+            <p className="text-[11px] font-medium text-danger-700">
               Disabled Identity tombstone
             </p>
             <h1 className="truncate text-sm font-semibold text-foreground-900">{entity.name}</h1>

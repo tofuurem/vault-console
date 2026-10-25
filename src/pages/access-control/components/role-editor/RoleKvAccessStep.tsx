@@ -55,24 +55,24 @@ export default function RoleKvAccessStep({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
-          Canonical KV v2
+        <p className="text-[11px] font-medium text-foreground-500">
+          Permissions
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">
           KV access
         </h2>
         <p className="mt-1 max-w-2xl text-xs leading-5 text-foreground-500">
-          Visual targets compile to deterministic Vault data, metadata, version, and destroy
-          endpoint rules. Changes become live on the next request.
+          Choose folders or secrets and an access level. Vault Console writes the matching
+          KV v2 policy rules, and Vault applies them to the next request.
         </p>
       </div>
 
       {!supported && (
         <div role="alert" className="rounded-lg border border-warning-300 bg-warning-50 p-4 text-warning-900">
-          <p className="text-xs font-semibold">This policy is not a canonical visual KV role</p>
+          <p className="text-xs font-semibold">The visual editor cannot show this policy</p>
           <p className="mt-1 text-[10px] leading-4">
-            Vault Console cannot round-trip the complete HCL without semantic loss, so adoption
-            and visual editing remain unavailable.
+            Some of its rules have no visual equivalent, so saving here could change what it
+            allows. Adoption and visual editing stay disabled; use the Vault CLI instead.
           </p>
         </div>
       )}
@@ -112,7 +112,7 @@ export default function RoleKvAccessStep({
               onDirectRuleChange={updateRule}
             />
             <aside className="rounded-lg border border-background-300 bg-background-50 p-4 xl:sticky xl:top-4">
-              <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-primary-600">
+              <p className="text-[11px] font-medium text-foreground-500">
                 Role output
               </p>
               <dl className="mt-3 grid grid-cols-2 gap-2 text-center">

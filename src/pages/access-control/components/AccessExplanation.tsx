@@ -136,7 +136,7 @@ export default function AccessExplanation({
     >
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-primary-600">
+          <p className="text-[11px] font-medium text-foreground-500">
             Why this result
           </p>
           <h3

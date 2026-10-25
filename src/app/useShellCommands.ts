@@ -66,6 +66,14 @@ export function useShellCommands({
   }), [activeMount, activeSearchState, kvSearch]);
 
   return useMemo(() => [
+    ...mounts.map((mount) => ({
+      id: `mount-${mount.path}`,
+      label: `Open ${mount.path}/`,
+      group: 'KV mounts',
+      keywords: ['secret', 'folder', mount.description, mount.path],
+      icon: 'ri-folder-keyhole-line',
+      run: () => navigate(`/explorer/${encodeURIComponent(mount.path)}`),
+    })),
     {
       id: 'action-create-kv-mount',
       label: 'Create KV v2 mount',
@@ -82,14 +90,6 @@ export function useShellCommands({
       icon: 'ri-refresh-line',
       run: refreshMounts,
     },
-    ...mounts.map((mount) => ({
-      id: `mount-${mount.path}`,
-      label: `Open ${mount.path}/`,
-      group: 'KV mounts',
-      keywords: ['secret', 'folder', mount.description, mount.path],
-      icon: 'ri-folder-keyhole-line',
-      run: () => navigate(`/explorer/${encodeURIComponent(mount.path)}`),
-    })),
     ...pathCommands,
     ...(indexCommand ? [indexCommand] : []),
     ...(showAccessControl ? [

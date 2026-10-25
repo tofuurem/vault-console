@@ -41,7 +41,7 @@ function VisualTargetsPanel({
           </span>
         </div>
       ))}
-      {visualRules?.length === 0 && <DetailEmptyRow>No visual targets.</DetailEmptyRow>}
+      {visualRules?.length === 0 && <DetailEmptyRow>No KV targets.</DetailEmptyRow>}
     </DetailPanel>
   );
 }
@@ -79,8 +79,8 @@ export default function RoleDetailContent({
       <div className="mx-auto max-w-[1280px] space-y-5">
         {visualRules === null && (
           <div role="alert" className="rounded-md border border-warning-300 bg-warning-50 px-3 py-2 text-[10px] leading-4 text-warning-900">
-            This HCL cannot be round-tripped through the canonical visual KV editor.
-            It remains readable below, but Adopt and Edit are disabled.
+            The visual editor cannot show these rules without changing them. The policy stays
+            readable below, but Adopt and Edit are disabled.
           </div>
         )}
         {deleteReason && snapshot.ownership === 'managed' && (
@@ -89,7 +89,7 @@ export default function RoleDetailContent({
         <DetailMetrics
           valueSizeClassName="text-sm"
           metrics={[
-            ['Visual targets', visualRules?.length ?? '—'],
+            ['KV targets', visualRules?.length ?? '—'],
             ['HCL path blocks', parsedRules?.length ?? '—'],
             ['Dependencies', snapshot.dependencies.length],
             ['Effect timing', 'Next request'],
@@ -99,7 +99,7 @@ export default function RoleDetailContent({
         <DetailNote label="Managed description">
           {header?.kind === 'role'
             ? header.description || 'No description.'
-            : 'No verified ownership header.'}
+            : 'Not marked as managed by Vault Console.'}
         </DetailNote>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">

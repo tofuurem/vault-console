@@ -40,7 +40,7 @@ export default function PlanExecutionNotice({
         {blocked
           ? result.blockReason
             ? BLOCK_REASON[result.blockReason]
-            : 'The preflight checks did not allow this plan to run.'
+            : 'Checks before applying blocked this change.'
           : result.errorMessage ?? 'Verify the current Vault state before retrying.'}
       </p>
 

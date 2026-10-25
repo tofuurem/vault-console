@@ -36,7 +36,7 @@ export default function AccessSummary({
   return (
     <aside aria-labelledby="access-summary-heading" className="rounded-lg border border-background-300 bg-background-50 xl:sticky xl:top-4">
       <div className="border-b border-background-200 px-3.5 py-3">
-        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.15em] text-primary-600">Live result</p>
+        <p className="text-[11px] font-medium text-foreground-500">Live result</p>
         <h3 id="access-summary-heading" className="mt-0.5 text-xs font-semibold text-foreground-800">Access summary</h3>
       </div>
 

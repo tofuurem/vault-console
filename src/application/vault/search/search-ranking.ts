@@ -17,15 +17,32 @@ function matchScore(entry: KvPathEntry, query: string): number | null {
   return pathIndex >= 0 ? 50 + pathIndex : null;
 }
 
+/** Lowercased whitespace-separated terms; the whole phrase ranks first. */
+export function searchTerms(rawQuery: string): readonly string[] {
+  return rawQuery.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+}
+
+function termsScore(entry: KvPathEntry, terms: readonly string[]): number | null {
+  let total = 0;
+  for (const term of terms) {
+    const score = matchScore(entry, term);
+    if (score === null) return null;
+    total += score;
+  }
+  return 100 + total;
+}
+
 export function rankKvPathMatches(
   entries: readonly KvPathEntry[],
   rawQuery: string,
 ): readonly RankedKvPathMatch[] {
   const query = rawQuery.trim().toLocaleLowerCase();
   if (!query) return [];
+  const terms = searchTerms(query);
   return entries
     .flatMap((entry) => {
-      const score = matchScore(entry, query);
+      const score = matchScore(entry, query)
+        ?? (terms.length > 1 ? termsScore(entry, terms) : null);
       return score === null ? [] : [{ entry, score }];
     })
     .sort((left, right) => (

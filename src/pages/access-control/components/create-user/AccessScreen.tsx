@@ -81,7 +81,7 @@ export default function AccessScreen({
   return (
     <section aria-labelledby="access-heading" className="w-full px-4 py-5 lg:px-5">
       <div className="mb-4">
-        <p className="mb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">Authorization</p>
+        <p className="mb-1 text-[11px] font-medium text-foreground-500">Authorization</p>
         <h2 id="access-heading" className="text-base font-semibold text-foreground-900">Choose access in one place</h2>
         <p className="mt-1 text-xs leading-5 text-foreground-500">Groups provide the baseline. The tree always shows the final Vault result before you create the user.</p>
       </div>

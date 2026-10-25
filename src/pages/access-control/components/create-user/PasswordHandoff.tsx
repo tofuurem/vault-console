@@ -61,7 +61,7 @@ export default function PasswordHandoff({
               type={visible ? 'text' : 'password'}
               readOnly
               value={password}
-              className="h-11 min-w-0 flex-1 rounded-md border border-warning-300 bg-background-50 px-2.5 font-mono text-xs text-foreground-900 outline-none sm:h-8"
+              className="h-11 min-w-0 flex-1 rounded-md border border-warning-300 bg-background-50 px-2.5 font-mono text-xs text-foreground-900 outline-none focus-visible:ring-2 focus-visible:ring-warning-400 sm:h-8"
             />
             <button
               type="button"

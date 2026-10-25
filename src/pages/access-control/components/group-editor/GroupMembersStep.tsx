@@ -21,7 +21,7 @@ export default function GroupMembersStep({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+        <p className="text-[11px] font-medium text-foreground-500">
           Direct membership
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">

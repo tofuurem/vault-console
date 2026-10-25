@@ -61,9 +61,6 @@ export default function RolesList({
       <header className="shrink-0 border-b border-background-200 px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
-              Reserved ACL policies
-            </p>
             <div className="flex items-center gap-2">
               <h1 id="roles-heading" className="text-sm font-semibold text-foreground-900">
                 Roles
@@ -90,7 +87,7 @@ export default function RolesList({
             </span>
             <p className="mt-3 text-sm font-medium text-foreground-700">No role policies</p>
             <p className="mt-1 text-xs text-foreground-400">
-              Roles use an immutable <span className="font-mono">vc-role-*</span> policy name.
+              Roles are reusable KV permission sets for users and groups.
             </p>
           </div>
         ) : (
@@ -149,7 +146,7 @@ export default function RolesList({
                     <td className="max-w-[360px] truncate px-4 py-2.5 text-xs text-foreground-500">
                       {role.ownershipHeader?.kind === 'role'
                         ? role.ownershipHeader.description || 'No description'
-                        : 'Ownership header required'}
+                        : 'Not managed by Vault Console'}
                     </td>
                   </tr>
                 );

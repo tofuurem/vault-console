@@ -121,7 +121,7 @@ export default function AccessSourceSummary({
     <section aria-labelledby="access-sources-heading">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+          <p className="text-[11px] font-medium text-foreground-500">
             Provenance
           </p>
           <h2 id="access-sources-heading" className="mt-0.5 text-sm font-semibold text-foreground-900">

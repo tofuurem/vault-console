@@ -6,7 +6,6 @@ interface WorkspaceStepFooterProps {
   readonly summary: ReactNode;
   readonly stepIndex: number;
   readonly reviewing: boolean;
-  readonly continueDisabled: boolean;
   readonly onBack: () => void;
   readonly onContinue: () => void;
   readonly applyLabel: string;
@@ -19,7 +18,6 @@ export default function WorkspaceStepFooter({
   summary,
   stepIndex,
   reviewing,
-  continueDisabled,
   onBack,
   onContinue,
   applyLabel,
@@ -47,7 +45,6 @@ export default function WorkspaceStepFooter({
             type="button"
             size="sm"
             variant="primary"
-            disabled={continueDisabled}
             onClick={onContinue}
           >
             Continue <i className="ri-arrow-right-line" aria-hidden="true" />

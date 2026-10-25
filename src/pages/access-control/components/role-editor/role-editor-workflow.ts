@@ -25,7 +25,7 @@ export const ROLE_EDITOR_STEP_ORDER: readonly RoleEditorStep[] = [
 const ROLE_NAME_PATTERN = /^vc-role-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
 const EYEBROWS: Readonly<Record<RoleEditorMode, string>> = {
-  create: 'New managed role',
+  create: 'New role',
   adopt: 'Role adoption',
   edit: 'Role policy change',
 };
@@ -67,7 +67,7 @@ export function roleEditorErrors({
   if (!visualSupported) {
     values.push({
       id: 'role-visual',
-      message: 'The complete policy cannot be represented by canonical visual KV rules.',
+      message: 'This policy has rules the visual editor cannot show without changing them.',
       step: 'kv',
     });
   }
@@ -117,7 +117,7 @@ export function roleEditorSteps(
     {
       id: 'kv',
       label: 'KV access',
-      description: 'Canonical visual policy',
+      description: 'Paths and access levels',
       complete: ['dependencies', 'review'].includes(step),
       invalid: invalidOn('kv'),
     },
@@ -130,7 +130,7 @@ export function roleEditorSteps(
     {
       id: 'review',
       label: 'Review',
-      description: 'Diff, preflight, apply',
+      description: 'Check changes and apply',
     },
   ];
 }
@@ -142,5 +142,5 @@ export function roleEditorFooterSummary(
 ): string {
   if (mode === 'adopt') return 'Capabilities remain unchanged';
   if (!dirty) return 'No draft changes';
-  return `${targetCount} visual target${targetCount === 1 ? '' : 's'}`;
+  return `${targetCount} KV target${targetCount === 1 ? '' : 's'}`;
 }

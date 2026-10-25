@@ -84,8 +84,8 @@ export default function CustomAccessTarget({
         </p>
       </div>
       <form onSubmit={submit} className="space-y-3 p-3.5">
-        <div className="grid gap-3 sm:grid-cols-[minmax(120px,0.75fr)_minmax(180px,1.5fr)] lg:grid-cols-[minmax(120px,0.65fr)_minmax(200px,1.5fr)_minmax(130px,0.7fr)_minmax(150px,0.8fr)_auto] lg:items-end">
-          <label className="flex flex-col gap-1 text-xs font-medium text-foreground-700">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex min-w-[8rem] flex-[1_1_8rem] flex-col gap-1 text-xs font-medium text-foreground-700">
             KV mount
             <select
               aria-label="KV mount"
@@ -97,15 +97,17 @@ export default function CustomAccessTarget({
             </select>
             {showErrors && mountError && <span className="text-xs text-danger-500">{mountError}</span>}
           </label>
-          <Input
-            label="Logical path"
-            value={path}
-            onChange={(event) => setPath(event.target.value)}
-            placeholder={target === 'folder' ? 'future/database' : 'future/database/password'}
-            error={showErrors ? pathError : undefined}
-            monospace
-          />
-          <label className="flex flex-col gap-1 text-xs font-medium text-foreground-700">
+          <div className="min-w-[12rem] flex-[3_1_12rem]">
+            <Input
+              label="Logical path"
+              value={path}
+              onChange={(event) => setPath(event.target.value)}
+              placeholder={target === 'folder' ? 'future/database' : 'future/database/password'}
+              error={showErrors ? pathError : undefined}
+              monospace
+            />
+          </div>
+          <label className="flex min-w-[9rem] flex-[1_1_9rem] flex-col gap-1 text-xs font-medium text-foreground-700">
             Target
             <select
               aria-label="Target type"
@@ -117,7 +119,7 @@ export default function CustomAccessTarget({
               <option value="secret">Single secret</option>
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-xs font-medium text-foreground-700">
+          <label className="flex min-w-[9rem] flex-[1_1_9rem] flex-col gap-1 text-xs font-medium text-foreground-700">
             Access
             <select
               aria-label="Access level"
@@ -128,7 +130,7 @@ export default function CustomAccessTarget({
               {LEVELS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
           </label>
-          <Button type="submit" variant="secondary" size="md">
+          <Button type="submit" variant="secondary" size="md" className="shrink-0">
             <i className={existing ? 'ri-refresh-line' : 'ri-add-line'} aria-hidden="true" />
             {existing ? 'Update target' : 'Add target'}
           </Button>

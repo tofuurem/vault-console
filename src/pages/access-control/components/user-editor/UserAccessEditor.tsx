@@ -28,6 +28,7 @@ import AccessWorkspaceShell, {
 } from '../workspace/AccessWorkspaceShell';
 import PlanExecutionNotice from '../workspace/PlanExecutionNotice';
 import WorkspaceErrorSummary from '../workspace/WorkspaceErrorSummary';
+import { useRevealedErrors } from '../workspace/useRevealedErrors';
 import UserAccountStep from './UserAccountStep';
 import UserDirectKvStep from './UserDirectKvStep';
 import UserEditorFooter from './UserEditorFooter';
@@ -204,9 +205,6 @@ function UserAccessEditorForm({
     () => userEditorErrors(managedBy, draft.displayName),
     [draft.displayName, managedBy],
   );
-  const displayNameError = errors.find(
-    ({ fieldId }) => fieldId === 'user-display-name',
-  )?.message;
   const directPolicy = editorDirectPolicy(
     snapshot,
     draft,
@@ -226,15 +224,21 @@ function UserAccessEditorForm({
     snapshot,
   ]);
   const canApply = canApplyUserEditPlan({ plan, errors, confirmation, applying });
-  const steps = buildUserEditorSteps(step, errors);
   const stepIndex = STEP_ORDER.indexOf(step);
-  const continueBlocked = errors.length > 0 && step === 'account';
-  const goTo = (next: string, fieldId?: string) => {
-    setStep(next as UserEditorStep);
-    if (fieldId) {
-      requestAnimationFrame(() => document.getElementById(fieldId)?.focus());
-    }
-  };
+  const validation = useRevealedErrors(errors, {
+    step,
+    goTo: (next: string, fieldId?: string) => {
+      setStep(next as UserEditorStep);
+      if (fieldId) {
+        requestAnimationFrame(() => document.getElementById(fieldId)?.focus());
+      }
+    },
+    goNext: () => setStep(STEP_ORDER[stepIndex + 1]),
+  });
+  const steps = buildUserEditorSteps(step, validation.visibleErrors);
+  const displayNameError = validation.visibleErrors.find(
+    ({ fieldId }) => fieldId === 'user-display-name',
+  )?.message;
   const apply = async () => {
     if (!plan || !canApply) return;
     await applyPlan(plan, confirmation);
@@ -248,7 +252,7 @@ function UserAccessEditorForm({
       subtitle={`auth/${snapshot.account.mount}/users/${snapshot.account.username}`}
       steps={steps}
       activeStep={step}
-      onStepChange={goTo}
+      onStepChange={validation.goTo}
       onClose={onClose}
       dirty={dirty && result?.status !== 'completed'}
       stateLabel={applying ? 'Applying' : 'Draft'}
@@ -258,19 +262,15 @@ function UserAccessEditorForm({
           operationCount={plan?.operations.length ?? 0}
           showBack={stepIndex > 0}
           reviewing={step === 'review'}
-          continueBlocked={continueBlocked}
           applying={applying}
           canApply={canApply}
           onBack={() => setStep(STEP_ORDER[stepIndex - 1])}
-          onContinue={() => {
-            if (continueBlocked) return;
-            setStep(STEP_ORDER[stepIndex + 1]);
-          }}
+          onContinue={validation.goNext}
           onApply={() => { void apply(); }}
         />
       )}
     >
-      <WorkspaceErrorSummary errors={errors} onNavigate={goTo} />
+      <WorkspaceErrorSummary errors={validation.visibleErrors} onNavigate={validation.goTo} />
       {step === 'account' && (
         <UserAccountStep
           snapshot={snapshot}

@@ -1,7 +1,7 @@
 import type {
   KvSearchMountState,
 } from '@/application/vault/search/KvSearchContext';
-import type { RankedKvPathMatch } from '@/application/vault/search/search-ranking';
+import { searchTerms, type RankedKvPathMatch } from '@/application/vault/search/search-ranking';
 import type { KvPathEntry } from '@/domain/vault/search';
 import type { ExplorerSearchScope } from './ExplorerSearch';
 
@@ -18,18 +18,42 @@ interface SearchResultsProps {
 
 const MAX_RENDERED_RESULTS = 200;
 
+/** Merged [start, end) ranges of every occurrence of every term. */
+function highlightRanges(value: string, terms: readonly string[]): readonly (readonly [number, number])[] {
+  const normalized = value.toLocaleLowerCase();
+  const ranges = terms.flatMap((term) => {
+    const found: [number, number][] = [];
+    for (let index = normalized.indexOf(term); index >= 0; index = normalized.indexOf(term, index + term.length)) {
+      found.push([index, index + term.length]);
+    }
+    return found;
+  }).sort((left, right) => left[0] - right[0]);
+  return ranges.reduce<[number, number][]>((merged, range) => {
+    const last = merged.at(-1);
+    if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1]);
+    else merged.push([range[0], range[1]]);
+    return merged;
+  }, []);
+}
+
 function HighlightedText({ value, query }: { readonly value: string; readonly query: string }) {
-  const normalizedValue = value.toLocaleLowerCase();
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const index = normalizedValue.indexOf(normalizedQuery);
-  if (!normalizedQuery || index < 0) return value;
+  const phrase = query.trim().toLocaleLowerCase();
+  const ranges = highlightRanges(value, value.toLocaleLowerCase().includes(phrase) ? [phrase] : searchTerms(query));
+  if (!phrase || ranges.length === 0) return value;
+  let cursor = 0;
   return (
     <>
-      {value.slice(0, index)}
-      <mark className="rounded-sm bg-warning-100 px-0.5 text-inherit">
-        {value.slice(index, index + normalizedQuery.length)}
-      </mark>
-      {value.slice(index + normalizedQuery.length)}
+      {ranges.map(([start, end]) => {
+        const before = value.slice(cursor, start);
+        cursor = end;
+        return (
+          <span key={start}>
+            {before}
+            <mark className="rounded-sm bg-warning-100 text-inherit">{value.slice(start, end)}</mark>
+          </span>
+        );
+      })}
+      {value.slice(cursor)}
     </>
   );
 }

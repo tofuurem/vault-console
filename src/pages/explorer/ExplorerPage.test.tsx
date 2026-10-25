@@ -123,6 +123,8 @@ async function replaceEditorContent(
   user: ReturnType<typeof userEvent.setup>,
   value: string,
 ) {
+  const jsonView = screen.queryByRole('radio', { name: 'JSON' });
+  if (jsonView && jsonView.getAttribute('aria-checked') !== 'true') await user.click(jsonView);
   const editor = await screen.findByLabelText('Secret JSON editor');
   await user.click(editor);
   await user.keyboard('{Control>}a{/Control}');
@@ -365,7 +367,7 @@ describe('ExplorerPage', () => {
     await login(user);
 
     await user.click((await screen.findAllByText('shared'))[0]);
-    expect(await screen.findByText('Write permission could not be preflighted')).toBeVisible();
+    expect(await screen.findByText('Write permission could not be checked in advance')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Try writing a new version…' }));
     await user.type(screen.getAllByLabelText('Secret key')[0], 'TOKEN');
     await user.type(screen.getByLabelText('Value for TOKEN'), 'authoritative-value');

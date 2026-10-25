@@ -23,4 +23,25 @@ describe('rankKvPathMatches', () => {
   it('does not match secret values because only path entries are accepted', () => {
     expect(rankKvPathMatches(entries, 'database-password')).toEqual([]);
   });
+
+  it('matches every word in any order when the phrase itself is absent', () => {
+    const entries = [
+      { mount: 'kv', path: 'team/payments/prod/api-key', name: 'api-key', kind: 'secret' as const },
+      { mount: 'kv', path: 'team/payments/dev/api-key', name: 'api-key', kind: 'secret' as const },
+      { mount: 'kv', path: 'team/search/prod/database', name: 'database', kind: 'secret' as const },
+    ];
+
+    expect(rankKvPathMatches(entries, 'prod api').map(({ entry }) => entry.path))
+      .toEqual(['team/payments/prod/api-key']);
+    expect(rankKvPathMatches(entries, '  API   payments ').map(({ entry }) => entry.path))
+      .toEqual(['team/payments/dev/api-key', 'team/payments/prod/api-key']);
+  });
+
+  it('ranks a contiguous phrase above scattered words', () => {
+    const entries = [
+      { mount: 'kv', path: 'prod/x/api', name: 'api', kind: 'secret' as const },
+      { mount: 'kv', path: 'team/prod api', name: 'prod api', kind: 'secret' as const },
+    ];
+    expect(rankKvPathMatches(entries, 'prod api')[0].entry.path).toBe('team/prod api');
+  });
 });

@@ -26,7 +26,7 @@ export function roleSource(policyName: string): PolicySource {
   return {
     kind: 'role',
     id: policyName || 'new-role',
-    label: policyName || 'New managed role',
+    label: policyName || 'New role',
   };
 }
 

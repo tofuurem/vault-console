@@ -83,7 +83,7 @@ function AccessWorkspaceShell({
             </button>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary-600">
+                <p className="text-[11px] font-medium text-foreground-500">
                   {eyebrow}
                 </p>
                 <span className="inline-flex items-center gap-1 rounded-sm border border-warning-200 bg-warning-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-800">

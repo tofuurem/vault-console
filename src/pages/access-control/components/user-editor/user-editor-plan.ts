@@ -95,7 +95,7 @@ export function buildUserEditorSteps(
     {
       id: 'review',
       label: 'Review',
-      description: 'Preflight and apply',
+      description: 'Check and apply',
     },
   ];
 }

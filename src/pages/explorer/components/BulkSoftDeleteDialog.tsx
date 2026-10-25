@@ -75,9 +75,9 @@ function SoftDeleteLoading() {
 function SoftDeleteError({ error, onRetry }: { readonly error: string; readonly onRetry: () => void }) {
   return (
     <div role="alert" className="rounded-md border border-danger-200 bg-danger-50 p-3 text-xs text-danger-700">
-      <p className="font-semibold">Preflight could not be completed</p>
+      <p className="font-semibold">Permissions could not be checked</p>
       <p className="mt-1 leading-5">{error}</p>
-      <button type="button" onClick={onRetry} className="mt-2 font-semibold underline underline-offset-2">Retry preflight</button>
+      <button type="button" onClick={onRetry} className="mt-2 font-semibold underline underline-offset-2">Check again</button>
     </div>
   );
 }

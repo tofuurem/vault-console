@@ -61,9 +61,6 @@ export default function GroupsList({
       <header className="shrink-0 border-b border-background-200 px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
-              Vault Identity
-            </p>
             <div className="flex items-center gap-2">
               <h1 id="groups-heading" className="text-sm font-semibold text-foreground-900">
                 Internal groups

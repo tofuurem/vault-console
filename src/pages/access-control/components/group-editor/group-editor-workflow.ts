@@ -73,7 +73,7 @@ export function groupEditorSteps(
     {
       id: 'review',
       label: 'Review',
-      description: 'Preflight and apply',
+      description: 'Check and apply',
     },
   ];
 }

@@ -38,7 +38,6 @@ export default function PolicyExplorer({
       <header className="shrink-0 border-b border-background-200 px-5 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">Vault ACL</p>
             <div className="flex items-center gap-2">
               <h1 id="policies-heading" className="text-sm font-semibold text-foreground-900">Policy explorer</h1>
               <span className="text-xs text-foreground-400">{policyNames.length}</span>

@@ -27,15 +27,16 @@ export default function RoleOverviewStep({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
-          Role identity
+        <p className="text-[11px] font-medium text-foreground-500">
+          Role
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">
           Overview
         </h2>
         <p className="mt-1 max-w-2xl text-xs leading-5 text-foreground-500">
-          A role is a Vault ACL policy with an immutable reserved identifier and a canonical
-          Vault Console ownership header.
+          A role is a reusable set of KV permissions that you assign to users and groups.
+          Vault stores it as an ACL policy named <span className="font-mono">vc-role-</span> plus
+          the identifier, which cannot be changed later.
         </p>
       </div>
 
@@ -43,8 +44,8 @@ export default function RoleOverviewStep({
         <div className="rounded-lg border border-warning-300 bg-warning-50 p-4 text-warning-900">
           <p className="text-xs font-semibold">Adopt an Unverified role policy</p>
           <p className="mt-1 text-[10px] leading-4">
-            Apply adds only the ownership header and description. The policy body and every
-            capability remain unchanged. Editing becomes available after adoption succeeds.
+            Apply only marks this policy as managed by Vault Console and saves the description.
+            Its rules and permissions stay unchanged. Editing becomes available afterwards.
           </p>
         </div>
       )}
@@ -99,7 +100,7 @@ export default function RoleOverviewStep({
             Ownership state
           </p>
           <p className="mt-1 text-xs font-semibold capitalize text-foreground-800">
-            {mode === 'create' ? 'New managed role' : snapshot.ownership}
+            {mode === 'create' ? 'New role' : snapshot.ownership}
           </p>
         </div>
         <div className="md:col-span-2">

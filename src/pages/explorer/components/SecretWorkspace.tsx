@@ -1,6 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
-import { useDeferredSecretJsonValidation } from '@/application/json/useDeferredSecretJsonValidation';
 import Button from '@/components/base/Button';
 import Tabs from '@/components/base/Tabs';
 import { useDialogFocus } from '@/components/base/useDialogFocus';
@@ -9,10 +8,10 @@ import { normalizeVaultError } from '@/domain/vault/errors';
 import {
   formatSecretJson,
   redactSecretValue,
-  summarizeSecretChanges,
 } from '@/domain/vault/secret-json';
-import JsonSecretEditor from './JsonSecretEditor';
 import SecretDataTree from './SecretDataTree';
+import SecretEditPanel from './SecretEditPanel';
+import { useSecretEditDraft } from './useSecretEditDraft';
 import { formatDateTime } from '@/shared/format/date-time';
 
 export type SecretWorkspaceMode = 'view' | 'edit';
@@ -39,29 +38,24 @@ export default function SecretWorkspace({
   const [mode, setMode] = useState<SecretWorkspaceMode>('view');
   const [activeTab, setActiveTab] = useState('tree');
   const [revealAll, setRevealAll] = useState(false);
-  const [rawJson, setRawJson] = useState('{}');
-  const [initialJson, setInitialJson] = useState('{}');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [copyStatus, setCopyStatus] = useState('');
   const [focusErrorSignal, setFocusErrorSignal] = useState(0);
-  const validation = useDeferredSecretJsonValidation(rawJson, {
-    enabled: open && mode === 'edit',
-  });
+  const draft = useSecretEditDraft(secret?.data, open && mode === 'edit');
+  const resetDraft = draft.reset;
 
   useEffect(() => {
     if (!open || !secret) return;
-    const formatted = formatSecretJson(secret.data);
     setMode(initialMode === 'edit' && canEdit ? 'edit' : 'view');
     setActiveTab('tree');
     setRevealAll(false);
-    setRawJson(formatted);
-    setInitialJson(formatted);
+    resetDraft(secret.data);
     setSaving(false);
     setSaveError('');
     setCopyStatus('');
     setFocusErrorSignal(0);
-  }, [canEdit, initialMode, open, secret]);
+  }, [canEdit, initialMode, open, resetDraft, secret]);
 
   useEffect(() => {
     if (!open) return;
@@ -70,12 +64,7 @@ export default function SecretWorkspace({
     return () => { document.body.style.overflow = previousOverflow; };
   }, [open]);
 
-  const dirty = rawJson !== initialJson;
-  const changes = useMemo(() => (
-    validation.result?.ok && secret
-      ? summarizeSecretChanges(secret.data, validation.result.data)
-      : { added: 0, changed: 0, removed: 0 }
-  ), [secret, validation.result]);
+  const { dirty } = draft;
 
   const confirmDiscard = () => !dirty || window.confirm('Discard unsaved secret changes?');
   const requestClose = () => {
@@ -88,21 +77,15 @@ export default function SecretWorkspace({
   if (!open || !secret) return null;
 
   const enterEdit = () => {
-    const formatted = formatSecretJson(secret.data);
-    setRawJson(formatted);
-    setInitialJson(formatted);
+    draft.reset(secret.data);
     setSaveError('');
     setMode('edit');
   };
   const cancelEdit = () => {
     if (!confirmDiscard()) return;
-    setRawJson(initialJson);
+    draft.reset(secret.data);
     setSaveError('');
     setMode('view');
-  };
-  const formatEditor = () => {
-    const exact = validation.validateNow();
-    if (exact.ok) setRawJson(formatSecretJson(exact.data));
   };
   const copyJson = async () => {
     try {
@@ -115,15 +98,16 @@ export default function SecretWorkspace({
   };
   const save = async () => {
     if (!dirty) return;
-    const exact = validation.validateNow();
-    if (!exact.ok) {
-      setFocusErrorSignal((current) => current + 1);
+    const checked = draft.check();
+    if (!checked.ok) {
+      if (checked.reason === 'json') setFocusErrorSignal((current) => current + 1);
+      else setSaveError(checked.messages.join(' '));
       return;
     }
     setSaving(true);
     setSaveError('');
     try {
-      await onSave(exact.data);
+      await onSave(checked.data);
       setSaving(false);
       onClose();
     } catch (cause) {
@@ -203,29 +187,13 @@ export default function SecretWorkspace({
             </Tabs>
           </main>
         ) : (
-          <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden bg-background-100 p-3 sm:p-5" id="secret-workspace-content">
-            <JsonSecretEditor
-              value={rawJson}
-              onChange={setRawJson}
-              onFormat={formatEditor}
-              validationError={validation.result?.ok === false ? validation.result.message : undefined}
-              validationLocation={validation.result?.ok === false ? validation.result.location : undefined}
-              focusErrorSignal={focusErrorSignal}
-              disabled={saving}
-              largeDocument={validation.isLarge}
-              validationPending={validation.status === 'pending'}
-            />
-            <footer className="flex shrink-0 flex-wrap items-center gap-3 rounded-lg border border-background-300 bg-background-50 px-3 py-2">
-              <div className="flex items-center gap-1.5 text-[10px]">
-                <span className="rounded bg-success-50 px-2 py-1 font-medium text-success-700"><strong className="mr-1 font-mono tabular-nums">{changes.added}</strong>added</span>
-                <span className="rounded bg-warning-50 px-2 py-1 font-medium text-warning-700"><strong className="mr-1 font-mono tabular-nums">{changes.changed}</strong>changed</span>
-                <span className="rounded bg-danger-50 px-2 py-1 font-medium text-danger-700"><strong className="mr-1 font-mono tabular-nums">{changes.removed}</strong>removed</span>
-              </div>
-              <p className="min-w-[220px] flex-1 text-[10px] leading-4 text-foreground-500">Check-and-set is fixed to v{secret.metadata.version}. Concurrent changes fail instead of being overwritten.</p>
-              {!dirty && <span className="text-[10px] text-foreground-400">No changes</span>}
-              {saveError && <p role="alert" className="w-full border-t border-danger-100 pt-2 text-xs text-danger-700">{saveError}</p>}
-            </footer>
-          </main>
+          <SecretEditPanel
+            draft={draft}
+            currentVersion={secret.metadata.version}
+            saving={saving}
+            saveError={saveError}
+            focusErrorSignal={focusErrorSignal}
+          />
         )}
       </div>
     </div>

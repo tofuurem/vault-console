@@ -272,9 +272,14 @@ body {
   transform: translateY(0);
 }
 
-:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
-  outline: 2px solid oklch(var(--primary-500));
-  outline-offset: 2px;
+/* Fallback focus indicator. It lives in the base layer so components that draw
+   their own ring (or a focus-within ring on a wrapper) can opt out with
+   outline-none. */
+@layer base {
+  :where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid oklch(var(--primary-500));
+    outline-offset: 2px;
+  }
 }
 
 button,

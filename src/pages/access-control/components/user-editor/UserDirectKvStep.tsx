@@ -83,7 +83,7 @@ export default function UserDirectKvStep({
   return (
     <div className="space-y-5">
       <div>
-        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+        <p className="text-[11px] font-medium text-foreground-500">
           Effective KV v2
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground-950">
@@ -124,8 +124,8 @@ export default function UserDirectKvStep({
               Adopt the legacy 0.5.0 per-user policy
             </strong>
             <span className="mt-1 block text-[10px] leading-4 text-warning-800">
-              Review will add an ownership header without changing capabilities. Editing unlocks
-              only after the dependency preflight remains complete.
+              Review will mark this policy as managed by Vault Console without changing its
+              permissions. Editing unlocks once every dependency can be checked.
             </span>
           </span>
         </label>

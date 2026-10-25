@@ -5,7 +5,6 @@ interface UserEditorFooterProps {
   readonly operationCount: number;
   readonly showBack: boolean;
   readonly reviewing: boolean;
-  readonly continueBlocked: boolean;
   readonly applying: boolean;
   readonly canApply: boolean;
   readonly onBack: () => void;
@@ -18,7 +17,6 @@ export default function UserEditorFooter({
   operationCount,
   showBack,
   reviewing,
-  continueBlocked,
   applying,
   canApply,
   onBack,
@@ -46,7 +44,6 @@ export default function UserEditorFooter({
             variant="primary"
             size="sm"
             onClick={onContinue}
-            disabled={continueBlocked}
           >
             Continue <i className="ri-arrow-right-line" aria-hidden="true" />
           </Button>

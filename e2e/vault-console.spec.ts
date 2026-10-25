@@ -298,7 +298,7 @@ test('opens an exact path and replaces a write-only secret with an explicit stra
   await page.getByLabel('Secret path relative to applications').fill('write-only-existing');
   await page.getByRole('button', { name: 'Open exact path' }).click();
   await expect(page).toHaveURL(/secret=write-only-existing/);
-  await expect(page.getByText('Write permission could not be preflighted')).toBeVisible();
+  await expect(page.getByText('Write permission could not be checked in advance')).toBeVisible();
   await page.getByRole('button', { name: 'Try writing a new version…' }).click();
 
   const drawer = page.getByRole('dialog', { name: 'Write secret without read access' });

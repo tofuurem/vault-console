@@ -21,6 +21,7 @@ import {
 } from '../workspace/usePlanApplyWorkflow';
 import { useWorkspaceSteps } from '../workspace/useWorkspaceSteps';
 import WorkspaceErrorSummary from '../workspace/WorkspaceErrorSummary';
+import { useRevealedErrors } from '../workspace/useRevealedErrors';
 import WorkspaceLoadError from '../workspace/WorkspaceLoadError';
 import WorkspaceStepFooter from '../workspace/WorkspaceStepFooter';
 import RoleDependenciesStep from './RoleDependenciesStep';
@@ -129,7 +130,8 @@ function RoleEditorForm({
     }),
     [draft.directRules.length, draft.policyName, initial.visualSupported, mode],
   );
-  const roleNameError = errors.find(({ fieldId }) => fieldId === 'role-slug')?.message;
+  const validation = useRevealedErrors(errors, steps);
+  const roleNameError = validation.visibleErrors.find(({ fieldId }) => fieldId === 'role-slug')?.message;
   const plan = useMemo(
     () => buildRoleEditorPlan(mode, snapshot, draft),
     [draft, mode, snapshot],
@@ -180,9 +182,9 @@ function RoleEditorForm({
       eyebrow={roleEditorEyebrow(mode)}
       title={mode === 'create' ? 'Create role' : snapshot.policy?.name ?? 'Role'}
       subtitle={draft.policyName || 'sys/policies/acl/vc-role-*'}
-      steps={roleEditorSteps(step, errors)}
+      steps={roleEditorSteps(step, validation.visibleErrors)}
       activeStep={step}
-      onStepChange={steps.goTo}
+      onStepChange={validation.goTo}
       onClose={onClose}
       dirty={dirty && workflow.result?.status !== 'completed'}
       stateLabel={workflow.applying ? 'Applying' : mode === 'adopt' ? 'Adoption' : 'Draft'}
@@ -191,9 +193,8 @@ function RoleEditorForm({
           summary={roleEditorFooterSummary(mode, dirty, draft.directRules.length)}
           stepIndex={steps.stepIndex}
           reviewing={step === 'review'}
-          continueDisabled={errors.some(({ step: errorStep }) => errorStep === step)}
           onBack={steps.goBack}
-          onContinue={steps.goNext}
+          onContinue={validation.goNext}
           applyLabel={roleEditorApplyLabel(mode)}
           applying={workflow.applying}
           canApply={canApply}
@@ -201,7 +202,7 @@ function RoleEditorForm({
         />
       )}
     >
-      <WorkspaceErrorSummary errors={errors} onNavigate={steps.goTo} />
+      <WorkspaceErrorSummary errors={validation.visibleErrors} onNavigate={validation.goTo} />
       {step === 'overview' && (
         <RoleOverviewStep
           mode={mode}

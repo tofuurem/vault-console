@@ -23,7 +23,7 @@ export default function TombstonesList({
               <i className="ri-arrow-left-line" aria-hidden="true" /> Users
             </Button>
             <div>
-              <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-danger-600">
+              <p className="text-[11px] font-medium text-danger-700">
                 Advanced lifecycle
               </p>
               <div className="flex items-center gap-2">
