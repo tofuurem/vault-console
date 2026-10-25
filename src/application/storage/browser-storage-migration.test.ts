@@ -4,10 +4,17 @@ import {
   INSPECTOR_PREFERENCES_STORAGE_KEY,
   LOCAL_FAVORITES_STORAGE_PREFIX,
   OBSOLETE_DENSITY_STORAGE_KEYS,
+  RECENT_PATHS_STORAGE_KEY,
+  SESSION_FAVORITES_STORAGE_KEY,
+  SESSION_STORAGE_KEY,
   THEME_STORAGE_KEY,
   VAULT_CONSOLE_LOCAL_STORAGE_KEYS,
+  VAULT_CONSOLE_SESSION_STORAGE_KEYS,
 } from './browser-storage-keys';
-import { migrateVaultConsoleLocalStorage } from './browser-storage-migration';
+import {
+  migrateVaultConsoleLocalStorage,
+  migrateVaultConsoleSessionStorage,
+} from './browser-storage-migration';
 
 describe('Vault Console browser storage compatibility', () => {
   beforeEach(() => {
@@ -105,5 +112,39 @@ describe('Vault Console browser storage compatibility', () => {
     expect(() => migrateVaultConsoleLocalStorage(blockedStorage)).not.toThrow();
     expect(values.get('vault-console:theme')).toBe('dark');
     expect(values.has(THEME_STORAGE_KEY)).toBe(false);
+  });
+});
+
+describe('Vault Console tab storage compatibility', () => {
+  beforeEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it('uses the vc-console namespace for every tab-scoped key', () => {
+    for (const key of VAULT_CONSOLE_SESSION_STORAGE_KEYS) {
+      expect(key.startsWith('vc-console.')).toBe(true);
+    }
+  });
+
+  it('moves navigation history and drops the legacy token record without copying it', () => {
+    const recents = JSON.stringify({ version: 1, paths: [] });
+    window.sessionStorage.setItem('vault-console.session.v1', '{"token":"hvs.legacy"}');
+    window.sessionStorage.setItem('vault-console.navigation.recents.v1', recents);
+    window.sessionStorage.setItem('vault-console.navigation.favorites.session.v1', recents);
+
+    migrateVaultConsoleSessionStorage(window.sessionStorage);
+
+    expect(window.sessionStorage.getItem('vault-console.session.v1')).toBeNull();
+    expect(window.sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
+    expect(JSON.stringify({ ...window.sessionStorage })).not.toContain('hvs.legacy');
+    expect(window.sessionStorage.getItem(RECENT_PATHS_STORAGE_KEY)).toBe(recents);
+    expect(window.sessionStorage.getItem(SESSION_FAVORITES_STORAGE_KEY)).toBe(recents);
+  });
+
+  it('is idempotent and tolerates unavailable storage', () => {
+    migrateVaultConsoleSessionStorage(window.sessionStorage);
+    migrateVaultConsoleSessionStorage(window.sessionStorage);
+    migrateVaultConsoleSessionStorage(null);
+    expect(window.sessionStorage.length).toBe(0);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { VaultSession } from '../../../domain/vault/contracts';
-import { vaultPassword, vaultToken } from '../../../domain/vault/sensitive-value';
+import type { VaultSession } from '@/domain/vault/contracts';
+import { vaultPassword, vaultToken } from '@/domain/vault/sensitive-value';
 import { VaultHttpClient, type VaultFetch } from '../http/vault-http-client';
 import { VaultAccessControlAdapter } from './vault-access-control-adapter';
 

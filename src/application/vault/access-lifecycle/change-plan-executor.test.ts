@@ -249,7 +249,7 @@ describe('access lifecycle preflight and executor', () => {
     const base = policyPlan();
     const baseWrite = base.operations[0];
     if (baseWrite.kind !== 'write-policy') throw new Error('Expected write policy operation');
-    let readCount = 0;
+    const readCount = 0;
     const plan: ChangePlan = {
       ...base,
       operations: [

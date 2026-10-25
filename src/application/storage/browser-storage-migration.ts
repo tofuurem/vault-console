@@ -1,6 +1,8 @@
 import {
   LEGACY_LOCAL_FAVORITES_STORAGE_PREFIX,
   LEGACY_LOCAL_STORAGE_KEY_MIGRATIONS,
+  LEGACY_SESSION_STORAGE_KEY_MIGRATIONS,
+  LEGACY_SESSION_TOKEN_STORAGE_KEY,
   LOCAL_FAVORITES_STORAGE_PREFIX,
   OBSOLETE_DENSITY_STORAGE_KEYS,
 } from './browser-storage-keys';
@@ -68,11 +70,32 @@ export function migrateVaultConsoleLocalStorage(
   }
 }
 
-export function migrateBrowserVaultConsoleLocalStorage(): void {
+export function migrateVaultConsoleSessionStorage(
+  storage: MigrationStorage | null | undefined,
+): void {
+  if (!storage) return;
+
+  try {
+    storage.removeItem(LEGACY_SESSION_TOKEN_STORAGE_KEY);
+  } catch {
+    // A legacy token record that cannot be removed is never read either.
+  }
+
+  for (const [legacyKey, nextKey] of LEGACY_SESSION_STORAGE_KEY_MIGRATIONS) {
+    migrateKey(storage, legacyKey, nextKey);
+  }
+}
+
+export function migrateBrowserVaultConsoleStorage(): void {
   try {
     migrateVaultConsoleLocalStorage(window.localStorage);
   } catch {
     // Access can be blocked by browser privacy settings. Providers already
     // fall back to in-memory preferences when persistence is unavailable.
+  }
+  try {
+    migrateVaultConsoleSessionStorage(window.sessionStorage);
+  } catch {
+    // Same as above: tab-scoped storage is optional.
   }
 }

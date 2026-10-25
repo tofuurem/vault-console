@@ -11,7 +11,7 @@ import { generateSecurePassword } from '@/domain/access-control/password';
 import type { PolicySource } from '@/domain/access-control/types';
 import AccessScreen from './create-user/AccessScreen';
 import AccountForm from './create-user/AccountForm';
-import type { AccessDraft } from './create-user/access';
+import type { AccessDraft, CreateUserAccessCatalog } from './create-user/access';
 import type { AccountDraft } from './create-user/account';
 import { validateAccount } from './create-user/account';
 import CreateUserWorkflowModal, {
@@ -30,7 +30,7 @@ import { normalizeVaultError } from '@/domain/vault/errors';
 interface CreateUserWizardProps {
   readonly onDone: () => void;
   readonly onCancel: () => void;
-  readonly catalog: import('./create-user/access').CreateUserAccessCatalog;
+  readonly catalog: CreateUserAccessCatalog;
   readonly snapshot: AccessControlSnapshot;
   readonly gateway: VaultAccessControlGateway;
   readonly session: VaultSession;

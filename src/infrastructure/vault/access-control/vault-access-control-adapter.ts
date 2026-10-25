@@ -14,9 +14,10 @@ import type {
   VaultIdentityGroup,
   VaultSession,
   VaultUserpassAccount,
-} from '../../../domain/vault/contracts';
-import { VaultError } from '../../../domain/vault/errors';
-import { mapWithConcurrency } from '../../../shared/async/map-with-concurrency';
+} from '@/domain/vault/contracts';
+import { VaultError } from '@/domain/vault/errors';
+import type { VaultPassword } from '@/domain/vault/sensitive-value';
+import { mapWithConcurrency } from '@/shared/async/map-with-concurrency';
 import { encodeVaultPath, VaultHttpClient } from '../http/vault-http-client';
 import {
   asArray,
@@ -400,7 +401,7 @@ export class VaultAccessControlAdapter implements VaultAccessControlGateway {
     session: VaultSession,
     mount: string,
     username: string,
-    password: import('../../../domain/vault/sensitive-value').VaultPassword,
+    password: VaultPassword,
     signal?: AbortSignal,
   ): Promise<void> {
     await this.client.request(

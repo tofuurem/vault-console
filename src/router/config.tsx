@@ -1,16 +1,16 @@
 import { lazy } from 'react';
-import type { RouteObject } from "react-router-dom";
+import type { RouteObject } from 'react-router-dom';
 
 import AuthenticatedAppShell from '@/app/AuthenticatedAppShell';
-import NotFound from "../pages/NotFound";
-import LoginPage from "../pages/login/page";
+import NotFound from '@/pages/NotFound';
+import LoginPage from '@/pages/login/page';
 import ApplicationRouteBoundary from './ApplicationRouteBoundary';
 import { HomeRoute, LoginRoute, RequireSession } from './RouteGuards';
 import LazyRoute from './LazyRoute';
 
-const ExplorerPage = lazy(() => import('../pages/explorer/page'));
-const AccessControlPage = lazy(() => import('../pages/access-control/page'));
-const UnsealPage = lazy(() => import('../pages/unseal/page'));
+const ExplorerPage = lazy(() => import('@/pages/explorer/page'));
+const AccessControlPage = lazy(() => import('@/pages/access-control/page'));
+const UnsealPage = lazy(() => import('@/pages/unseal/page'));
 
 const applicationRoutes: RouteObject[] = [
   {

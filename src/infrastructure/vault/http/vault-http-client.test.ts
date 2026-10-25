@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { VaultError } from '../../../domain/vault/errors';
-import { vaultToken } from '../../../domain/vault/sensitive-value';
+import { VaultError } from '@/domain/vault/errors';
+import { vaultToken } from '@/domain/vault/sensitive-value';
 import {
   encodeVaultPath,
   VaultHttpClient,

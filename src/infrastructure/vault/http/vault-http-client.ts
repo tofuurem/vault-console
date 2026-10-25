@@ -3,8 +3,8 @@ import {
   normalizeVaultError,
   vaultErrorFromStatus,
   type VaultErrorDiagnostic,
-} from '../../../domain/vault/errors';
-import type { VaultToken } from '../../../domain/vault/sensitive-value';
+} from '@/domain/vault/errors';
+import type { VaultToken } from '@/domain/vault/sensitive-value';
 
 export interface VaultRequestOptions {
   readonly method?: 'GET' | 'POST' | 'PUT' | 'DELETE';

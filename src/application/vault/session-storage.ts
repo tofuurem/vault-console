@@ -1,7 +1,8 @@
 import type { VaultAuthMethod, VaultSession } from '@/domain/vault/contracts';
+import { SESSION_STORAGE_KEY } from '@/application/storage/browser-storage-keys';
 import { vaultToken } from '@/domain/vault/sensitive-value';
 
-export const SESSION_STORAGE_KEY = 'vault-console.session.v1';
+export { SESSION_STORAGE_KEY };
 
 interface StorageLike {
   getItem(key: string): string | null;

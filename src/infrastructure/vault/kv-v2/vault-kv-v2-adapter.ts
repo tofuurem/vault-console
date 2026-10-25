@@ -5,20 +5,20 @@ import type {
   KvV2SecretHistory,
   KvV2VersionMetadata,
   VaultSession,
-} from '../../../domain/vault/contracts';
-import { VaultError } from '../../../domain/vault/errors';
+} from '@/domain/vault/contracts';
+import { VaultError } from '@/domain/vault/errors';
 import {
   kvV2WriteOptions,
   validateKvV2Retention,
   type KvV2MountConfig,
   type KvV2SecretMetadataInput,
   type KvV2WriteStrategy,
-} from '../../../domain/vault/kv-v2';
+} from '@/domain/vault/kv-v2';
 import {
   kvMountPathError,
   normalizeKvMountPath,
   type CreateKvV2Mount,
-} from '../../../domain/vault/kv-mount';
+} from '@/domain/vault/kv-mount';
 import { encodeVaultPath, VaultHttpClient } from '../http/vault-http-client';
 import {
   asBoolean,

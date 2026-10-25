@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { vaultPassword, vaultToken } from '../../../domain/vault/sensitive-value';
+import { vaultPassword, vaultToken } from '@/domain/vault/sensitive-value';
 import { VaultAuthAdapter } from './vault-auth-adapter';
 import { VaultHttpClient, type VaultFetch } from '../http/vault-http-client';
 

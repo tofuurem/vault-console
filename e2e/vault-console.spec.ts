@@ -90,7 +90,7 @@ test('rejects invalid tokens and expires active or restored revoked sessions', a
   await expect(page.getByRole('alert')).toContainText(
     'Your Vault session expired. Sign in again.',
   );
-  expect(await page.evaluate(() => sessionStorage.getItem('vault-console.session.v1'))).toBeNull();
+  expect(await page.evaluate(() => sessionStorage.getItem('vc-console.session.v1'))).toBeNull();
 });
 
 test('restores the authenticated route after a full page reload', async ({ page }) => {
@@ -221,7 +221,7 @@ test('signs in with userpass without persisting the password and signs out clean
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();
-  const storedSession = await page.evaluate(() => sessionStorage.getItem('vault-console.session.v1'));
+  const storedSession = await page.evaluate(() => sessionStorage.getItem('vc-console.session.v1'));
   expect(storedSession).toContain('"authMethod":"userpass"');
   expect(storedSession).not.toContain('e2e-password');
 

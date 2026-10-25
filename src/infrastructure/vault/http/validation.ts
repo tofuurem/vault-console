@@ -1,4 +1,4 @@
-import { VaultError } from '../../../domain/vault/errors';
+import { VaultError } from '@/domain/vault/errors';
 
 export type JsonObject = Record<string, unknown>;
 

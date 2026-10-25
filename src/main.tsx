@@ -2,9 +2,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { migrateBrowserVaultConsoleLocalStorage } from './application/storage/browser-storage-migration.ts'
+import { migrateBrowserVaultConsoleStorage } from './application/storage/browser-storage-migration.ts'
 
-migrateBrowserVaultConsoleLocalStorage()
+migrateBrowserVaultConsoleStorage()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

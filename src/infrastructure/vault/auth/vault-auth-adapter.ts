@@ -5,11 +5,11 @@ import type {
   VaultHealth,
   VaultSession,
   VaultSessionLease,
-} from '../../../domain/vault/contracts';
-import { isVaultCapability } from '../../../domain/vault/capabilities';
-import { VaultError } from '../../../domain/vault/errors';
-import { leaseFromDuration, leaseFromLookup } from '../../../domain/vault/session-lease';
-import { vaultToken, type VaultToken } from '../../../domain/vault/sensitive-value';
+} from '@/domain/vault/contracts';
+import { isVaultCapability } from '@/domain/vault/capabilities';
+import { VaultError } from '@/domain/vault/errors';
+import { leaseFromDuration, leaseFromLookup } from '@/domain/vault/session-lease';
+import { vaultToken, type VaultToken } from '@/domain/vault/sensitive-value';
 import { encodeVaultPath, VaultHttpClient } from '../http/vault-http-client';
 import { asBoolean, asNumber, asObject, asString, asStringArray, optionalString } from '../http/validation';
 
