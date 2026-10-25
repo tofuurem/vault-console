@@ -1,7 +1,7 @@
 {
   "name": "vault-console",
   "private": true,
-  "version": "0.9.0",
+  "version": "0.10.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,6 +15,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:audit-reader": "docker run --rm -v \"$PWD/services/audit-reader:/src:ro\" -w /src -e GOCACHE=/tmp/go-cache -e GOFLAGS=-mod=readonly golang:1.24-alpine@sha256:8bee1901f1e530bfb4a7850aa7a479d17ae3a18beb6e09064ed54cfd245b7191 sh -c \"test -z \\\"$(gofmt -l .)\\\" && go vet ./... && go test -count=1 ./...\"",
     "test:vault": "./scripts/test-vault.sh",
     "test:container": "./scripts/test-container.sh",
     "test:e2e": "./scripts/test-compose-e2e.sh",

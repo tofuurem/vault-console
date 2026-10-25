@@ -37,6 +37,29 @@ describe('VaultHttpClient', () => {
     expect(init?.signal).toBe(controller.signal);
   });
 
+  it('requests response wrapping only when a wrap TTL is given', async () => {
+    const fetchRequest = vi.fn<VaultFetch>().mockImplementation(async () => new Response(
+      JSON.stringify({ wrap_info: { token: 'hvs.wrapped' } }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ));
+    const client = new VaultHttpClient(fetchRequest);
+
+    await client.request('https://vault.example.test', 'secret/data/app', { wrapTtl: '1h' });
+    await client.request('https://vault.example.test', 'secret/data/app');
+
+    expect(new Headers(fetchRequest.mock.calls[0][1]?.headers).get('X-Vault-Wrap-TTL')).toBe('1h');
+    expect(new Headers(fetchRequest.mock.calls[1][1]?.headers).has('X-Vault-Wrap-TTL')).toBe(false);
+  });
+
+  it.each(['', '0', '1d', '1h; x', '-5m'])('rejects a malformed wrap TTL before sending: %j', async (wrapTtl) => {
+    const fetchRequest = vi.fn<VaultFetch>();
+
+    await expect(
+      new VaultHttpClient(fetchRequest).request('https://vault.example.test', 'secret/data/app', { wrapTtl }),
+    ).rejects.toMatchObject({ code: 'invalid-request' });
+    expect(fetchRequest).not.toHaveBeenCalled();
+  });
+
   it('accepts server URLs already ending in v1', async () => {
     const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(
       new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }),

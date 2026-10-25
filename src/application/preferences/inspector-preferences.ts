@@ -14,17 +14,30 @@ export const DEFAULT_INSPECTOR_PREFERENCES: InspectorPreferences = {
   rightWidth: 380,
 };
 
+/** Wide screens have room for a side panel; narrower ones keep the table usable with a bottom dock. */
+export const RIGHT_DOCK_MIN_VIEWPORT = 1280;
+
+export function defaultInspectorPreferences(viewportWidth?: number): InspectorPreferences {
+  return viewportWidth !== undefined && viewportWidth >= RIGHT_DOCK_MIN_VIEWPORT
+    ? { ...DEFAULT_INSPECTOR_PREFERENCES, placement: 'right' }
+    : DEFAULT_INSPECTOR_PREFERENCES;
+}
+
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
-export function loadInspectorPreferences(storage: Storage | null): InspectorPreferences {
-  if (!storage) return DEFAULT_INSPECTOR_PREFERENCES;
+export function loadInspectorPreferences(
+  storage: Storage | null,
+  viewportWidth?: number,
+): InspectorPreferences {
+  const fallback = defaultInspectorPreferences(viewportWidth);
+  if (!storage) return fallback;
   try {
     const parsed = JSON.parse(
       storage.getItem(INSPECTOR_PREFERENCES_STORAGE_KEY) ?? 'null',
     ) as Record<string, unknown> | null;
-    if (!parsed) return DEFAULT_INSPECTOR_PREFERENCES;
+    if (!parsed) return fallback;
     return {
       placement: parsed.placement === 'right' ? 'right' : 'bottom',
       bottomRatio: typeof parsed.bottomRatio === 'number'
@@ -35,7 +48,7 @@ export function loadInspectorPreferences(storage: Storage | null): InspectorPref
         : DEFAULT_INSPECTOR_PREFERENCES.rightWidth,
     };
   } catch {
-    return DEFAULT_INSPECTOR_PREFERENCES;
+    return fallback;
   }
 }
 

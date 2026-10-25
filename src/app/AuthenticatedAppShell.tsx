@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { matchPath, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { useRuntimeConfig } from '@/application/config/RuntimeConfigContext';
 import { useNavigationHistory } from '@/application/navigation-history/NavigationHistoryContext';
 import { NavigationHistoryProvider } from '@/application/navigation-history/NavigationHistoryProvider';
 import type { NavigationPath } from '@/application/navigation-history/navigation-history';
@@ -12,9 +13,12 @@ import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import { useKvMounts } from '@/application/vault/useKvExplorerData';
 import { useKvV2Gateway } from '@/application/vault/KvV2GatewayContext';
 import { KvSearchProvider } from '@/application/vault/search/KvSearchProvider';
+import { useSessionPreferences } from '@/application/preferences/session-preferences';
+import { useAutoRenewSession } from '@/application/vault/useAutoRenewSession';
 import { useSessionClock } from '@/application/vault/useSessionClock';
 import { useVaultSealedSignal } from '@/application/vault/useVaultSealedSignal';
 import CommandPalette from '@/components/feature/CommandPalette';
+import { ShortcutHelp } from '@/components/feature/ShortcutHelpDialog';
 import CreateKvMountDialog from '@/components/feature/CreateKvMountDialog';
 import SealedVaultBanner from '@/components/feature/SealedVaultBanner';
 import SessionExpiryBanner from '@/components/feature/SessionExpiryBanner';
@@ -47,6 +51,7 @@ export default function AuthenticatedAppShell() {
 }
 
 function AuthenticatedWorkspace() {
+  const runtimeConfig = useRuntimeConfig();
   const navigate = useNavigate();
   const location = useLocation();
   const vault = useVaultSession();
@@ -79,6 +84,13 @@ function AuthenticatedWorkspace() {
     queryClient.clear();
     navigate('/login', { replace: true, state: { reason: 'revoked' } });
   }, [navigate, queryClient, vault]);
+  const [sessionPreferences, setSessionPreferences] = useSessionPreferences();
+  useAutoRenewSession({
+    enabled: sessionPreferences.autoRenew && session.renewable === true,
+    warning: sessionClock.warning,
+    leaseKey: `${session.expiresAt ?? ''}:${session.renewedAt ?? ''}`,
+    renew: vault.renewSession,
+  });
   const [mountsState, refreshMounts] = useKvMounts(session);
   const [vaultSealed, dismissSealedNotice] = useVaultSealedSignal();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -130,6 +142,25 @@ function AuthenticatedWorkspace() {
     refreshMounts,
   };
 
+  const sidebarNavigation = {
+    mounts,
+    vaultHealth: vault.health,
+    serverUrl: session.serverUrl,
+    activeMount,
+    activePath,
+    showAccessControl,
+    activeAccessCenter: accessCenterActive,
+    showActivity: runtimeConfig.auditAvailable,
+    activeActivity: location.pathname.startsWith('/activity'),
+    activeOverview: location.pathname === '/home',
+    favorites: navigationHistory.favorites,
+    recents: navigationHistory.recents,
+  };
+  const closeNavigationThen = <T extends unknown[]>(action: (...args: T) => void) => (...args: T) => {
+    setMobileNavigationOpen(false);
+    action(...args);
+  };
+
   return (
     <div data-testid="authenticated-app-shell" className="relative flex h-full flex-col bg-background-50">
       <TopBar
@@ -144,6 +175,10 @@ function AuthenticatedWorkspace() {
         revocation={vault.revocation}
         onRevokeSession={revokeSession}
         onOpenNavigation={() => setMobileNavigationOpen(true)}
+        sessionWarning={sessionClock.warning}
+        autoRenew={sessionPreferences.autoRenew}
+        onAutoRenewChange={(autoRenew) => setSessionPreferences({ autoRenew })}
+        onVaultSealed={() => navigate('/unseal')}
       />
       <SessionExpiryBanner
         session={session}
@@ -160,20 +195,14 @@ function AuthenticatedWorkspace() {
       )}
       <div className="relative flex min-h-0 flex-1">
         <Sidebar
+          {...sidebarNavigation}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
-          mounts={mounts}
-          vaultHealth={vault.health}
-          serverUrl={session.serverUrl}
-          activeMount={activeMount}
-          activePath={activePath}
           onMountSelect={(mount) => navigate(`/explorer/${encodeURIComponent(mount)}`)}
           onCreateMount={() => setCreateMountOpen(true)}
-          showAccessControl={showAccessControl}
-          activeAccessCenter={accessCenterActive}
           onAccessCenterSelect={() => navigate('/access-control/users')}
-          favorites={navigationHistory.favorites}
-          recents={navigationHistory.recents}
+          onActivitySelect={() => navigate('/activity')}
+          onOverviewSelect={() => navigate('/home')}
           onPathSelect={openNavigationPath}
         />
         <Drawer
@@ -184,34 +213,16 @@ function AuthenticatedWorkspace() {
           side="left"
         >
           <Sidebar
+            {...sidebarNavigation}
             mobile
             collapsed={false}
             onToggleCollapse={() => {}}
-            mounts={mounts}
-            vaultHealth={vault.health}
-            serverUrl={session.serverUrl}
-            activeMount={activeMount}
-            activePath={activePath}
-            onMountSelect={(mount) => {
-              setMobileNavigationOpen(false);
-              navigate(`/explorer/${encodeURIComponent(mount)}`);
-            }}
-            onCreateMount={() => {
-              setMobileNavigationOpen(false);
-              setCreateMountOpen(true);
-            }}
-            showAccessControl={showAccessControl}
-            activeAccessCenter={accessCenterActive}
-            onAccessCenterSelect={() => {
-              setMobileNavigationOpen(false);
-              navigate('/access-control/users');
-            }}
-            favorites={navigationHistory.favorites}
-            recents={navigationHistory.recents}
-            onPathSelect={(target) => {
-              setMobileNavigationOpen(false);
-              openNavigationPath(target);
-            }}
+            onMountSelect={closeNavigationThen((mount: string) => navigate(`/explorer/${encodeURIComponent(mount)}`))}
+            onCreateMount={closeNavigationThen(() => setCreateMountOpen(true))}
+            onAccessCenterSelect={closeNavigationThen(() => navigate('/access-control/users'))}
+            onActivitySelect={closeNavigationThen(() => navigate('/activity'))}
+            onOverviewSelect={closeNavigationThen(() => navigate('/home'))}
+            onPathSelect={closeNavigationThen(openNavigationPath)}
           />
         </Drawer>
         <Outlet context={context} />
@@ -225,6 +236,7 @@ function AuthenticatedWorkspace() {
           }}
         />
         <CommandPalette />
+        <ShortcutHelp />
       </div>
     </div>
   );

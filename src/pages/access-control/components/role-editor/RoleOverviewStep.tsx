@@ -52,7 +52,7 @@ export default function RoleOverviewStep({
 
       <section className="grid gap-4 rounded-lg border border-background-300 bg-background-50 p-4 md:grid-cols-2">
         {mode === 'create' ? (
-          <div className="block">
+          <div className="block max-w-md md:col-span-2">
             <label htmlFor="role-slug" className="text-xs font-medium text-foreground-700">
               Role identifier
             </label>
@@ -87,22 +87,22 @@ export default function RoleOverviewStep({
           </div>
         ) : (
           <div className="rounded-md border border-background-200 bg-background-100 px-3 py-2.5">
-            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground-400">
-              Immutable policy name
+            <p className="text-[11px] text-foreground-500">
+              Policy name (cannot be changed)
             </p>
             <p className="mt-1 break-all font-mono text-xs font-semibold text-foreground-800">
               {snapshot.policy?.name}
             </p>
           </div>
         )}
-        <div className="rounded-md border border-background-200 bg-background-100 px-3 py-2.5">
-          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground-400">
-            Ownership state
-          </p>
-          <p className="mt-1 text-xs font-semibold capitalize text-foreground-800">
-            {mode === 'create' ? 'New role' : snapshot.ownership}
-          </p>
-        </div>
+        {mode !== 'create' && (
+          <div className="rounded-md border border-background-200 bg-background-100 px-3 py-2.5">
+            <p className="text-[11px] text-foreground-500">Managed by Vault Console</p>
+            <p className="mt-1 text-xs font-semibold capitalize text-foreground-800">
+              {snapshot.ownership}
+            </p>
+          </div>
+        )}
         <div className="md:col-span-2">
           <Textarea
             id="role-description"

@@ -25,7 +25,10 @@ export interface SessionMenuProps {
   readonly remainingLabel: string;
   readonly renewal: VaultSessionRenewalState;
   readonly onRenewSession?: () => Promise<void>;
+  readonly autoRenew?: boolean;
+  readonly onAutoRenewChange?: (enabled: boolean) => void;
   readonly onRequestRevoke?: () => void;
+  readonly onRequestSeal?: () => void;
   readonly onClearNavigationData?: () => void;
   readonly onSignOut: () => void;
 }
@@ -131,7 +134,10 @@ export default function SessionMenu({
   remainingLabel,
   renewal,
   onRenewSession,
+  autoRenew = false,
+  onAutoRenewChange,
   onRequestRevoke,
+  onRequestSeal,
   onClearNavigationData,
   onSignOut,
 }: SessionMenuProps) {
@@ -140,7 +146,7 @@ export default function SessionMenu({
   useEffect(() => firstItemRef.current?.focus(), []);
 
   return (
-    <div className="absolute right-0 top-full z-popover mt-1 w-72 max-w-[calc(100vw-16px)] rounded-md border border-background-300 bg-background-50 py-1 shadow-lg shadow-overlay/10">
+    <div className="popover-enter absolute right-0 top-full z-popover mt-1 w-72 max-w-[calc(100vw-16px)] origin-top-right rounded-md border border-background-300 bg-background-50 py-1 shadow-lg shadow-overlay/10">
       <SessionDetails session={session} identity={identity} remainingLabel={remainingLabel} renewal={renewal} />
       <AppearancePicker />
       <button
@@ -166,10 +172,36 @@ export default function SessionMenu({
           {renewal.status === 'renewing' ? 'Renewing token…' : 'Renew token'}
         </button>
       )}
+      {session.renewable === true && onAutoRenewChange && (
+        <button
+          type="button"
+          role="switch"
+          aria-checked={autoRenew}
+          onClick={() => onAutoRenewChange(!autoRenew)}
+          className={`${MENU_ITEM} justify-between text-foreground-700 hover:bg-background-100`}
+        >
+          <span className="flex items-center gap-2">
+            <i className="ri-timer-flash-line text-sm" aria-hidden="true" />
+            Renew automatically
+          </span>
+          <span
+            aria-hidden="true"
+            className={`relative h-4 w-7 rounded-full transition-colors motion-reduce:transition-none ${autoRenew ? 'bg-primary-500' : 'bg-background-300'}`}
+          >
+            <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-background-50 shadow-sm transition-transform motion-reduce:transition-none ${autoRenew ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+          </span>
+        </button>
+      )}
       {onRequestRevoke && (
         <button type="button" onClick={onRequestRevoke} className={`${MENU_ITEM} text-danger-700 hover:bg-danger-50`}>
           <i className="ri-shield-cross-line text-sm" aria-hidden="true" />
           Revoke token…
+        </button>
+      )}
+      {onRequestSeal && (
+        <button type="button" onClick={onRequestSeal} className={`${MENU_ITEM} text-danger-700 hover:bg-danger-50`}>
+          <i className="ri-lock-2-line text-sm" aria-hidden="true" />
+          Seal Vault…
         </button>
       )}
       {onClearNavigationData && (

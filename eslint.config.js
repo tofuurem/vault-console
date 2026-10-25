@@ -102,10 +102,10 @@ export default [
     ['src/application/**/*.{ts,tsx}'],
     ['components', 'pages', 'app', 'router', 'infrastructure'],
     'Application code must not depend on UI layers; only gateway providers may construct infrastructure adapters.',
-    ['src/application/vault/*GatewayProvider.tsx', 'src/application/vault/VaultSessionProvider.tsx'],
+    ['src/application/**/*GatewayProvider.tsx', 'src/application/vault/VaultSessionProvider.tsx'],
   ),
   boundary(
-    ['src/application/vault/*GatewayProvider.tsx', 'src/application/vault/VaultSessionProvider.tsx'],
+    ['src/application/**/*GatewayProvider.tsx', 'src/application/vault/VaultSessionProvider.tsx'],
     ['components', 'pages', 'app', 'router'],
     'Application code must not depend on UI layers.',
   ),

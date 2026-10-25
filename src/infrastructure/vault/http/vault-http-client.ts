@@ -4,16 +4,21 @@ import {
   vaultErrorFromStatus,
   type VaultErrorDiagnostic,
 } from '@/domain/vault/errors';
-import type { VaultToken } from '@/domain/vault/sensitive-value';
+import type { VaultToken, VaultWrappingToken } from '@/domain/vault/sensitive-value';
 
 export interface VaultRequestOptions {
   readonly method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
-  readonly token?: VaultToken;
+  /** A wrapping token authenticates only `sys/wrapping/unwrap`. */
+  readonly token?: VaultToken | VaultWrappingToken;
   readonly query?: Readonly<Record<string, string | number | boolean | undefined>>;
   readonly body?: unknown;
   readonly signal?: AbortSignal;
   readonly allowStatuses?: readonly number[];
+  /** Asks Vault to wrap the response for this duration, for example `1h`. */
+  readonly wrapTtl?: string;
 }
+
+const WRAP_TTL = /^[1-9][0-9]{0,6}[smh]?$/;
 
 export type VaultFetch = typeof globalThis.fetch;
 
@@ -184,6 +189,10 @@ export class VaultHttpClient {
       });
       if (options.token) headers.set('X-Vault-Token', options.token.reveal());
       if (options.body !== undefined) headers.set('Content-Type', 'application/json');
+      if (options.wrapTtl !== undefined) {
+        if (!WRAP_TTL.test(options.wrapTtl)) throw new VaultError('invalid-request');
+        headers.set('X-Vault-Wrap-TTL', options.wrapTtl);
+      }
 
       const response = await this.fetchRequest(url, {
         method: options.method ?? 'GET',

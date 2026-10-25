@@ -8,9 +8,12 @@ export const INSPECTOR_PREFERENCES_STORAGE_KEY =
 export const LOCAL_FAVORITES_STORAGE_PREFIX =
   'vc-console.navigation.favorites.v1.';
 
+export const SESSION_PREFERENCES_STORAGE_KEY = 'vc-console:session-preferences:v1';
+
 export const VAULT_CONSOLE_LOCAL_STORAGE_KEYS = Object.freeze([
   THEME_STORAGE_KEY,
   INSPECTOR_PREFERENCES_STORAGE_KEY,
+  SESSION_PREFERENCES_STORAGE_KEY,
 ]);
 
 export const LEGACY_LOCAL_STORAGE_KEY_MIGRATIONS = Object.freeze([

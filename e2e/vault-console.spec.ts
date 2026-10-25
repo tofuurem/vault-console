@@ -18,6 +18,9 @@ async function login(page: import('@playwright/test').Page, token = vaultToken) 
   await page.getByRole('tab', { name: 'Token' }).click();
   await page.getByLabel('Vault token').fill(token!);
   await page.getByRole('button', { name: 'Sign in' }).click();
+  // Sign-in lands on Overview, or on the page a previous session was redirected from.
+  await expect(page).not.toHaveURL(/\/login$/);
+  await page.goto('/explorer');
   await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();
 }
 
@@ -220,7 +223,7 @@ test('signs in with userpass without persisting the password and signs out clean
   await password.fill('e2e-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
 
-  await expect(page.getByRole('heading', { name: 'Application secrets' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
   const storedSession = await page.evaluate(() => sessionStorage.getItem('vc-console.session.v1'));
   expect(storedSession).toContain('"authMethod":"userpass"');
   expect(storedSession).not.toContain('e2e-password');
@@ -394,33 +397,25 @@ test('guards unsaved access drafts and keeps Access Center navigation client-sid
   await page.getByRole('button', { name: 'Access Center' }).click();
   await page.evaluate(() => {
     document.body.dataset.e2eNavigationMarker = 'preserved';
-    document.body.dataset.e2eConfirmCalls = '0';
-    window.confirm = () => {
-      const calls = Number(document.body.dataset.e2eConfirmCalls ?? '0') + 1;
-      document.body.dataset.e2eConfirmCalls = String(calls);
-      return calls > 1;
-    };
   });
   await page.getByRole('button', { name: 'Roles', exact: true }).click();
   await page.getByRole('button', { name: 'Create role' }).click();
   await page.getByLabel('Role identifier').fill('discarded-browser-draft');
 
   await page.getByRole('button', { name: 'Groups', exact: true }).click();
+  const prompt = page.getByRole('dialog', { name: 'Discard unsaved changes?' });
+  await prompt.getByRole('button', { name: 'Keep editing' }).click();
   await expect(page).toHaveURL(/\/access-control\/roles\/new$/);
   await expect(page.getByLabel('Role identifier')).toHaveValue('discarded-browser-draft');
-  await expect.poll(
-    () => page.evaluate(() => document.body.dataset.e2eConfirmCalls),
-  ).toBe('1');
 
   await page.getByRole('button', { name: 'Groups', exact: true }).click();
+  await prompt.getByRole('button', { name: 'Discard changes' }).click();
   await expect(page).toHaveURL(/\/access-control\/groups$/);
   await expect(page.getByRole('heading', { name: 'Internal groups' })).toBeVisible();
   expect(await page.evaluate(() => document.body.dataset.e2eNavigationMarker))
     .toBe('preserved');
-  await expect.poll(
-    () => page.evaluate(() => document.body.dataset.e2eConfirmCalls),
-  ).toBe('2');
 });
+
 
 test('creates a role and group, then updates a managed user through real Vault', async ({ page }) => {
   test.setTimeout(90_000);

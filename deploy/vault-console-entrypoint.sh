@@ -41,6 +41,37 @@ case "${VAULT_UI_USERPASS_MOUNT}" in
   ""|*".."*|*[!A-Za-z0-9._/-]*) fail "VAULT_UI_USERPASS_MOUNT is not a valid Vault path" ;;
 esac
 
+VAULT_UI_ENVIRONMENT_NAME="${VAULT_UI_ENVIRONMENT_NAME:-}"
+case "${VAULT_UI_ENVIRONMENT_NAME}" in
+  *[!A-Za-z0-9._\ -]*) fail "VAULT_UI_ENVIRONMENT_NAME may contain only letters, digits, spaces, dots, underscores, and hyphens" ;;
+esac
+if [ "${#VAULT_UI_ENVIRONMENT_NAME}" -gt 24 ]; then
+  fail "VAULT_UI_ENVIRONMENT_NAME must be at most 24 characters"
+fi
+VAULT_UI_ENVIRONMENT_TONE="${VAULT_UI_ENVIRONMENT_TONE:-neutral}"
+case "${VAULT_UI_ENVIRONMENT_TONE}" in
+  neutral|info|warning|danger) ;;
+  *) fail "VAULT_UI_ENVIRONMENT_TONE must be neutral, info, warning, or danger" ;;
+esac
+
+VAULT_CONSOLE_AUDIT_UPSTREAM="${VAULT_CONSOLE_AUDIT_UPSTREAM:-}"
+VAULT_CONSOLE_AUDIT_UPSTREAM="${VAULT_CONSOLE_AUDIT_UPSTREAM%/}"
+VAULT_UI_AUDIT_AVAILABLE=false
+if [ -n "${VAULT_CONSOLE_AUDIT_UPSTREAM}" ]; then
+  case "${VAULT_CONSOLE_AUDIT_UPSTREAM}" in
+    http://*) ;;
+    *) fail "VAULT_CONSOLE_AUDIT_UPSTREAM must be an http:// origin on the private Docker network" ;;
+  esac
+  case "${VAULT_CONSOLE_AUDIT_UPSTREAM}" in
+    *[!A-Za-z0-9._:/-]*) fail "VAULT_CONSOLE_AUDIT_UPSTREAM contains unsupported characters" ;;
+  esac
+  audit_authority="${VAULT_CONSOLE_AUDIT_UPSTREAM#http://}"
+  case "${audit_authority}" in
+    ""|*/*) fail "VAULT_CONSOLE_AUDIT_UPSTREAM must not contain a path" ;;
+  esac
+  VAULT_UI_AUDIT_AVAILABLE=true
+fi
+
 umask 022
 mkdir -p \
   "${runtime_dir}/client-temp" \
@@ -62,13 +93,40 @@ export VAULT_UPSTREAM
 export VAULT_UI_ALLOW_CUSTOM_ADDRESS
 export VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT
 export VAULT_UI_USERPASS_MOUNT
+export VAULT_UI_ENVIRONMENT_NAME
+export VAULT_UI_ENVIRONMENT_TONE
+export VAULT_UI_AUDIT_AVAILABLE
+
+if [ "${VAULT_UI_AUDIT_AVAILABLE}" = true ]; then
+  cat > "${runtime_dir}/audit-location.conf" <<EOF_AUDIT
+location /audit-api/ {
+    access_log off;
+    include /etc/nginx/security-headers.conf;
+    proxy_pass ${VAULT_CONSOLE_AUDIT_UPSTREAM};
+    proxy_http_version 1.1;
+    proxy_set_header Host \$proxy_host;
+    proxy_buffering off;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 60s;
+}
+EOF_AUDIT
+else
+  cat > "${runtime_dir}/audit-location.conf" <<'EOF_AUDIT'
+location /audit-api/ {
+    access_log off;
+    default_type application/json;
+    include /etc/nginx/security-headers.conf;
+    return 404 '{"error":"the audit reader is not configured"}';
+}
+EOF_AUDIT
+fi
 
 envsubst \
   '${VAULT_UPSTREAM}' \
   < /etc/vault-console/server.conf.template \
   > "${runtime_dir}/server.conf"
 envsubst \
-  '${VAULT_UI_ALLOW_CUSTOM_ADDRESS} ${VAULT_UI_USERPASS_MOUNT} ${VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT}' \
+  '${VAULT_UI_ALLOW_CUSTOM_ADDRESS} ${VAULT_UI_USERPASS_MOUNT} ${VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT} ${VAULT_UI_ENVIRONMENT_NAME} ${VAULT_UI_ENVIRONMENT_TONE} ${VAULT_UI_AUDIT_AVAILABLE}' \
   < /etc/vault-console/runtime-config.js.template \
   > "${runtime_dir}/runtime-config.js"
 

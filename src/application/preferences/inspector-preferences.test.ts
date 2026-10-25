@@ -31,4 +31,15 @@ describe('inspector preferences', () => {
     expect(loadInspectorPreferences(window.localStorage)).toEqual(DEFAULT_INSPECTOR_PREFERENCES);
     expect(loadInspectorPreferences(null)).toEqual(DEFAULT_INSPECTOR_PREFERENCES);
   });
+
+  it('docks on the right by default on wide screens and keeps a stored choice', () => {
+    window.localStorage.clear();
+    expect(loadInspectorPreferences(window.localStorage, 1440).placement).toBe('right');
+    expect(loadInspectorPreferences(window.localStorage, 1024).placement).toBe('bottom');
+    window.localStorage.setItem(
+      'vc-console:inspector-layout:v1',
+      JSON.stringify({ placement: 'bottom', bottomRatio: 0.4, rightWidth: 380 }),
+    );
+    expect(loadInspectorPreferences(window.localStorage, 1440).placement).toBe('bottom');
+  });
 });

@@ -9,10 +9,15 @@ import Badge from '@/components/base/Badge';
 import Button from '@/components/base/Button';
 import Tabs from '@/components/base/Tabs';
 import Tooltip from '@/components/base/Tooltip';
-import type { KvV2VersionMetadata } from '@/domain/vault/contracts';
+import type { KvV2Secret, KvV2VersionMetadata } from '@/domain/vault/contracts';
 import type { VaultError } from '@/domain/vault/errors';
 import { secretContainerSize, secretValueType } from '@/domain/vault/secret-json';
 import { formatDateTime } from '@/shared/format/date-time';
+import InspectorAccessTab from './InspectorAccessTab';
+import InspectorCopyMenu from './InspectorCopyMenu';
+import InspectorShareDialog from './InspectorShareDialog';
+import InspectorSkeleton from './InspectorSkeleton';
+import { useInspectorEnvironment, type InspectorEnvironment } from './useInspectorEnvironment';
 
 interface InspectorProps {
   readonly state: VaultQueryState<KvSecretDetails>;
@@ -305,7 +310,7 @@ export default function Inspector(props: InspectorProps) {
     );
   }
   if (state.status === 'loading') {
-    return <div className="space-y-3 p-4" aria-label="Loading secret"><div className="h-4 w-32 animate-pulse rounded bg-background-200" /><div className="h-24 animate-pulse rounded bg-background-200" /></div>;
+    return <InspectorSkeleton />;
   }
   if (state.status === 'error') {
     return (
@@ -340,7 +345,10 @@ interface InspectorContentProps extends Omit<
 }
 
 function InspectorContent(props: InspectorContentProps) {
-  const { details, activeTab, onActiveTabChange } = props;
+  const { details, activeTab: requestedTab, onActiveTabChange } = props;
+  const environment = useInspectorEnvironment();
+  const accessSession = environment.accessTabAvailable ? environment.session : undefined;
+  const activeTab = requestedTab === 'access' && !accessSession ? 'data' : requestedTab;
   const tabs = [
     { key: 'data', label: 'Data', icon: 'ri-database-2-line' },
     {
@@ -350,13 +358,17 @@ function InspectorContent(props: InspectorContentProps) {
       ...(details.history ? { count: details.history.versions.length } : {}),
     },
     { key: 'metadata', label: 'Metadata', icon: 'ri-information-line' },
+    ...(accessSession ? [{ key: 'access', label: 'Access', icon: 'ri-shield-user-line' }] : []),
   ];
 
   return (
     <Tabs tabs={tabs} activeTab={activeTab} onChange={onActiveTabChange}>
-      {activeTab === 'data' && <InspectorDataTab {...props} />}
+      {activeTab === 'data' && <InspectorDataTab {...props} environment={environment} />}
       {activeTab === 'versions' && <InspectorVersionsTab {...props} />}
       {activeTab === 'metadata' && <InspectorMetadataTab {...props} />}
+      {activeTab === 'access' && accessSession && (
+        <InspectorAccessTab session={accessSession} mount={props.mount} path={props.path} />
+      )}
     </Tabs>
   );
 }
@@ -373,13 +385,15 @@ function InspectorDataTab({
   favorite = false,
   onToggleFavorite,
   onClipboardFeedback,
-}: InspectorContentProps) {
+  environment,
+}: InspectorContentProps & { readonly environment: InspectorEnvironment }) {
   const { secret, history, dataError } = details;
   const currentVersion = history?.versions.find((version) => version.version === history.currentVersion);
   const currentVersionUnavailable = Boolean(currentVersion?.destroyed || currentVersion?.deletionTime);
   if (!secret) {
     return (
       <div className="space-y-3 p-3">
+        <div className="flex justify-end"><InspectorCopyMenu mount={mount} path={path} /></div>
         {dataError ? (
           <ScopedResourceError title={dataError.code === 'authorization' ? 'Secret data is not allowed' : 'Secret data could not be loaded'} error={dataError} onRetry={onRetry} />
         ) : currentVersionUnavailable ? (
@@ -398,7 +412,17 @@ function InspectorDataTab({
     <div className="space-y-3 p-3">
       <div className="flex items-center justify-between gap-2">
         <div><span className="text-[11px] font-medium text-foreground-500">Current version</span><span className="ml-1.5 font-mono text-xs text-foreground-800">v{secret.metadata.version}</span></div>
-        <InspectorSecretActions mount={mount} path={path} favorite={favorite} onToggleFavorite={onToggleFavorite} onView={onView} onEdit={onEdit} permissions={permissions} />
+        <InspectorSecretActions
+          mount={mount}
+          path={path}
+          secret={secret}
+          environment={environment}
+          favorite={favorite}
+          onToggleFavorite={onToggleFavorite}
+          onView={onView}
+          onEdit={onEdit}
+          permissions={permissions}
+        />
       </div>
       <p className="text-[10px] text-foreground-400">Created {formatDateTime(secret.metadata.createdTime)}</p>
       <div className="overflow-hidden rounded-md border border-background-200">
@@ -419,14 +443,41 @@ function InspectorDataTab({
 function InspectorSecretActions({
   mount,
   path,
+  secret,
+  environment,
   favorite,
   onToggleFavorite,
   onView,
   onEdit,
   permissions,
-}: Pick<InspectorContentProps, 'mount' | 'path' | 'favorite' | 'onToggleFavorite' | 'onView' | 'onEdit' | 'permissions'>) {
+}: Pick<InspectorContentProps, 'mount' | 'path' | 'favorite' | 'onToggleFavorite' | 'onView' | 'onEdit' | 'permissions'> & {
+  readonly secret: KvV2Secret;
+  readonly environment: InspectorEnvironment;
+}) {
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareSession = environment.shareAvailable && canAttemptKvAction(permissions, 'canReadData')
+    ? environment.session
+    : undefined;
   return (
     <div className="flex items-center gap-1">
+      <InspectorCopyMenu mount={mount} path={path} data={secret.data} version={secret.metadata.version} />
+      {shareSession && (
+        <>
+          <Tooltip content="Share this version once through a single-use token">
+            <button type="button" aria-label="Share once" aria-haspopup="dialog" onClick={() => setShareOpen(true)} className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7">
+              <i className="ri-share-forward-line" aria-hidden="true" />
+            </button>
+          </Tooltip>
+          <InspectorShareDialog
+            open={shareOpen}
+            onClose={() => setShareOpen(false)}
+            session={shareSession}
+            mount={mount}
+            path={path}
+            version={secret.metadata.version}
+          />
+        </>
+      )}
       {onToggleFavorite && (
         <Tooltip content={favorite ? 'Remove from favorites' : 'Add to favorites'}>
           <button type="button" aria-label={`${favorite ? 'Unpin' : 'Pin'} secret ${mount}/${path}`} aria-pressed={favorite} onClick={onToggleFavorite} className={`flex h-11 w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7 ${favorite ? 'text-warning-600 hover:bg-warning-100' : 'text-foreground-400 hover:bg-background-100 hover:text-warning-600'}`}>
@@ -451,6 +502,18 @@ function WriteOnlyNotice({ permissions, onWriteOnly }: Pick<InspectorContentProp
   );
 }
 
+function VersionNumber({ version, destroyed }: { readonly version: number; readonly destroyed: boolean }) {
+  if (!destroyed) {
+    return <span className="w-10 shrink-0 font-mono text-xs font-semibold text-foreground-800">v{version}</span>;
+  }
+  return (
+    <span className="flex w-10 shrink-0 items-center gap-0.5 font-mono text-xs font-semibold text-foreground-400">
+      <i className="ri-close-circle-line text-[11px] text-danger-500" aria-hidden="true" />
+      <s>v{version}</s>
+    </span>
+  );
+}
+
 function InspectorVersionsTab({
   details,
   onRetry,
@@ -470,13 +533,13 @@ function InspectorVersionsTab({
       {history.versions.map((version) => {
         const current = version.version === history.currentVersion;
         return (
-          <div key={version.version} className={`flex items-center gap-3 rounded-md border px-2.5 py-2 ${current ? 'border-primary-200 bg-primary-50/30' : 'border-background-200'} ${version.destroyed ? 'opacity-55' : ''}`}>
-            <span className="w-8 shrink-0 font-mono text-xs font-semibold text-foreground-800">v{version.version}</span>
+          <div key={version.version} className={`flex items-center gap-3 rounded-md border px-2.5 py-2 ${current ? 'border-primary-200 bg-primary-50/30' : 'border-background-200'} ${version.destroyed ? 'bg-background-100' : ''}`}>
+            <VersionNumber version={version.version} destroyed={version.destroyed} />
             <div className="min-w-0 flex-1">
               {current && !version.deletionTime && !version.destroyed && <Badge variant="success">Current</Badge>}
               {version.deletionTime && <Badge variant="danger">Deleted</Badge>}
               {version.destroyed && <Badge variant="danger">Destroyed</Badge>}
-              {!current && !version.deletionTime && !version.destroyed && <Badge variant="info">Older</Badge>}
+              {!current && !version.deletionTime && !version.destroyed && <Badge>Older</Badge>}
               <p className="mt-0.5 truncate text-[10px] text-foreground-500">{versionTimeline(version)}</p>
             </div>
             {!version.destroyed && (

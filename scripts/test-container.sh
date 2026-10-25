@@ -54,6 +54,8 @@ docker run \
   --env VAULT_UPSTREAM=http://127.0.0.1:8200 \
   --env VAULT_UI_ALLOW_CUSTOM_ADDRESS=true \
   --env VAULT_UI_ALLOW_CUSTOM_USERPASS_MOUNT=true \
+  --env "VAULT_UI_ENVIRONMENT_NAME=Prod EU" \
+  --env VAULT_UI_ENVIRONMENT_TONE=danger \
   --env VAULT_UI_USERPASS_MOUNT=teams/userpass \
   --volume "${container_test_certificate}:/etc/vault-console/ca-certificates/custom-ca.crt:ro" \
   --publish 127.0.0.1::8080 \
@@ -82,8 +84,21 @@ if [ "$(curl --fail --silent --show-error "${container_test_origin}/healthz")" !
 fi
 container_test_runtime="$(curl --fail --silent --show-error "${container_test_origin}/runtime-config.js")"
 if ! printf '%s' "${container_test_runtime}" | grep -F 'allowCustomVaultAddress: true' >/dev/null \
-  || ! printf '%s' "${container_test_runtime}" | grep -F 'userpassMount: "teams/userpass"' >/dev/null; then
+  || ! printf '%s' "${container_test_runtime}" | grep -F 'userpassMount: "teams/userpass"' >/dev/null \
+  || ! printf '%s' "${container_test_runtime}" | grep -F 'environmentName: "Prod EU"' >/dev/null \
+  || ! printf '%s' "${container_test_runtime}" | grep -F 'environmentTone: "danger"' >/dev/null; then
   echo "Production container runtime config was not generated correctly." >&2
+  exit 1
+fi
+container_test_audit_status="$(curl --silent --output /dev/null --write-out '%{http_code}' "${container_test_origin}/audit-api/v1/status")"
+if [ "${container_test_audit_status}" != "404" ] \
+  || ! printf '%s' "${container_test_runtime}" | grep -F 'auditAvailable: false' >/dev/null; then
+  echo "Production container exposed /audit-api/ without a configured audit reader." >&2
+  exit 1
+fi
+container_test_audit_binary="$(docker run --rm --entrypoint /usr/local/bin/vault-console-audit "${container_test_image}" 2>&1 || true)"
+if ! printf '%s' "${container_test_audit_binary}" | grep -F 'VAULT_UPSTREAM must be' >/dev/null; then
+  echo "Production image does not ship a working audit reader binary." >&2
   exit 1
 fi
 container_test_index="$(curl --fail --silent --show-error "${container_test_origin}/login/deep-link")"

@@ -21,6 +21,11 @@ interface SidebarProps {
   readonly showAccessControl?: boolean;
   readonly activeAccessCenter?: boolean;
   readonly onAccessCenterSelect?: () => void;
+  readonly activeOverview?: boolean;
+  readonly onOverviewSelect?: () => void;
+  readonly showActivity?: boolean;
+  readonly activeActivity?: boolean;
+  readonly onActivitySelect?: () => void;
   readonly favorites?: readonly FavoriteNavigationPath[];
   readonly recents?: readonly RecentNavigationPath[];
   readonly onPathSelect?: (path: NavigationPath) => void;
@@ -106,6 +111,9 @@ function CollapsedSidebar({
   showAccessControl,
   activeAccessCenter,
   onAccessCenterSelect,
+  showActivity,
+  activeActivity,
+  onActivitySelect,
 }: SidebarProps) {
   return (
     <aside aria-label="Vault navigation" className="hidden w-12 shrink-0 flex-col items-center gap-1 border-r border-background-200 bg-background-100 py-3 sm:flex">
@@ -134,9 +142,24 @@ function CollapsedSidebar({
           </button>
         </Tooltip>
       ))}
+      {(showAccessControl || showActivity) && (
+        <div className="my-1 h-px w-6 bg-background-300" aria-hidden="true" />
+      )}
+      {showActivity && (
+        <Tooltip content="Activity" position="right">
+          <button
+            type="button"
+            aria-label="Activity"
+            aria-current={activeActivity ? 'page' : undefined}
+            onClick={onActivitySelect}
+            className={`${RAIL_BUTTON} ${activeActivity ? 'bg-primary-100 text-primary-700' : 'text-foreground-500 hover:bg-background-200'}`}
+          >
+            <i className="ri-pulse-line text-sm" aria-hidden="true" />
+          </button>
+        </Tooltip>
+      )}
       {showAccessControl && (
         <>
-          <div className="my-1 h-px w-6 bg-background-300" aria-hidden="true" />
           <Tooltip content="Access Center" position="right">
             <button
               type="button"
@@ -217,36 +240,58 @@ function MountList({
 
 function AdministrationSection({
   mobile,
+  showAccessControl,
   activeAccessCenter,
   onAccessCenterSelect,
+  showActivity,
+  activeActivity,
+  onActivitySelect,
 }: {
   readonly mobile: boolean;
+  readonly showAccessControl?: boolean;
   readonly activeAccessCenter?: boolean;
   readonly onAccessCenterSelect?: () => void;
+  readonly showActivity?: boolean;
+  readonly activeActivity?: boolean;
+  readonly onActivitySelect?: () => void;
 }) {
   return (
     <div className="mt-3 border-t border-background-200 pt-3">
       <div className={`${wideOnly(mobile, 'flex')} h-6 items-center px-3`}>
         <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-500">Administration</span>
       </div>
-      <button
-        type="button"
-        aria-label="Access Center"
-        aria-current={activeAccessCenter ? 'page' : undefined}
-        onClick={onAccessCenterSelect}
-        className={`flex w-full items-center gap-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 ${rowLayout(mobile)} ${activeRow(activeAccessCenter)}`}
-      >
-        <i className="ri-shield-user-line shrink-0 text-sm" aria-hidden="true" />
-        <span className={`${wideOnly(mobile)} truncate`}>Access Center</span>
-      </button>
+      {showAccessControl && (
+        <button
+          type="button"
+          aria-label="Access Center"
+          aria-current={activeAccessCenter ? 'page' : undefined}
+          onClick={onAccessCenterSelect}
+          className={`flex w-full items-center gap-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 ${rowLayout(mobile)} ${activeRow(activeAccessCenter)}`}
+        >
+          <i className="ri-shield-user-line shrink-0 text-sm" aria-hidden="true" />
+          <span className={`${wideOnly(mobile)} truncate`}>Access Center</span>
+        </button>
+      )}
+      {showActivity && (
+        <button
+          type="button"
+          aria-label="Activity"
+          aria-current={activeActivity ? 'page' : undefined}
+          onClick={onActivitySelect}
+          className={`flex w-full items-center gap-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 ${rowLayout(mobile)} ${activeRow(activeActivity)}`}
+        >
+          <i className="ri-pulse-line shrink-0 text-sm" aria-hidden="true" />
+          <span className={`${wideOnly(mobile)} truncate`}>Activity</span>
+        </button>
+      )}
     </div>
   );
 }
 
 function sealPresentation(health: VaultHealth | undefined) {
-  if (!health) return { dot: 'bg-foreground-300', label: 'Seal status unknown' };
-  if (health.sealed) return { dot: 'bg-danger-500', label: 'Sealed' };
-  return { dot: 'bg-success-500', label: 'Unsealed' };
+  if (!health) return { icon: 'ri-question-line', tone: 'text-foreground-500', label: 'Status unknown' };
+  if (health.sealed) return { icon: 'ri-lock-2-fill', tone: 'text-danger-600', label: 'Sealed' };
+  return { icon: 'ri-lock-unlock-line', tone: 'text-success-600', label: health.standby ? 'Unsealed · standby' : 'Unsealed' };
 }
 
 function VaultStatus({
@@ -259,20 +304,23 @@ function VaultStatus({
   readonly serverUrl?: string;
 }) {
   const seal = sealPresentation(vaultHealth);
+  const tls = serverUrl?.startsWith('https://');
   return (
-    <div className={`${wideOnly(mobile, 'block')} space-y-0.5 border-t border-background-200 px-3 py-2 text-[11px] text-foreground-500`}>
-      <div className="flex items-center gap-1.5">
-        <span className={`h-1.5 w-1.5 rounded-full ${seal.dot}`} aria-hidden="true" />
-        <span>{seal.label}</span>
-        {vaultHealth?.standby && <span>· standby</span>}
+    <div className={`${wideOnly(mobile, 'block')} border-t border-background-200 p-2`}>
+      <div className="flex items-center gap-2.5 rounded-md bg-background-50 px-2.5 py-2 ring-1 ring-background-200">
+        <i className={`${seal.icon} text-base ${seal.tone}`} aria-hidden="true" />
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="text-[11px] font-medium text-foreground-800">Vault {seal.label.toLowerCase()}</p>
+          <p className="truncate font-mono text-[10px] tabular-nums text-foreground-500">
+            {vaultHealth?.version ? `v${vaultHealth.version}` : 'version unknown'} · {tls ? 'TLS' : 'no TLS'}
+          </p>
+        </div>
         {vaultHealth?.sealed && (
-          <Link to="/unseal" className={`ml-auto rounded font-medium text-primary-700 underline-offset-2 hover:underline ${FOCUS_RING}`}>
+          <Link to="/unseal" className={`shrink-0 rounded px-1 text-[11px] font-medium text-primary-700 underline-offset-2 hover:underline ${FOCUS_RING}`}>
             Unseal
           </Link>
         )}
       </div>
-      <div>TLS: {serverUrl?.startsWith('https://') ? 'Enabled' : 'Disabled'}</div>
-      {vaultHealth?.version && <div className="font-mono">v{vaultHealth.version}</div>}
     </div>
   );
 }
@@ -290,6 +338,11 @@ export default function Sidebar(props: SidebarProps) {
     showAccessControl,
     activeAccessCenter,
     onAccessCenterSelect,
+    showActivity,
+    activeActivity,
+    onActivitySelect,
+    activeOverview,
+    onOverviewSelect,
     favorites = [],
     recents = [],
     onPathSelect,
@@ -304,6 +357,18 @@ export default function Sidebar(props: SidebarProps) {
         ? 'flex h-full w-full'
         : 'hidden w-12 shrink-0 sm:flex sm:w-[240px]'} flex-col border-r border-background-200 bg-background-100`}
     >
+      {onOverviewSelect && (
+        <button
+          type="button"
+          aria-label="Overview"
+          aria-current={activeOverview ? 'page' : undefined}
+          onClick={onOverviewSelect}
+          className={`flex w-full items-center gap-2 border-b border-background-200 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 ${rowLayout(mobile)} ${activeRow(activeOverview)}`}
+        >
+          <i className="ri-dashboard-line shrink-0 text-sm" aria-hidden="true" />
+          <span className={`${wideOnly(mobile)} truncate`}>Overview</span>
+        </button>
+      )}
       <SidebarHeader mobile={mobile} onCreateMount={onCreateMount} onToggleCollapse={onToggleCollapse} />
 
       <nav className="flex-1 overflow-y-auto py-1" aria-label="Secret mounts">
@@ -328,11 +393,15 @@ export default function Sidebar(props: SidebarProps) {
           </>
         )}
 
-        {showAccessControl && (
+        {(showAccessControl || showActivity) && (
           <AdministrationSection
             mobile={mobile}
+            showAccessControl={showAccessControl}
             activeAccessCenter={activeAccessCenter}
             onAccessCenterSelect={onAccessCenterSelect}
+            showActivity={showActivity}
+            activeActivity={activeActivity}
+            onActivitySelect={onActivitySelect}
           />
         )}
       </nav>

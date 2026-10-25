@@ -1,4 +1,4 @@
-import type { VaultSealGateway } from '@/domain/vault/contracts';
+import type { VaultSealGateway, VaultSession } from '@/domain/vault/contracts';
 import type { VaultSealStatus, VaultSealType } from '@/domain/vault/seal';
 import type { VaultUnsealKey } from '@/domain/vault/sensitive-value';
 import { VaultHttpClient } from '../http/vault-http-client';
@@ -34,7 +34,8 @@ function sealStatusFromResponse(value: unknown): VaultSealStatus {
 }
 
 /**
- * Seal endpoints are unauthenticated in Vault, so no token is ever attached.
+ * Status and unseal endpoints are unauthenticated, so they never attach a
+ * token; sealing requires the operator's token with `sudo` on `sys/seal`.
  */
 export class VaultSealAdapter implements VaultSealGateway {
   private readonly client: VaultHttpClient;
@@ -71,5 +72,13 @@ export class VaultSealAdapter implements VaultSealGateway {
         signal,
       }),
     );
+  }
+
+  async seal(session: VaultSession, signal?: AbortSignal): Promise<void> {
+    await this.client.request(session.serverUrl, 'sys/seal', {
+      method: 'PUT',
+      token: session.token,
+      signal,
+    });
   }
 }

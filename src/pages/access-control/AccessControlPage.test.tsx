@@ -214,7 +214,7 @@ async function loginAndOpenUsers(
   access: VaultAccessControlGateway,
   kv: KvV2Gateway = kvGateway(),
 ) {
-  window.history.replaceState({}, '', '/login');
+  window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
   render(<App authGateway={authGateway()} kvV2Gateway={kv} accessControlGateway={access} />);
   await user.click(screen.getByRole('tab', { name: 'Token' }));
   await user.type(screen.getByLabelText('Vault token'), 'hvs.admin');
@@ -557,26 +557,24 @@ describe('AccessControlPage', () => {
   it('guards every route change from a dirty access workspace', async () => {
     const user = userEvent.setup();
     const access = accessGateway();
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     await loginAndOpenUsers(user, access);
     await user.click(screen.getByRole('button', { name: 'Roles' }));
     await user.click(await screen.findByRole('button', { name: 'Create role' }));
     await user.type(await screen.findByLabelText('Role identifier'), 'draft-role');
 
     await user.click(screen.getByRole('button', { name: 'Groups' }));
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith(
-      'Discard unsaved access changes?',
-    ));
-    expect(confirm).toHaveBeenCalledOnce();
+    const prompt = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' });
+    await user.click(within(prompt).getByRole('button', { name: 'Keep editing' }));
     expect(window.location.pathname).toBe('/access-control/roles/new');
     expect(screen.getByLabelText('Role identifier')).toHaveValue('draft-role');
 
-    confirm.mockReturnValue(true);
     await user.click(screen.getByRole('button', { name: 'Groups' }));
+    const second = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' });
+    await user.click(within(second).getByRole('button', { name: 'Discard changes' }));
     expect(await screen.findByRole('heading', { name: 'Internal groups' })).toBeVisible();
-    expect(confirm).toHaveBeenCalledTimes(2);
     expect(window.location.pathname).toBe('/access-control/groups');
   });
+
 
   it('edits a managed role and preserves its canonical policy identity', async () => {
     const user = userEvent.setup();

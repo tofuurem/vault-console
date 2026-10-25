@@ -41,6 +41,34 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
+/**
+ * Tracks a resize handle 1:1 with the pointer, keeping the edge where it was
+ * grabbed instead of jumping to the pointer.
+ */
+function startPointerResize(
+  event: PointerEvent<HTMLDivElement>,
+  update: (coordinate: number) => void,
+  coordinate: 'clientX' | 'clientY',
+) {
+  event.preventDefault();
+  const handle = event.currentTarget;
+  const bounds = handle.getBoundingClientRect();
+  const handleCenter = coordinate === 'clientX'
+    ? bounds.left + bounds.width / 2
+    : bounds.top + bounds.height / 2;
+  const grabOffset = event[coordinate] - handleCenter;
+  handle.setPointerCapture?.(event.pointerId);
+  const move = (moveEvent: globalThis.PointerEvent) => update(moveEvent[coordinate] - grabOffset);
+  const stop = () => {
+    handle.removeEventListener('pointermove', move);
+    handle.removeEventListener('pointerup', stop);
+    handle.removeEventListener('pointercancel', stop);
+  };
+  handle.addEventListener('pointermove', move);
+  handle.addEventListener('pointerup', stop);
+  handle.addEventListener('pointercancel', stop);
+}
+
 export default function InspectorDock({
   open,
   path,
@@ -52,7 +80,7 @@ export default function InspectorDock({
   const containerRef = useRef<HTMLElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const [preferences, setPreferences] = useState(() => (
-    loadInspectorPreferences(browserStorage())
+    loadInspectorPreferences(browserStorage(), window.innerWidth)
   ));
   const [fullScreen, setFullScreen] = useState(false);
   const [narrow, setNarrow] = useState(() => window.innerWidth < 768);
@@ -106,20 +134,6 @@ export default function InspectorDock({
       ...current,
       rightWidth: clamp(bounds.right - clientX, 280, maximum),
     }));
-  };
-  const startPointerResize = (
-    event: PointerEvent<HTMLDivElement>,
-    update: (coordinate: number) => void,
-    coordinate: 'clientX' | 'clientY',
-  ) => {
-    event.preventDefault();
-    const move = (moveEvent: globalThis.PointerEvent) => update(moveEvent[coordinate]);
-    const stop = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', stop);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', stop);
   };
   const resizeFromKeyboard = (
     event: KeyboardEvent<HTMLDivElement>,

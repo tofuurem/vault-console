@@ -13,6 +13,7 @@ import ConnectionStatusBar from './components/ConnectionStatusBar';
 import TokenLoginForm from './components/TokenLoginForm';
 import UserpassLoginForm, { type UserpassFields } from './components/UserpassLoginForm';
 import { serverErrorMessage, useVaultConnection } from './useVaultConnection';
+import EnvironmentBadge from '@/components/feature/EnvironmentBadge';
 
 const SIGN_IN_NOTICES: Readonly<Record<string, string>> = {
   expired: 'Your Vault session expired. Sign in again.',
@@ -92,7 +93,7 @@ export default function LoginPage() {
           </div>
           <div>
             <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.17em] text-primary-600">Self-hosted control plane</p>
-            <h1 id="login-heading" className="text-lg font-semibold tracking-tight text-foreground-900">Vault Console</h1>
+            <div className="flex flex-wrap items-center gap-2"><h1 id="login-heading" className="text-lg font-semibold tracking-tight text-foreground-900">Vault Console</h1><EnvironmentBadge /></div>
           </div>
         </div>
         <p className="text-xs leading-5 text-foreground-500">Sign in directly to the Vault server configured for this console. The session token stays scoped to this tab; the console never stores your password.</p>

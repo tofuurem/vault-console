@@ -8,7 +8,7 @@ export function postLoginDestination(state: unknown): string {
     || from.startsWith('//')
     || from.includes('\\')
   ) {
-    return '/explorer';
+    return '/home';
   }
   return from;
 }

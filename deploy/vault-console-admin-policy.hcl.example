@@ -93,3 +93,10 @@ path "auth/userpass/users/*" {
 # path "applications/metadata/*" {
 #   capabilities = ["list"]
 # }
+
+# Optional emergency seal from the session menu. Grant only to operators who
+# may take Vault offline for every client; unsealing then needs key holders.
+#
+# path "sys/seal" {
+#   capabilities = ["update", "sudo"]
+# }

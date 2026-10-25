@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -148,7 +148,6 @@ describe('SecretWorkspace', () => {
   it('blocks invalid JSON and protects dirty edits from accidental close', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderWorkspace({ initialMode: 'edit', onClose });
 
     const editor = await replaceEditorContent(user, '{\n  "service":,\n}');
@@ -159,11 +158,12 @@ describe('SecretWorkspace', () => {
     await waitFor(() => expect(screen.getByText('Ln 2, Col 13')).toBeVisible());
 
     await user.click(screen.getByRole('button', { name: 'Close secret workspace' }));
-    expect(confirm).toHaveBeenCalledWith('Discard unsaved secret changes?');
+    const prompt = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' });
+    await user.click(within(prompt).getByRole('button', { name: 'Keep editing' }));
     expect(onClose).not.toHaveBeenCalled();
 
-    confirm.mockReturnValue(true);
     await user.click(screen.getByRole('button', { name: 'Close secret workspace' }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })).getByRole('button', { name: 'Discard changes' }));
     expect(onClose).toHaveBeenCalledOnce();
   });
 

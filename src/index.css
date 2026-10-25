@@ -247,6 +247,16 @@ body {
   color: oklch(var(--foreground-900));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Versions, counts, TTLs and sizes line up in columns and do not jitter while changing. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Eases light/dark switches instead of flashing the whole viewport. */
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease, fill 200ms ease !important;
 }
 
 ::selection {
@@ -276,7 +286,7 @@ body {
    their own ring (or a focus-within ring on a wrapper) can opt out with
    outline-none. */
 @layer base {
-  :where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  :where(button, a, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
     outline: 2px solid oklch(var(--primary-500));
     outline-offset: 2px;
   }
@@ -363,6 +373,16 @@ button,
   to { opacity: 1; transform: scale(1); }
 }
 
+/* Popovers grow out of the control that opened them (set transform-origin on the element). */
+@keyframes popoverIn {
+  from { opacity: 0; transform: scale(0.96) translateY(-2px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.popover-enter {
+  animation: popoverIn 0.14s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
 .modal-backdrop-enter {
   animation: fadeIn 0.15s ease-out forwards;
 }
@@ -374,8 +394,47 @@ button,
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  /* Reduced motion keeps orientation cues as short cross-fades instead of slides or scaling. */
+  .drawer-enter,
+  .drawer-enter-left,
+  .modal-content-enter,
+  .modal-backdrop-enter,
+  .popover-enter {
+    animation: fadeIn 120ms ease-out forwards !important;
+  }
+
+  .drawer-exit,
+  .drawer-exit-left {
+    animation: fadeOut 100ms ease-in forwards !important;
+  }
+
+  *:not(.drawer-enter, .drawer-enter-left, .drawer-exit, .drawer-exit-left, .modal-content-enter, .modal-backdrop-enter, .popover-enter) {
+    animation-duration: 0.01ms !important;
+  }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Users who ask for more contrast get firmer separators and secondary text. */
+@media (prefers-contrast: more) {
+  :root {
+    --background-200: 0.86 0.005 92;
+    --background-300: 0.78 0.006 92;
+    --foreground-400: 0.46 0.007 260;
+    --foreground-500: 0.42 0.007 260;
+  }
+
+  :root[data-theme='dark'] {
+    --background-200: 0.34 0.01 265;
+    --background-300: 0.44 0.012 265;
+    --foreground-400: 0.76 0.008 260;
+    --foreground-500: 0.8 0.007 260;
   }
 }

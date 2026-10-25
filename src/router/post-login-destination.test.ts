@@ -15,6 +15,6 @@ describe('postLoginDestination', () => {
     { from: '//attacker.example/path' },
     { from: '/\\attacker.example/path' },
   ])('falls back for missing or non-local destinations', (state) => {
-    expect(postLoginDestination(state)).toBe('/explorer');
+    expect(postLoginDestination(state)).toBe('/home');
   });
 });

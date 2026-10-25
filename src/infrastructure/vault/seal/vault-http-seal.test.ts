@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { vaultUnsealKey } from '@/domain/vault/sensitive-value';
+import { vaultToken, vaultUnsealKey } from '@/domain/vault/sensitive-value';
 import { VaultHttpClient, type VaultFetch } from '../http/vault-http-client';
 import { VaultSealAdapter } from './vault-seal-adapter';
 
@@ -112,5 +112,21 @@ describe('VaultSealAdapter', () => {
     await expect(gateway.getSealStatus('https://vault.example.test')).rejects.toMatchObject({
       code: 'invalid-response',
     });
+  });
+
+  it('seals with the operator token', async () => {
+    const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const gateway = new VaultSealAdapter(new VaultHttpClient(fetchRequest));
+
+    await gateway.seal({
+      serverUrl: 'https://vault.example.test',
+      token: vaultToken('hvs.operator'),
+      authMethod: 'token',
+    });
+
+    const [url, init] = fetchRequest.mock.calls[0];
+    expect(String(url)).toBe('https://vault.example.test/v1/sys/seal');
+    expect(init?.method).toBe('PUT');
+    expect(new Headers(init?.headers).get('X-Vault-Token')).toBe('hvs.operator');
   });
 });

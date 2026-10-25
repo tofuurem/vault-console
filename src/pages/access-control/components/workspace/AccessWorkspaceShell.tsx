@@ -131,18 +131,18 @@ function AccessWorkspaceShell({
                     onClick={() => onStepChange(step.id)}
                     className={`group relative flex min-h-12 w-full min-w-[150px] items-center gap-2.5 rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 lg:min-w-0 ${
                       active
-                        ? 'bg-foreground-950 text-background-50'
+                        ? 'bg-primary-100 text-primary-800'
                         : 'text-foreground-600 hover:bg-background-100 hover:text-foreground-900'
                     }`}
                   >
                     <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px] font-semibold ${
                       active
-                        ? 'border-background-50/20 bg-background-50/10 text-background-50'
+                        ? 'border-primary-300 bg-primary-50 text-primary-700'
                         : step.invalid
                           ? 'border-danger-300 bg-danger-50 text-danger-700'
                           : step.complete
                             ? 'border-success-200 bg-success-50 text-success-700'
-                            : 'border-background-300 bg-background-50 text-foreground-400'
+                            : 'border-background-300 bg-background-50 text-foreground-500'
                     }`}>
                       {step.complete && !active
                         ? <i className="ri-check-line" aria-hidden="true" />
@@ -152,7 +152,7 @@ function AccessWorkspaceShell({
                       <span className="block text-[11px] font-semibold">{step.label}</span>
                       {step.description && (
                         <span className={`mt-0.5 hidden truncate text-[10px] lg:block ${
-                          active ? 'text-background-300' : 'text-foreground-400'
+                          active ? 'text-primary-700/80' : 'text-foreground-500'
                         }`}>
                           {step.description}
                         </span>
@@ -175,6 +175,7 @@ function AccessWorkspaceShell({
         </div>
       </div>
 
+      {navigation.dialog}
       {footer && (
         <footer className="shrink-0 border-t border-background-300 bg-background-50 px-4 py-3 shadow-[0_-8px_24px_-20px_rgba(0,0,0,0.45)] sm:px-5">
           <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-3">

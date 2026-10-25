@@ -25,11 +25,14 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
       // Same-origin /v1 proxy for local development, mirroring the production Nginx.
-      ...(env.VAULT_DEV_UPSTREAM ? {
-        proxy: {
+      proxy: {
+        ...(env.VAULT_DEV_UPSTREAM ? {
           '/v1': { target: env.VAULT_DEV_UPSTREAM, changeOrigin: true },
-        },
-      } : {}),
+        } : {}),
+        ...(env.VAULT_DEV_AUDIT_UPSTREAM ? {
+          '/audit-api': { target: env.VAULT_DEV_AUDIT_UPSTREAM, changeOrigin: true },
+        } : {}),
+      },
     },
   };
 });

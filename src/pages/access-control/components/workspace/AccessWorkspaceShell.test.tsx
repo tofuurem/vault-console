@@ -2,6 +2,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -59,7 +60,6 @@ describe('AccessWorkspaceShell', () => {
   it('guards dirty close and browser unload without trapping a clean workspace', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const first = renderInRouter(
       <AccessWorkspaceShell
         eyebrow="User change"
@@ -75,7 +75,8 @@ describe('AccessWorkspaceShell', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'Close access editor' }));
-    expect(confirm).toHaveBeenCalledOnce();
+    const prompt = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' });
+    await user.click(within(prompt).getByRole('button', { name: 'Keep editing' }));
     expect(onClose).not.toHaveBeenCalled();
 
     const event = new Event('beforeunload', { cancelable: true });
@@ -98,6 +99,6 @@ describe('AccessWorkspaceShell', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Close access editor' }));
     expect(onClose).toHaveBeenCalledOnce();
-    confirm.mockRestore();
+    expect(screen.queryByRole('dialog', { name: 'Discard unsaved changes?' })).not.toBeInTheDocument();
   });
 });

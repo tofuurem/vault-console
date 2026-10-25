@@ -56,6 +56,8 @@ export interface VaultSealGateway {
   getSealStatus(serverUrl: string, signal?: AbortSignal): Promise<VaultSealStatus>;
   submitUnsealKey(serverUrl: string, key: VaultUnsealKey, signal?: AbortSignal): Promise<VaultSealStatus>;
   resetUnseal(serverUrl: string, signal?: AbortSignal): Promise<VaultSealStatus>;
+  /** Requires `sudo` on `sys/seal`; Vault rejects it for standby nodes. */
+  seal(session: VaultSession, signal?: AbortSignal): Promise<void>;
 }
 
 export interface KvV2Mount {

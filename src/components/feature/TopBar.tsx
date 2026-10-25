@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { useRuntimeConfig } from '@/application/config/RuntimeConfigContext';
 import type {
   VaultSessionRenewalState,
   VaultSessionRevocationState,
 } from '@/application/vault/VaultSessionContext';
 import type { VaultHealth, VaultSession } from '@/domain/vault/contracts';
+import EnvironmentBadge from './EnvironmentBadge';
+import { environmentEdgeClass } from './environment-tone';
 import RevokeSessionDialog from './RevokeSessionDialog';
+import SealVaultDialog from './SealVaultDialog';
 import SessionMenu from './SessionMenu';
 
 interface TopBarProps {
@@ -20,6 +24,10 @@ interface TopBarProps {
   revocation?: VaultSessionRevocationState;
   onRevokeSession?: () => Promise<void>;
   onOpenNavigation?: () => void;
+  sessionWarning?: boolean;
+  autoRenew?: boolean;
+  onAutoRenewChange?: (enabled: boolean) => void;
+  onVaultSealed?: () => void;
 }
 
 const FOCUS_RING = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400';
@@ -81,6 +89,7 @@ function Brand({ health, serverUrl, onOpenNavigation }: {
           <i className="ri-shield-keyhole-fill text-xs text-background-50" aria-hidden="true" />
         </div>
         <span className="truncate text-sm font-semibold tracking-tight text-foreground-900">Vault Console</span>
+        <EnvironmentBadge />
       </div>
       <div className="hidden items-center gap-1.5 text-xs text-foreground-500 sm:flex">
         <span className={`h-1.5 w-1.5 rounded-full ${seal.dot}`} aria-hidden="true" />
@@ -106,9 +115,15 @@ export default function TopBar({
   revocation = { status: 'idle' },
   onRevokeSession,
   onOpenNavigation,
+  sessionWarning = false,
+  autoRenew,
+  onAutoRenewChange,
+  onVaultSealed,
 }: TopBarProps) {
+  const { environmentName, environmentTone } = useRuntimeConfig();
   const [menuOpen, setMenuOpen] = useState(false);
   const [revokeOpen, setRevokeOpen] = useState(false);
+  const [sealOpen, setSealOpen] = useState(false);
   const menuRef = useDismissable(menuOpen, () => setMenuOpen(false));
   const identity = sessionIdentity(session);
   const closeMenuAfter = (action: () => void) => () => {
@@ -119,7 +134,7 @@ export default function TopBar({
   return (
     <>
     <div
-      className="flex min-h-11 shrink-0 items-center justify-between gap-2 border-b border-background-200 bg-background-50 px-2 sm:h-11 sm:px-4"
+      className={`flex min-h-11 shrink-0 items-center justify-between gap-2 border-b border-background-200 bg-background-50 px-2 sm:h-11 sm:px-4 ${environmentEdgeClass(environmentTone, Boolean(environmentName))}`}
       style={{
         paddingTop: 'env(safe-area-inset-top, 0px)',
         paddingLeft: 'max(8px, env(safe-area-inset-left, 0px))',
@@ -129,6 +144,19 @@ export default function TopBar({
       <Brand health={health} serverUrl={session.serverUrl} onOpenNavigation={onOpenNavigation} />
 
       <div className="flex shrink-0 items-center gap-0.5 sm:gap-1.5">
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label={`Session ${remainingLabel}. Open session menu`}
+          className={`hidden h-7 items-center gap-1 rounded-md px-2 font-mono text-[11px] tabular-nums transition-colors md:inline-flex ${FOCUS_RING} ${
+            sessionWarning
+              ? 'bg-warning-100 text-warning-900 hover:bg-warning-200'
+              : 'text-foreground-500 hover:bg-background-100 hover:text-foreground-800'
+          }`}
+        >
+          <i className={`${autoRenew ? 'ri-timer-flash-line' : 'ri-timer-line'} text-xs`} aria-hidden="true" />
+          {remainingLabel.replace(/ remaining$/, '')}
+        </button>
         {onOpenCommandPalette && (
           <button
             type="button"
@@ -167,6 +195,9 @@ export default function TopBar({
               remainingLabel={remainingLabel}
               renewal={renewal}
               onRenewSession={onRenewSession}
+              autoRenew={autoRenew}
+              onAutoRenewChange={onAutoRenewChange}
+              onRequestSeal={onVaultSealed ? closeMenuAfter(() => setSealOpen(true)) : undefined}
               onRequestRevoke={onRevokeSession ? closeMenuAfter(() => setRevokeOpen(true)) : undefined}
               onClearNavigationData={onClearNavigationData ? closeMenuAfter(onClearNavigationData) : undefined}
               onSignOut={closeMenuAfter(onSignOut)}
@@ -181,6 +212,16 @@ export default function TopBar({
       onClose={() => setRevokeOpen(false)}
       onConfirm={onRevokeSession ?? (async () => undefined)}
     />
+    {onVaultSealed && (
+      <SealVaultDialog
+        open={sealOpen}
+        onClose={() => setSealOpen(false)}
+        onSealed={() => {
+          setSealOpen(false);
+          onVaultSealed();
+        }}
+      />
+    )}
     </>
   );
 }

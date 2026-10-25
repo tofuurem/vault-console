@@ -40,6 +40,7 @@ class SealGateway implements VaultSealGateway {
       : { ...this.status, progress, nonce: 'nonce-1' };
     return this.status;
   });
+  seal = vi.fn(async () => undefined);
   resetUnseal = vi.fn(async (): Promise<VaultSealStatus> => {
     this.submitted.length = 0;
     this.status = { ...this.status, progress: 0, nonce: undefined };

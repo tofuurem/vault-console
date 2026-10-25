@@ -2,18 +2,28 @@ import {
   useCallback,
   useEffect,
   useRef,
+  type ReactNode,
 } from 'react';
 import { useBlocker, type BlockerFunction } from 'react-router-dom';
+
+import { useConfirmDialog, type ConfirmOptions } from '@/components/base/useConfirmDialog';
 
 export interface DirtyWorkspaceGuard {
   readonly guard: (action: () => void) => void;
   readonly allowNextNavigation: () => void;
+  /** Must be rendered by the workspace so the discard prompt can appear. */
+  readonly dialog: ReactNode;
 }
 
-export function useDirtyWorkspaceGuard(
-  dirty: boolean,
-  message = 'Discard unsaved access changes?',
-): DirtyWorkspaceGuard {
+const DISCARD_PROMPT: ConfirmOptions = {
+  title: 'Discard unsaved changes?',
+  message: 'Your access changes have not been applied to Vault and will be lost.',
+  confirmLabel: 'Discard changes',
+  cancelLabel: 'Keep editing',
+};
+
+export function useDirtyWorkspaceGuard(dirty: boolean): DirtyWorkspaceGuard {
+  const [confirm, dialog] = useConfirmDialog();
   const bypassNextNavigation = useRef(false);
   const blocker = useBlocker(useCallback<BlockerFunction>(({
     currentLocation,
@@ -42,22 +52,25 @@ export function useDirtyWorkspaceGuard(
 
   useEffect(() => {
     if (blocker.state !== 'blocked') return;
-    if (window.confirm(message)) blocker.proceed();
-    else blocker.reset();
-  }, [blocker, message]);
+    void confirm(DISCARD_PROMPT).then((discard) => {
+      if (discard) blocker.proceed();
+      else blocker.reset();
+    });
+  }, [blocker, confirm]);
 
   const guard = useCallback((action: () => void) => {
     if (!dirty) {
       action();
       return;
     }
-    if (window.confirm(message)) {
+    void confirm(DISCARD_PROMPT).then((discard) => {
+      if (!discard) return;
       bypassNextNavigation.current = true;
       action();
-    }
-  }, [dirty, message]);
+    });
+  }, [confirm, dirty]);
   const allowNextNavigation = useCallback(() => {
     bypassNextNavigation.current = true;
   }, []);
-  return { guard, allowNextNavigation };
+  return { guard, allowNextNavigation, dialog };
 }

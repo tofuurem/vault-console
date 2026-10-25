@@ -59,9 +59,11 @@ export default function SecretEditPanel({
       </div>
 
       {draft.mode === 'fields' ? (
-        <section aria-label="Secret fields" className="min-h-0 flex-1 overflow-auto rounded-lg border border-background-300 bg-background-50 p-3">
-          <SecretFieldsEditor fields={draft.fields} onChange={draft.setFields} disabled={saving} />
-        </section>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <section aria-label="Secret fields" className="max-w-4xl rounded-lg border border-background-300 bg-background-50 p-3">
+            <SecretFieldsEditor fields={draft.fields} onChange={draft.setFields} disabled={saving} />
+          </section>
+        </div>
       ) : (
         <JsonSecretEditor
           value={draft.rawJson}

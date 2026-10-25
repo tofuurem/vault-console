@@ -37,6 +37,34 @@ returns a root token. Enter key shares only over HTTPS on a trusted device.
 A structured `Vault is sealed` marker on any response is classified as a sealed
 error so the authenticated workspace can direct operators to the unseal page.
 
+## Response wrapping (Share once)
+
+Reviewed: 2026-10-25
+
+Share once reads the selected KV v2 version with `X-Vault-Wrap-TTL` and keeps
+only `wrap_info`; the console never parses the secret data of that response.
+The wrapping token is a memory-only sensitive value shown once in the dialog
+and dropped when it closes. It is never placed in a URL, storage, history
+state, or diagnostics. The public `/unwrap` page keeps the pasted token in a
+ref, looks it up with `sys/wrapping/lookup` (token in the body, no session),
+and unwraps only after an explicit second action. Unwrapped values stay masked
+until revealed and are not persisted.
+
+## Activity log reader
+
+Reviewed: 2026-10-25
+
+The optional `vault-console-audit` service reads a Vault file audit device log
+read-only and returns metadata only: time, request id, operation, path, mount,
+display name, entity id, policies, remote address, outcome, and Vault's error
+string. It never decodes or returns request or response bodies, so even
+Vault's HMAC values do not leave the file. Every request must carry the
+operator's Vault token; the service asks `sys/capabilities-self` for `sys/audit`
+and serves only tokens with `sudo` and `read` (or `root`). Decisions are cached
+for 30 seconds by SHA-256 of the token; the raw token is not stored or logged.
+Responses are `no-store`, and Nginx does not access-log `/audit-api/`. Each search
+scans at most 256 MiB of the newest part of the file.
+
 ## Vault response and proxy metadata
 
 Reviewed: 2026-07-27

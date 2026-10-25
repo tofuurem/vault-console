@@ -17,6 +17,7 @@ import { normalizeVaultServerUrl } from '@/domain/vault/server-url';
 import UnsealKeyForm from './components/UnsealKeyForm';
 import UnsealProgress from './components/UnsealProgress';
 import UnsealStatusSummary from './components/UnsealStatusSummary';
+import EnvironmentBadge from '@/components/feature/EnvironmentBadge';
 
 const LINK_CLASSES = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-9';
 
@@ -170,7 +171,7 @@ export default function UnsealPage() {
           </div>
           <div>
             <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.17em] text-primary-600">Operator recovery</p>
-            <h1 id="unseal-heading" className="text-lg font-semibold tracking-tight text-foreground-900">Unseal Vault</h1>
+            <div className="flex flex-wrap items-center gap-2"><h1 id="unseal-heading" className="text-lg font-semibold tracking-tight text-foreground-900">Unseal Vault</h1><EnvironmentBadge /></div>
           </div>
         </div>
         <p className="text-xs leading-5 text-foreground-500">

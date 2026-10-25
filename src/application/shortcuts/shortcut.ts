@@ -32,6 +32,28 @@ export function isEditableShortcutTarget(target: EventTarget | null): boolean {
   ));
 }
 
+/** True while a modal dialog (palette, drawer, full-screen inspector) owns the keyboard. */
+export function isModalDialogOpen(root: Document | Element = document): boolean {
+  return Boolean(root.querySelector('[role="dialog"][aria-modal="true"]'));
+}
+
+interface SingleKeyShortcutEvent extends KeyboardShortcutLike {
+  readonly target: EventTarget | null;
+  readonly defaultPrevented: boolean;
+  readonly isComposing?: boolean;
+}
+
+/**
+ * Single-key shortcuts (`/`, `?`, `e`, arrows) apply only to the page itself:
+ * never while typing, never with Command/Control/Alt, and never behind a dialog.
+ */
+export function isPageShortcutEvent(event: SingleKeyShortcutEvent): boolean {
+  if (event.defaultPrevented || event.isComposing) return false;
+  if (event.metaKey || event.ctrlKey || event.altKey) return false;
+  if (isEditableShortcutTarget(event.target)) return false;
+  return !isModalDialogOpen();
+}
+
 export function commandSearchText(command: ShortcutCommand): string {
   return [
     command.label,

@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { NavigationPath } from '@/application/navigation-history/navigation-history';
+import {
+  EDIT_SECRET_SHORTCUT_KEY,
+  SEARCH_SHORTCUT_KEY,
+} from '@/application/shortcuts/keyboard-shortcuts';
+import { useKeyboardShortcut } from '@/application/shortcuts/useKeyboardShortcut';
 import { useKvSearch, type KvSearchMountState } from '@/application/vault/search/KvSearchContext';
 import { rankKvPathMatches } from '@/application/vault/search/search-ranking';
 import type { KvSecretDetails, VaultQueryState } from '@/application/vault/useKvExplorerData';
-import type { KvActionPermissions } from '@/application/vault/useKvActionPermissions';
+import { canAttemptKvAction, type KvActionPermissions } from '@/application/vault/useKvActionPermissions';
 import Button from '@/components/base/Button';
 import ContentSkeleton from '@/components/base/ContentSkeleton';
 import Tooltip from '@/components/base/Tooltip';
@@ -17,7 +22,8 @@ import InspectorDock from './InspectorDock';
 import OpenExactPathForm from './OpenExactPathForm';
 import PathBreadcrumbs from './PathBreadcrumbs';
 import SearchResults from './SearchResults';
-import SecretTable, { type KvDirectoryEntry } from './SecretTable';
+import ExplorerSecretTable from './ExplorerSecretTable';
+import type { KvDirectoryEntry } from './SecretTable';
 import {
   emptySecretSelection,
   hiddenSelectionCount,
@@ -25,6 +31,10 @@ import {
   toggleAllVisibleSecrets,
   updateSecretSelection,
 } from './bulk/selection';
+
+function countLabel(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
 
 interface ExplorerMainProps {
   readonly mount: string;
@@ -87,6 +97,10 @@ export default function ExplorerMain(props: ExplorerMainProps) {
     visibleSecretPaths: searchModel.visibleSecretPaths,
   });
   const clipboard = useDirectoryClipboard(props.onClipboardFeedback);
+  const canEditSelected = Boolean(
+    selectedPath && props.onEditSecret && canAttemptKvAction(props.permissions, 'canEdit'),
+  );
+  useKeyboardShortcut([EDIT_SECRET_SHORTCUT_KEY], () => props.onEditSecret?.(), canEditSelected);
 
   useEffect(() => {
     if (!selectedPath) return;
@@ -266,6 +280,17 @@ interface ExplorerSelectionModel {
   readonly updateFavorites: (favorite: boolean) => void;
   readonly selectEntry: (entry: KvDirectoryEntry, checked: boolean, range: boolean) => void;
   readonly toggleAll: () => void;
+  readonly setDisplayOrder: (secretPaths: readonly string[]) => void;
+}
+
+/** Range selection follows the table's sort order when it shows the same rows. */
+function rangeOrder(
+  displayOrder: readonly string[] | null,
+  visibleSecretPaths: readonly string[],
+): readonly string[] {
+  if (!displayOrder || displayOrder.length !== visibleSecretPaths.length) return visibleSecretPaths;
+  const visible = new Set(visibleSecretPaths);
+  return displayOrder.every((path) => visible.has(path)) ? displayOrder : visibleSecretPaths;
 }
 
 function useExplorerSelectionModel({
@@ -283,6 +308,10 @@ function useExplorerSelectionModel({
   const selectionScope = `${mount}\u001f${currentPath}`;
   const [selection, setSelection] = useState(() => emptySecretSelection(selectionScope));
   const selectedPaths = selectionForScope(selection, selectionScope).paths;
+  const displayOrderRef = useRef<readonly string[] | null>(null);
+  const setDisplayOrder = useCallback((secretPaths: readonly string[]) => {
+    displayOrderRef.current = secretPaths;
+  }, []);
   const clear = () => setSelection(emptySecretSelection(selectionScope));
 
   useEffect(() => {
@@ -319,7 +348,7 @@ function useExplorerSelectionModel({
     setSelection((current) => updateSecretSelection({
       selection: current,
       scope: selectionScope,
-      visibleSecretPaths,
+      visibleSecretPaths: rangeOrder(displayOrderRef.current, visibleSecretPaths),
       path: entry.path,
       checked,
       range,
@@ -338,6 +367,7 @@ function useExplorerSelectionModel({
     updateFavorites,
     selectEntry,
     toggleAll,
+    setDisplayOrder,
   };
 }
 
@@ -415,6 +445,13 @@ function ExplorerDirectoryHeader({
   clipboard,
 }: ExplorerDirectoryProps) {
   const [exactPathOpen, setExactPathOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  useKeyboardShortcut([SEARCH_SHORTCUT_KEY], () => {
+    const input = searchRef.current?.querySelector('input');
+    if (!input) return false;
+    input.focus();
+    input.select();
+  });
   const currentMount = mounts.find((candidate) => candidate.path === mount);
   const denied = isDirectoryListDenied(directory);
   const openExactPath = (path: string) => {
@@ -428,7 +465,7 @@ function ExplorerDirectoryHeader({
         <div>
           <div className="flex items-center gap-2">
             <h1 id="directory-heading" className="text-sm font-semibold text-foreground-900">{currentMount?.description || `${mount}/`}</h1>
-            {directory.status === 'success' && <span className="text-xs text-foreground-400">{searchModel.searchQuery.trim().length > 0 ? `${searchModel.searchMatches.length} matches` : `${searchModel.entries.length} items`}</span>}
+            {directory.status === 'success' && <span className="text-xs text-foreground-500">{searchModel.searchQuery.trim().length > 0 ? countLabel(searchModel.searchMatches.length, 'match', 'matches') : countLabel(searchModel.entries.length, 'item', 'items')}</span>}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -441,7 +478,7 @@ function ExplorerDirectoryHeader({
         </div>
       </div>
       {exactPathOpen && onOpenExactPath && !denied && <div className="mt-3 rounded-lg border border-background-200 bg-background-100 p-3"><OpenExactPathForm mount={mount} autoFocus onCancel={() => setExactPathOpen(false)} onOpen={openExactPath} /></div>}
-      <div className="mt-3"><ExplorerSearch query={searchModel.searchQuery} scope={searchModel.searchScope} onQueryChange={searchModel.setSearchQuery} onScopeChange={searchModel.setSearchScope} /></div>
+      <div ref={searchRef} className="mt-3"><ExplorerSearch query={searchModel.searchQuery} scope={searchModel.searchScope} onQueryChange={searchModel.setSearchQuery} onScopeChange={searchModel.setSearchScope} /></div>
     </header>
   );
 }
@@ -471,7 +508,8 @@ function ExplorerDirectoryBody(props: ExplorerDirectoryProps) {
     content = <MountSearchResults mount={mount} searchModel={searchModel} onSelectSecret={onSelectSecret} onNavigateToFolder={onNavigateToFolder} />;
   } else if (directory.data) {
     content = (
-      <SecretTable
+      <ExplorerSecretTable
+        mount={mount}
         entries={searchModel.visibleEntries}
         selectedPath={selectedPath}
         onSelectSecret={onSelectSecret}
@@ -484,6 +522,7 @@ function ExplorerDirectoryBody(props: ExplorerDirectoryProps) {
         selectedPaths={selectionModel.selectedPaths}
         onSelectionChange={selectionModel.selectEntry}
         onToggleSelectAll={selectionModel.toggleAll}
+        onDisplayOrderChange={selectionModel.setDisplayOrder}
       />
     );
   }

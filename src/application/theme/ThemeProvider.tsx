@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useMemo,
   useState,
   type ReactNode,
@@ -64,10 +65,20 @@ export function ThemeProvider({
   const [persistenceAvailable, setPersistenceAvailable] = useState(storage !== null);
   const resolvedTheme = resolveTheme(preference, systemPrefersDark);
 
+  const appliedTheme = useRef<string | null>(null);
   useEffect(() => {
     const root = document.documentElement;
+    const switching = appliedTheme.current !== null && appliedTheme.current !== resolvedTheme;
+    appliedTheme.current = resolvedTheme;
+    if (switching) root.classList.add('theme-switching');
     root.dataset.theme = resolvedTheme;
     root.style.colorScheme = resolvedTheme;
+    if (!switching) return undefined;
+    const timer = window.setTimeout(() => root.classList.remove('theme-switching'), 250);
+    return () => {
+      window.clearTimeout(timer);
+      root.classList.remove('theme-switching');
+    };
   }, [resolvedTheme]);
 
   useEffect(() => {

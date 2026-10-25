@@ -1,7 +1,14 @@
+export type EnvironmentTone = 'neutral' | 'info' | 'warning' | 'danger';
+
 export interface VaultConsoleRuntimeConfig {
   readonly allowCustomVaultAddress: boolean;
   readonly userpassMount: string;
   readonly allowCustomUserpassMount: boolean;
+  /** Short operator-chosen label such as PROD; empty hides the badge. */
+  readonly environmentName: string;
+  readonly environmentTone: EnvironmentTone;
+  /** True when the deployment runs the optional audit reader behind /audit-api/. */
+  readonly auditAvailable: boolean;
 }
 
 type RuntimeConfigInput = Readonly<Record<string, unknown>>;
@@ -16,7 +23,22 @@ const DEFAULT_RUNTIME_CONFIG: VaultConsoleRuntimeConfig = {
   allowCustomVaultAddress: false,
   userpassMount: 'userpass',
   allowCustomUserpassMount: false,
+  environmentName: '',
+  environmentTone: 'neutral',
+  auditAvailable: false,
 };
+
+const ENVIRONMENT_TONES: readonly EnvironmentTone[] = ['neutral', 'info', 'warning', 'danger'];
+
+function environmentName(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const name = value.trim();
+  return name.length <= 24 && /^[A-Za-z0-9._ -]*$/.test(name) ? name : '';
+}
+
+function environmentTone(value: unknown): EnvironmentTone {
+  return ENVIRONMENT_TONES.find((tone) => tone === value) ?? 'neutral';
+}
 
 function normalizedMount(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -38,6 +60,9 @@ export function resolveRuntimeConfig(input: RuntimeConfigInput | undefined): Vau
     allowCustomUserpassMount: typeof input?.allowCustomUserpassMount === 'boolean'
       ? input.allowCustomUserpassMount
       : DEFAULT_RUNTIME_CONFIG.allowCustomUserpassMount,
+    environmentName: environmentName(input?.environmentName),
+    environmentTone: environmentTone(input?.environmentTone),
+    auditAvailable: input?.auditAvailable === true,
   };
 }
 

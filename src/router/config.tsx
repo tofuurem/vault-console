@@ -11,6 +11,9 @@ import LazyRoute from './LazyRoute';
 const ExplorerPage = lazy(() => import('@/pages/explorer/page'));
 const AccessControlPage = lazy(() => import('@/pages/access-control/page'));
 const UnsealPage = lazy(() => import('@/pages/unseal/page'));
+const ActivityPage = lazy(() => import('@/pages/activity/page'));
+const HomePage = lazy(() => import('@/pages/home/page'));
+const UnwrapPage = lazy(() => import('@/pages/unwrap/page'));
 
 const applicationRoutes: RouteObject[] = [
   {
@@ -26,6 +29,10 @@ const applicationRoutes: RouteObject[] = [
     element: <LazyRoute><UnsealPage /></LazyRoute>,
   },
   {
+    path: '/unwrap',
+    element: <LazyRoute><UnwrapPage /></LazyRoute>,
+  },
+  {
     element: <RequireSession><AuthenticatedAppShell /></RequireSession>,
     children: [
       {
@@ -35,6 +42,14 @@ const applicationRoutes: RouteObject[] = [
       {
         path: '/explorer/:mount/*',
         element: <LazyRoute><ExplorerPage /></LazyRoute>,
+      },
+      {
+        path: '/home',
+        element: <LazyRoute><HomePage /></LazyRoute>,
+      },
+      {
+        path: '/activity',
+        element: <LazyRoute><ActivityPage /></LazyRoute>,
       },
       {
         path: '/access-control',

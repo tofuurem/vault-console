@@ -44,3 +44,16 @@ export function vaultPassword(value: string): VaultPassword {
 export function vaultUnsealKey(value: string): VaultUnsealKey {
   return new MemoryOnlySensitiveValue(value);
 }
+
+/** A single-use response-wrapping token. It can be unwrapped exactly once. */
+export type VaultWrappingToken = SensitiveValue<'vault-wrapping-token'>;
+/** One field of a secret read through unwrapping, printable form only. */
+export type UnwrappedSecretValue = SensitiveValue<'unwrapped-secret-value'>;
+
+export function vaultWrappingToken(value: string): VaultWrappingToken {
+  return new MemoryOnlySensitiveValue(value);
+}
+
+export function unwrappedSecretValue(value: string): UnwrappedSecretValue {
+  return new MemoryOnlySensitiveValue(value);
+}

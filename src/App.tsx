@@ -13,10 +13,12 @@ import type {
   VaultAuthGateway,
   VaultSealGateway,
 } from './domain/vault/contracts';
+import type { VaultWrappingGateway } from './domain/vault/wrapping';
 import { AccessControlGatewayProvider } from './application/vault/AccessControlGatewayProvider';
 import { KvV2GatewayProvider } from './application/vault/KvV2GatewayProvider';
 import { SealGatewayProvider } from './application/vault/SealGatewayProvider';
 import { VaultSessionProvider } from './application/vault/VaultSessionProvider';
+import { WrappingGatewayProvider } from './application/vault/WrappingGatewayProvider';
 import routes from './router/config';
 import ToastViewport from './components/base/ToastViewport';
 
@@ -25,6 +27,7 @@ interface AppProps {
   readonly kvV2Gateway?: KvV2Gateway;
   readonly accessControlGateway?: VaultAccessControlGateway;
   readonly sealGateway?: VaultSealGateway;
+  readonly wrappingGateway?: VaultWrappingGateway;
   readonly runtimeConfig?: Readonly<Record<string, unknown>>;
 }
 
@@ -33,6 +36,7 @@ function App({
   kvV2Gateway,
   accessControlGateway,
   sealGateway,
+  wrappingGateway,
   runtimeConfig,
 }: AppProps) {
   const [router] = useState(() => createBrowserRouter(routes, {
@@ -43,15 +47,17 @@ function App({
       <ToastProvider viewport={ToastViewport}>
         <RuntimeConfigProvider config={runtimeConfig}>
           <SealGatewayProvider gateway={sealGateway}>
-            <AccessControlGatewayProvider gateway={accessControlGateway}>
-              <KvV2GatewayProvider gateway={kvV2Gateway}>
-                <VaultSessionProvider gateway={authGateway}>
-                  <VaultQueryProvider>
-                    <RouterProvider router={router} />
-                  </VaultQueryProvider>
-                </VaultSessionProvider>
-              </KvV2GatewayProvider>
-            </AccessControlGatewayProvider>
+            <WrappingGatewayProvider gateway={wrappingGateway}>
+              <AccessControlGatewayProvider gateway={accessControlGateway}>
+                <KvV2GatewayProvider gateway={kvV2Gateway}>
+                  <VaultSessionProvider gateway={authGateway}>
+                    <VaultQueryProvider>
+                      <RouterProvider router={router} />
+                    </VaultQueryProvider>
+                  </VaultSessionProvider>
+                </KvV2GatewayProvider>
+              </AccessControlGatewayProvider>
+            </WrappingGatewayProvider>
           </SealGatewayProvider>
         </RuntimeConfigProvider>
       </ToastProvider>

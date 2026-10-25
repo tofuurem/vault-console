@@ -26,6 +26,11 @@ export const vaultQueryKeys = {
     ...vaultQueryKeys.secretScope(mount, path),
     ...permissionKey,
   ] as const,
+  /** Lives under `secretScope` so refreshing a secret also refreshes its row summary. */
+  secretMetadataSummary: (mount: string, path: string) => [
+    ...vaultQueryKeys.secretScope(mount, path),
+    'metadata-summary',
+  ] as const,
   permissions: (mount: string, path: string) => [
     ...vaultQueryKeys.all,
     'kv-permissions',
@@ -115,6 +120,11 @@ export const vaultQueryKeys = {
   identityTombstone: (entityId: string) => [
     ...vaultQueryKeys.identityTombstones(),
     entityId,
+  ] as const,
+  /** Path-independent access model reused for every secret's Access tab. */
+  secretAccessSnapshot: () => [
+    ...vaultQueryKeys.all,
+    'secret-access-snapshot',
   ] as const,
   accessPlanCapabilities: (paths: readonly string[]) => [
     ...vaultQueryKeys.all,

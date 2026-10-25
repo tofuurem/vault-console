@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import Button from '@/components/base/Button';
 import Tabs from '@/components/base/Tabs';
+import { useConfirmDialog } from '@/components/base/useConfirmDialog';
 import { useDialogFocus } from '@/components/base/useDialogFocus';
 import type { KvV2Secret } from '@/domain/vault/contracts';
 import { normalizeVaultError } from '@/domain/vault/errors';
@@ -43,6 +44,7 @@ export default function SecretWorkspace({
   const [copyStatus, setCopyStatus] = useState('');
   const [focusErrorSignal, setFocusErrorSignal] = useState(0);
   const draft = useSecretEditDraft(secret?.data, open && mode === 'edit');
+  const [confirm, confirmDialog] = useConfirmDialog();
   const resetDraft = draft.reset;
 
   useEffect(() => {
@@ -66,11 +68,21 @@ export default function SecretWorkspace({
 
   const { dirty } = draft;
 
-  const confirmDiscard = () => !dirty || window.confirm('Discard unsaved secret changes?');
+  const confirmDiscard = async () => !dirty || confirm({
+    title: 'Discard unsaved changes?',
+    message: 'Your edits to this secret have not been saved to Vault and will be lost.',
+    confirmLabel: 'Discard changes',
+    cancelLabel: 'Keep editing',
+  });
   const requestClose = () => {
     if (saving) return;
-    if (mode === 'edit' && !confirmDiscard()) return;
-    onClose();
+    if (mode !== 'edit') {
+      onClose();
+      return;
+    }
+    void confirmDiscard().then((discard) => {
+      if (discard) onClose();
+    });
   };
   useDialogFocus(open && Boolean(secret), dialogRef, requestClose);
 
@@ -81,8 +93,8 @@ export default function SecretWorkspace({
     setSaveError('');
     setMode('edit');
   };
-  const cancelEdit = () => {
-    if (!confirmDiscard()) return;
+  const cancelEdit = async () => {
+    if (!(await confirmDiscard())) return;
     draft.reset(secret.data);
     setSaveError('');
     setMode('view');
@@ -124,6 +136,7 @@ export default function SecretWorkspace({
 
   return (
     <div className="fixed inset-0 z-workspace bg-background-50">
+      {confirmDialog}
       <div
         ref={dialogRef}
         role="dialog"
@@ -157,7 +170,7 @@ export default function SecretWorkspace({
                 </>
               ) : (
                 <>
-                  <Button size="sm" onClick={cancelEdit} disabled={saving}>Cancel edit</Button>
+                  <Button size="sm" onClick={() => void cancelEdit()} disabled={saving}>Cancel edit</Button>
                   <Button size="sm" variant="primary" onClick={() => void save()} loading={saving} disabled={!dirty}>Save version {secret.metadata.version + 1}</Button>
                 </>
               )}

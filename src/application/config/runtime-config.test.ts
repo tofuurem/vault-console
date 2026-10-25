@@ -4,7 +4,10 @@ import { resolveRuntimeConfig } from './runtime-config';
 
 describe('resolveRuntimeConfig', () => {
   it('uses fixed same-origin proxy defaults', () => {
-    expect(resolveRuntimeConfig({})).toEqual({
+    expect(resolveRuntimeConfig({})).toMatchObject({
+      environmentName: '',
+      environmentTone: 'neutral',
+      auditAvailable: false,
       allowCustomVaultAddress: false,
       userpassMount: 'userpass',
       allowCustomUserpassMount: false,
@@ -16,7 +19,7 @@ describe('resolveRuntimeConfig', () => {
       allowCustomVaultAddress: true,
       userpassMount: '/team/userpass/',
       allowCustomUserpassMount: true,
-    })).toEqual({
+    })).toMatchObject({
       allowCustomVaultAddress: true,
       userpassMount: 'team/userpass',
       allowCustomUserpassMount: true,
@@ -28,10 +31,22 @@ describe('resolveRuntimeConfig', () => {
       allowCustomVaultAddress: 'yes',
       userpassMount: '../userpass',
       allowCustomUserpassMount: 1,
-    })).toEqual({
+    })).toMatchObject({
       allowCustomVaultAddress: false,
       userpassMount: 'userpass',
       allowCustomUserpassMount: false,
     });
+  });
+
+  it('accepts a short environment label and tone and rejects unsafe values', () => {
+    expect(resolveRuntimeConfig({ environmentName: ' Prod EU ', environmentTone: 'danger' })).toMatchObject({
+      environmentName: 'Prod EU',
+      environmentTone: 'danger',
+    });
+    expect(resolveRuntimeConfig({ environmentName: '<script>', environmentTone: 'loud' })).toMatchObject({
+      environmentName: '',
+      environmentTone: 'neutral',
+    });
+    expect(resolveRuntimeConfig({ environmentName: 'x'.repeat(25) }).environmentName).toBe('');
   });
 });

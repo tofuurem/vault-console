@@ -139,7 +139,7 @@ describe('LoginPage', () => {
     await user.type(token, 'hvs.operator');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    await waitFor(() => expect(window.location.pathname).toBe('/explorer'));
+    await waitFor(() => expect(window.location.pathname).toBe('/home'));
     expect(gateway.validateToken.mock.calls[0][1].reveal()).toBe('hvs.operator');
     expect(screen.queryByDisplayValue('hvs.operator')).not.toBeInTheDocument();
   });
@@ -226,7 +226,7 @@ describe('LoginPage', () => {
     assignNativeValue(password, 'not-persisted');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    await waitFor(() => expect(window.location.pathname).toBe('/explorer'));
+    await waitFor(() => expect(window.location.pathname).toBe('/home'));
     const credentials = gateway.loginUserpass.mock.calls[0][0];
     expect(credentials).toMatchObject({ mount: 'team/userpass', username: 'alice' });
     expect(credentials.password.reveal()).toBe('not-persisted');

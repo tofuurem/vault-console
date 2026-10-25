@@ -134,7 +134,7 @@ async function replaceEditorContent(
 describe('ExplorerPage', () => {
   it('uses one comfortable table layout without density controls or commands', async () => {
     const user = userEvent.setup();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={kvGateway()} />);
     await login(user);
     await screen.findByRole('heading', { name: 'Application secrets' });
@@ -169,7 +169,7 @@ describe('ExplorerPage', () => {
         version: 2,
       });
     });
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway({ mountAdmin: true })} kvV2Gateway={gateway} />);
     await login(user);
     await screen.findByRole('heading', { name: 'Application secrets' });
@@ -193,7 +193,7 @@ describe('ExplorerPage', () => {
   it('blocks mount creation when capabilities explicitly deny the target path', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
     await login(user);
     await screen.findByRole('heading', { name: 'Application secrets' });
@@ -209,7 +209,7 @@ describe('ExplorerPage', () => {
   it('discovers visible KV v2 mounts, lists a folder, and lazily reads a selected secret', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
     await login(user);
 
@@ -250,7 +250,7 @@ describe('ExplorerPage', () => {
   it('revokes the current token in Vault and returns to login with a notice', async () => {
     const user = userEvent.setup();
     const auth = authGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={auth} kvV2Gateway={kvGateway()} />);
     await login(user);
     await screen.findByRole('heading', { name: 'Application secrets' });
@@ -271,7 +271,7 @@ describe('ExplorerPage', () => {
 
   it('renders authorization failures next to the denied folder', async () => {
     const user = userEvent.setup();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={kvGateway({ denied: true })} />);
     await login(user);
 
@@ -281,7 +281,7 @@ describe('ExplorerPage', () => {
   it('opens an exact secret path while directory LIST remains denied', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway({ denied: true });
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
     await login(user);
 
@@ -308,7 +308,7 @@ describe('ExplorerPage', () => {
   it('shows secret data without calling denied metadata history', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway({ metadataRead: false })} kvV2Gateway={gateway} />);
     await login(user);
 
@@ -324,7 +324,7 @@ describe('ExplorerPage', () => {
   it('writes a complete secret with CAS 0 when data and metadata reads are denied', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway({ writeOnly: true })} kvV2Gateway={gateway} />);
     await login(user);
 
@@ -359,7 +359,7 @@ describe('ExplorerPage', () => {
     gateway.readSecretMetadata = vi.fn(async () => {
       throw new VaultError('authorization', { status: 403 });
     });
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App
       authGateway={authGateway({ capabilitiesUnavailable: true })}
       kvV2Gateway={gateway}
@@ -386,7 +386,7 @@ describe('ExplorerPage', () => {
   it('keeps readable metadata and mount configuration actions available without preflight', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App
       authGateway={authGateway({ capabilitiesUnavailable: true })}
       kvV2Gateway={gateway}
@@ -403,7 +403,7 @@ describe('ExplorerPage', () => {
   it('fresh-loads and updates complete key metadata', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
     await login(user);
 
@@ -435,7 +435,7 @@ describe('ExplorerPage', () => {
   it('reads and updates the supported KV v2 mount configuration', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway({ mountConfig: true })} kvV2Gateway={gateway} />);
     await login(user);
     await screen.findByRole('heading', { name: 'Application secrets' });
@@ -465,7 +465,7 @@ describe('ExplorerPage', () => {
   it('creates with CAS 0 and edits from the exact loaded version', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
     await login(user);
     await screen.findByRole('heading', { name: 'Application secrets' });
@@ -508,7 +508,7 @@ describe('ExplorerPage', () => {
   it('opens nested data full screen and preserves its structure when editing', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
     await login(user);
     await user.click((await screen.findAllByText('nested'))[0]);
@@ -544,7 +544,7 @@ describe('ExplorerPage', () => {
 
   it('opens the existing full-screen viewer without entering edit mode', async () => {
     const user = userEvent.setup();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={kvGateway()} />);
     await login(user);
     await user.click((await screen.findAllByText('nested'))[0]);
@@ -563,7 +563,7 @@ describe('ExplorerPage', () => {
   it('soft-deletes without typed friction and restores the exact version once', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
     await login(user);
     await user.click((await screen.findAllByText('shared'))[0]);
@@ -603,7 +603,7 @@ describe('ExplorerPage', () => {
   it('permanently deletes a key from its table row with typed confirmation', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
     await login(user);
     await screen.findByRole('heading', { name: 'Application secrets' });
@@ -629,7 +629,7 @@ describe('ExplorerPage', () => {
   it('permanently deletes selected keys after exact bulk confirmation', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
     await login(user);
 
@@ -667,7 +667,7 @@ describe('ExplorerPage', () => {
   it('preflights and soft-deletes selected current versions with one exact bulk Undo', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
     await login(user);
     await screen.findByRole('heading', { name: 'Application secrets' });
@@ -726,7 +726,7 @@ describe('ExplorerPage', () => {
   it('destroys only explicitly checked versions after exact mount confirmation', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
     await login(user);
     await screen.findByRole('heading', { name: 'Application secrets' });
@@ -781,7 +781,7 @@ describe('ExplorerPage', () => {
     gateway.undeleteVersions = vi.fn(async () => {
       throw new VaultError('authorization', { status: 403 });
     });
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
     await login(user);
     await user.click((await screen.findAllByText('shared'))[0]);
@@ -803,7 +803,7 @@ describe('ExplorerPage', () => {
   it('restores historical data as a new CAS-protected version', async () => {
     const user = userEvent.setup();
     const gateway = kvGateway();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({ usr: { from: '/explorer' }, key: 'default', idx: 0 }, '', '/login');
     render(<App authGateway={authGateway()} kvV2Gateway={gateway} />);
     await login(user);
     await user.click((await screen.findAllByText('shared'))[0]);

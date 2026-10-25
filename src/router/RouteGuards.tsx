@@ -23,7 +23,7 @@ function RestoringSession() {
 export function HomeRoute() {
   const { status } = useVaultSession();
   if (status === 'restoring') return <RestoringSession />;
-  return <Navigate to={status === 'authenticated' ? '/explorer' : '/login'} replace />;
+  return <Navigate to={status === 'authenticated' ? '/home' : '/login'} replace />;
 }
 
 export function LoginRoute({ children }: { readonly children: ReactNode }) {
