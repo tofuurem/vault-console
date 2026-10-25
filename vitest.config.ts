@@ -20,6 +20,9 @@ export default defineConfig({
       skipFull: false,
       include: [
         'src/application/vault/VaultSessionProvider.tsx',
+        'src/application/vault/useSession*.ts',
+        'src/application/vault/useVaultSessionState.ts',
+        'src/application/vault/unseal/**/*.ts',
         'src/application/vault/capability-permissions.ts',
         'src/application/vault/session-storage.ts',
         'src/application/vault/useKvActionPermissions.ts',

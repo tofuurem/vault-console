@@ -68,6 +68,201 @@ function resolvedLimits(input: Partial<KvPathScanLimits> | undefined): KvPathSca
   return limits;
 }
 
+type ListResult =
+  | { readonly prefix: string; readonly keys: readonly string[] }
+  | { readonly prefix: string; readonly error: VaultError };
+
+interface ScanState {
+  readonly mount: string;
+  readonly previous?: KvPathIndexCheckpoint;
+  readonly entries: Map<string, KvPathEntry>;
+  readonly visited: Set<string>;
+  readonly inaccessible: Set<string>;
+  readonly failures: Set<string>;
+  readonly queue: string[];
+  readonly queued: Set<string>;
+  readonly deferred: string[];
+  budgetListRequests: number;
+  budgetEntries: number;
+  scannedPrefixes: number;
+  limitReached: boolean;
+}
+
+function entryIdentity(entry: KvPathEntry): string {
+  return `${entry.kind}:${entry.path}`;
+}
+
+function initialPrefixes(previous: KvPathIndexCheckpoint | undefined): readonly string[] {
+  if (previous?.pendingPrefixes.length) return previous.pendingPrefixes;
+  return previous ? [] : [''];
+}
+
+function createScanState(mount: string, previous: KvPathIndexCheckpoint | undefined): ScanState {
+  const visited = new Set(previous?.visitedPrefixes ?? []);
+  const queue = unique(initialPrefixes(previous)).filter((prefix) => !visited.has(prefix));
+  return {
+    mount,
+    previous,
+    entries: new Map((previous?.entries ?? []).map((entry) => [entryIdentity(entry), entry])),
+    visited,
+    inaccessible: new Set(previous?.inaccessiblePrefixes ?? []),
+    failures: new Set(previous?.failedPrefixes ?? []),
+    queue,
+    queued: new Set(queue),
+    deferred: [],
+    budgetListRequests: 0,
+    budgetEntries: 0,
+    scannedPrefixes: previous?.totalScannedPrefixes ?? 0,
+    limitReached: false,
+  };
+}
+
+function checkpoint(
+  state: ScanState,
+  status: KvPathIndexTerminalStatus,
+  pendingPrefixes: readonly string[],
+): KvPathIndexCheckpoint {
+  return {
+    mount: state.mount,
+    status,
+    entries: [...state.entries.values()],
+    pendingPrefixes,
+    visitedPrefixes: [...state.visited],
+    inaccessiblePrefixes: [...state.inaccessible],
+    failedPrefixes: [...state.failures],
+    totalListRequests: (state.previous?.totalListRequests ?? 0) + state.budgetListRequests,
+    totalScannedPrefixes: state.scannedPrefixes,
+  };
+}
+
+function pendingPrefixes(state: ScanState): string[] {
+  return unique([...state.deferred, ...state.queue]).filter((prefix) => !state.visited.has(prefix));
+}
+
+function enqueue(state: ScanState, prefix: string): void {
+  if (state.visited.has(prefix) || state.queued.has(prefix)) return;
+  state.queue.push(prefix);
+  state.queued.add(prefix);
+}
+
+function takeBatch(state: ScanState, limits: KvPathScanLimits): string[] | null {
+  const remainingRequests = limits.maxListRequests - state.budgetListRequests;
+  if (remainingRequests <= 0) {
+    state.limitReached = true;
+    return null;
+  }
+  const batch = state.queue.splice(0, Math.min(
+    limits.concurrency,
+    remainingRequests,
+    state.queue.length,
+  ));
+  batch.forEach((prefix) => state.queued.delete(prefix));
+  state.budgetListRequests += batch.length;
+  return batch;
+}
+
+function listBatch(
+  list: ScanKvPathIndexOptions['list'],
+  batch: readonly string[],
+  signal: AbortSignal,
+): Promise<ListResult[]> {
+  return Promise.all(batch.map(async (prefix): Promise<ListResult> => {
+    try {
+      return { prefix, keys: await list(prefix, signal) };
+    } catch (cause) {
+      return { prefix, error: normalizeVaultError(cause) };
+    }
+  }));
+}
+
+function applyListError(
+  state: ScanState,
+  prefix: string,
+  error: VaultError,
+  signal: AbortSignal,
+): void {
+  if (error.code === 'aborted' || signal.aborted) throw abortError();
+  if (error.code === 'session-expired') throw error;
+  if (error.code === 'authorization') {
+    state.visited.add(prefix);
+    state.inaccessible.add(prefix);
+    state.failures.delete(prefix);
+    state.scannedPrefixes += 1;
+    return;
+  }
+  if (error.code === 'not-found') {
+    state.visited.add(prefix);
+    state.inaccessible.delete(prefix);
+    state.failures.delete(prefix);
+    state.scannedPrefixes += 1;
+    return;
+  }
+  state.failures.add(prefix);
+  state.deferred.push(prefix);
+}
+
+function applyListedKeys(
+  state: ScanState,
+  prefix: string,
+  keys: readonly string[],
+  maxEntries: number,
+): void {
+  state.failures.delete(prefix);
+  state.visited.add(prefix);
+  state.scannedPrefixes += 1;
+  for (const key of keys) {
+    const entry = kvPathEntryFromListKey(state.mount, prefix, key);
+    if (!entry) continue;
+    const identity = entryIdentity(entry);
+    if (!state.entries.has(identity)) {
+      if (state.budgetEntries >= maxEntries) {
+        state.visited.delete(prefix);
+        state.scannedPrefixes -= 1;
+        state.deferred.unshift(prefix);
+        state.limitReached = true;
+        return;
+      }
+      state.entries.set(identity, entry);
+      state.budgetEntries += 1;
+    }
+    if (entry.kind === 'folder') enqueue(state, entry.path);
+  }
+}
+
+function applyBatchResults(
+  state: ScanState,
+  results: readonly ListResult[],
+  signal: AbortSignal,
+  maxEntries: number,
+): void {
+  for (let resultIndex = 0; resultIndex < results.length; resultIndex += 1) {
+    const result = results[resultIndex];
+    if ('error' in result) {
+      applyListError(state, result.prefix, result.error, signal);
+      continue;
+    }
+    applyListedKeys(state, result.prefix, result.keys, maxEntries);
+    if (state.limitReached) {
+      for (const unprocessed of results.slice(resultIndex + 1)) {
+        if (!state.visited.has(unprocessed.prefix)) state.deferred.push(unprocessed.prefix);
+      }
+      return;
+    }
+  }
+}
+
+function terminalStatus(
+  state: ScanState,
+  pending: readonly string[],
+  limits: KvPathScanLimits,
+): KvPathIndexTerminalStatus {
+  if (state.limitReached || (pending.length > 0 && state.budgetListRequests >= limits.maxListRequests)) {
+    return 'limit-reached';
+  }
+  if (state.inaccessible.size > 0 || state.failures.size > 0 || pending.length > 0) return 'partial';
+  return 'complete';
+}
+
 export async function scanKvPathIndex(
   options: ScanKvPathIndexOptions,
 ): Promise<KvPathIndexCheckpoint> {
@@ -79,140 +274,18 @@ export async function scanKvPathIndex(
   const previous = options.checkpoint?.mount === options.mount
     ? options.checkpoint
     : undefined;
-  const entries = new Map(
-    (previous?.entries ?? []).map((entry) => [`${entry.kind}:${entry.path}`, entry]),
-  );
-  const visited = new Set(previous?.visitedPrefixes ?? []);
-  const inaccessible = new Set(previous?.inaccessiblePrefixes ?? []);
-  const failures = new Set(previous?.failedPrefixes ?? []);
-  const queue = unique(
-    previous?.pendingPrefixes.length
-      ? previous.pendingPrefixes
-      : previous
-        ? []
-        : [''],
-  ).filter((prefix) => !visited.has(prefix));
-  const queued = new Set(queue);
-  const deferred: string[] = [];
-  let budgetListRequests = 0;
-  let budgetEntries = 0;
-  let scannedPrefixes = previous?.totalScannedPrefixes ?? 0;
-  let limitReached = false;
-  const checkpoint = (
-    status: KvPathIndexTerminalStatus,
-    pendingPrefixes: readonly string[],
-  ): KvPathIndexCheckpoint => ({
-    mount: options.mount,
-    status,
-    entries: [...entries.values()],
-    pendingPrefixes,
-    visitedPrefixes: [...visited],
-    inaccessiblePrefixes: [...inaccessible],
-    failedPrefixes: [...failures],
-    totalListRequests: (previous?.totalListRequests ?? 0) + budgetListRequests,
-    totalScannedPrefixes: scannedPrefixes,
-  });
+  const state = createScanState(options.mount, previous);
 
-  const enqueue = (prefix: string) => {
-    if (visited.has(prefix) || queued.has(prefix)) return;
-    queue.push(prefix);
-    queued.add(prefix);
-  };
-
-  while (queue.length > 0) {
+  while (state.queue.length > 0) {
     assertNotAborted(signal);
-    const remainingRequests = limits.maxListRequests - budgetListRequests;
-    if (remainingRequests <= 0) {
-      limitReached = true;
-      break;
-    }
-    const batch = queue.splice(0, Math.min(
-      limits.concurrency,
-      remainingRequests,
-      queue.length,
-    ));
-    batch.forEach((prefix) => queued.delete(prefix));
-    budgetListRequests += batch.length;
-    const results = await Promise.all(batch.map(async (prefix): Promise<
-      | { readonly prefix: string; readonly keys: readonly string[] }
-      | { readonly prefix: string; readonly error: VaultError }
-    > => {
-      try {
-        return { prefix, keys: await options.list(prefix, signal) };
-      } catch (cause) {
-        return { prefix, error: normalizeVaultError(cause) };
-      }
-    }));
-
-    for (let resultIndex = 0; resultIndex < results.length; resultIndex += 1) {
-      const result = results[resultIndex];
-      if ('error' in result) {
-        if (result.error.code === 'aborted' || signal.aborted) throw abortError();
-        if (result.error.code === 'session-expired') throw result.error;
-        if (result.error.code === 'authorization') {
-          visited.add(result.prefix);
-          inaccessible.add(result.prefix);
-          failures.delete(result.prefix);
-          scannedPrefixes += 1;
-          continue;
-        }
-        if (result.error.code === 'not-found') {
-          visited.add(result.prefix);
-          inaccessible.delete(result.prefix);
-          failures.delete(result.prefix);
-          scannedPrefixes += 1;
-          continue;
-        }
-        failures.add(result.prefix);
-        deferred.push(result.prefix);
-        continue;
-      }
-
-      failures.delete(result.prefix);
-      visited.add(result.prefix);
-      scannedPrefixes += 1;
-      for (const key of result.keys) {
-        const entry = kvPathEntryFromListKey(options.mount, result.prefix, key);
-        if (!entry) continue;
-        const identity = `${entry.kind}:${entry.path}`;
-        if (!entries.has(identity)) {
-          if (budgetEntries >= limits.maxEntries) {
-            visited.delete(result.prefix);
-            scannedPrefixes -= 1;
-            deferred.unshift(result.prefix);
-            limitReached = true;
-            break;
-          }
-          entries.set(identity, entry);
-          budgetEntries += 1;
-        }
-        if (entry.kind === 'folder') enqueue(entry.path);
-      }
-
-      if (limitReached) {
-        for (const unprocessed of results.slice(resultIndex + 1)) {
-          if (!visited.has(unprocessed.prefix)) deferred.push(unprocessed.prefix);
-        }
-        break;
-      }
-    }
-    if (limitReached) break;
-    options.onProgress?.(checkpoint(
-      'partial',
-      unique([...deferred, ...queue]).filter((prefix) => !visited.has(prefix)),
-    ));
+    const batch = takeBatch(state, limits);
+    if (!batch) break;
+    const results = await listBatch(options.list, batch, signal);
+    applyBatchResults(state, results, signal, limits.maxEntries);
+    if (state.limitReached) break;
+    options.onProgress?.(checkpoint(state, 'partial', pendingPrefixes(state)));
   }
 
-  const pendingPrefixes = unique([...deferred, ...queue]).filter(
-    (prefix) => !visited.has(prefix),
-  );
-  const status: KvPathIndexTerminalStatus = limitReached || (
-    pendingPrefixes.length > 0 && budgetListRequests >= limits.maxListRequests
-  )
-    ? 'limit-reached'
-    : inaccessible.size > 0 || failures.size > 0 || pendingPrefixes.length > 0
-      ? 'partial'
-      : 'complete';
-
-  return checkpoint(status, pendingPrefixes);
+  const pending = pendingPrefixes(state);
+  return checkpoint(state, terminalStatus(state, pending, limits), pending);
 }

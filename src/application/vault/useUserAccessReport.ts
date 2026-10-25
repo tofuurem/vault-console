@@ -309,6 +309,60 @@ function queryError(queries: readonly {
   return failed ? normalizeVaultError(failed.error) : undefined;
 }
 
+function reportQueryState(
+  enabled: boolean,
+  fatalError: VaultError | undefined,
+  data: UserAccessReportData | undefined,
+): VaultQueryState<UserAccessReportData> {
+  if (!enabled) return { status: 'idle' };
+  if (fatalError) {
+    return {
+      status: 'error',
+      error: fatalError,
+      ...(data ? { data } : {}),
+    };
+  }
+  if (!data) return { status: 'loading' };
+  return { status: 'success', data };
+}
+
+function useUserAccessPolicyQueries(input: {
+  readonly gateway: VaultAccessControlGateway;
+  readonly session: VaultSession;
+  readonly mount: string;
+  readonly username: string;
+  readonly policyNames: readonly string[];
+  readonly batchEnabled: boolean;
+}) {
+  const { gateway, session, mount, username, policyNames } = input;
+  const queryClient = useQueryClient();
+  const policyQueries = useQueries({
+    queries: policyNames.map((policyName) => ({
+      queryKey: vaultQueryKeys.userAccessPolicy(mount, username, policyName),
+      queryFn: ({ signal }: { signal: AbortSignal }) => loadUserAccessPolicy(
+        gateway,
+        session,
+        policyName,
+        signal,
+      ),
+      enabled: false,
+    })),
+  });
+  const policyBatchQuery = useQuery({
+    queryKey: vaultQueryKeys.userAccessPolicyBatch(mount, username, policyNames),
+    queryFn: ({ signal }) => mapWithConcurrency(policyNames, 4, async (policyName) => {
+      const policy = await loadUserAccessPolicy(gateway, session, policyName, signal);
+      queryClient.setQueryData(
+        vaultQueryKeys.userAccessPolicy(mount, username, policyName),
+        policy,
+      );
+      return policy;
+    }),
+    enabled: input.batchEnabled,
+  });
+  return { policyQueries, policyBatchQuery };
+}
+
 export function useUserAccessReport(
   session: VaultSession,
   accountRef: UserAccessAccountRef | undefined,
@@ -368,30 +422,14 @@ export function useUserAccessReport(
     [accountQuery.data, identityQuery.data, membershipGroups],
   );
   const policyNames = useMemo(() => uniquePolicyNames(attachments), [attachments]);
-  const policyQueries = useQueries({
-    queries: policyNames.map((policyName) => ({
-      queryKey: vaultQueryKeys.userAccessPolicy(mount, username, policyName),
-      queryFn: ({ signal }: { signal: AbortSignal }) => loadUserAccessPolicy(
-        gateway,
-        session,
-        policyName,
-        signal,
-      ),
-      enabled: false,
-    })),
-  });
   const sourcesSettled = identityQuery.data !== undefined && groupsQuery.data !== undefined;
-  const policyBatchQuery = useQuery({
-    queryKey: vaultQueryKeys.userAccessPolicyBatch(mount, username, policyNames),
-    queryFn: ({ signal }) => mapWithConcurrency(policyNames, 4, async (policyName) => {
-      const policy = await loadUserAccessPolicy(gateway, session, policyName, signal);
-      queryClient.setQueryData(
-        vaultQueryKeys.userAccessPolicy(mount, username, policyName),
-        policy,
-      );
-      return policy;
-    }),
-    enabled: detailEnabled && sourcesSettled && policyNames.length > 0,
+  const { policyQueries, policyBatchQuery } = useUserAccessPolicyQueries({
+    gateway,
+    session,
+    mount,
+    username,
+    policyNames,
+    batchEnabled: detailEnabled && sourcesSettled && policyNames.length > 0,
   });
 
   const policies = policyQueries
@@ -471,20 +509,7 @@ export function useUserAccessReport(
     policyBatchQuery,
     ...policyQueries,
   ]);
-  let state: VaultQueryState<UserAccessReportData>;
-  if (!enabled) {
-    state = { status: 'idle' };
-  } else if (fatalError) {
-    state = {
-      status: 'error',
-      error: fatalError,
-      ...(data ? { data } : {}),
-    };
-  } else if (!data) {
-    state = { status: 'loading' };
-  } else {
-    state = { status: 'success', data };
-  }
+  const state = reportQueryState(enabled, fatalError, data);
 
   const retryPolicy = useCallback((policyName: string) => {
     const queryKey = vaultQueryKeys.userAccessPolicy(mount, username, policyName);

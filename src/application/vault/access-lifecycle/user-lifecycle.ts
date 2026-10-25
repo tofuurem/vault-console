@@ -269,125 +269,160 @@ function policyRules(policy: VaultAclPolicy | null) {
   return policy ? (parseManagedPolicyHcl(policy.policy) ?? []) : [];
 }
 
-export function buildUserEditPlan(
-  snapshot: UserLifecycleSnapshot,
-  draft: UserEditDraft,
-): ChangePlan {
-  const operations: ChangeOperation[] = [];
-  const username = snapshot.account.username;
-  const directName = `${USER_POLICY_PREFIX}${username}`;
-  const currentDirect = snapshot.directPolicy;
-  const directAttachedToAccount = snapshot.account.tokenPolicies.includes(directName);
-  let nextDirect = draft.directPolicy;
-
+function assertDirectPolicyNames(
+  currentDirect: VaultAclPolicy | null,
+  nextDirect: VaultAclPolicy | null,
+  directName: string,
+): void {
   if (
     (currentDirect && currentDirect.name !== directName)
     || (nextDirect && nextDirect.name !== directName)
   ) {
     throw new VaultError('invalid-request');
   }
-  if (snapshot.directPolicyOwnership === 'unverified') {
-    if (draft.adoptDirectPolicy) {
-      if (
-        !snapshot.directPolicyEditable
-        || snapshot.policyReferences.length > 0
-        || !snapshot.visibility.complete
-        || !currentDirect
-      ) throw new VaultError('invalid-request');
-      nextDirect = {
-        name: currentDirect.name,
-        policy: renderManagedPolicy(
-          { kind: 'user-direct', owner: username },
-          currentDirect.policy,
-        ),
-      };
-    } else if (
-      !currentDirect
-      || nextDirect?.policy !== currentDirect.policy
-    ) {
-      throw new VaultError('invalid-request');
-    }
-  }
-  const preservingUnverified = snapshot.directPolicyOwnership === 'unverified'
-    && !draft.adoptDirectPolicy
-    && nextDirect?.policy === currentDirect?.policy;
-  if (nextDirect && !preservingUnverified) {
-    const nextOwnership = assessPolicyOwnership(nextDirect.name, nextDirect.policy);
-    if (
-      nextOwnership.state !== 'managed'
-      || nextOwnership.header?.kind !== 'user-direct'
-      || nextOwnership.header.owner !== username
-      || !nextOwnership.editable
-    ) throw new VaultError('invalid-request');
-  }
+}
 
-  const policyChanged = (currentDirect?.policy.trim() ?? '')
-    !== (nextDirect?.policy.trim() ?? '');
+function unverifiedDirectPolicy(
+  snapshot: UserLifecycleSnapshot,
+  draft: UserEditDraft,
+  username: string,
+): VaultAclPolicy | null {
+  const currentDirect = snapshot.directPolicy;
+  if (draft.adoptDirectPolicy) {
+    if (
+      !snapshot.directPolicyEditable
+      || snapshot.policyReferences.length > 0
+      || !snapshot.visibility.complete
+      || !currentDirect
+    ) throw new VaultError('invalid-request');
+    return {
+      name: currentDirect.name,
+      policy: renderManagedPolicy(
+        { kind: 'user-direct', owner: username },
+        currentDirect.policy,
+      ),
+    };
+  }
   if (
-    currentDirect
-    && policyChanged
-    && !snapshot.directPolicyEditable
+    !currentDirect
+    || draft.directPolicy?.policy !== currentDirect.policy
   ) {
     throw new VaultError('invalid-request');
   }
-  if (nextDirect && policyChanged) {
-    operations.push({
-      id: 'write-direct-policy',
-      kind: 'write-policy',
-      label: currentDirect ? 'Update direct KV policy' : 'Create direct KV policy',
-      dependsOn: [],
-      requirements: capability(
-        `sys/policies/acl/${encodeURIComponent(directName)}`,
-        'create',
-        'update',
-      ),
-      effectTiming: 'next-request',
-      risk: 'normal',
-      policy: nextDirect,
-      created: !currentDirect,
-    });
-  }
+  return draft.directPolicy;
+}
 
+function assertManagedDirectPolicy(policy: VaultAclPolicy, username: string): void {
+  const ownership = assessPolicyOwnership(policy.name, policy.policy);
+  if (
+    ownership.state !== 'managed'
+    || ownership.header?.kind !== 'user-direct'
+    || ownership.header.owner !== username
+    || !ownership.editable
+  ) throw new VaultError('invalid-request');
+}
+
+function resolveNextDirectPolicy(
+  snapshot: UserLifecycleSnapshot,
+  draft: UserEditDraft,
+  directName: string,
+): VaultAclPolicy | null {
+  const username = snapshot.account.username;
+  const currentDirect = snapshot.directPolicy;
+  assertDirectPolicyNames(currentDirect, draft.directPolicy, directName);
+  const unverified = snapshot.directPolicyOwnership === 'unverified';
+  const nextDirect = unverified
+    ? unverifiedDirectPolicy(snapshot, draft, username)
+    : draft.directPolicy;
+  const preservingUnverified = unverified
+    && !draft.adoptDirectPolicy
+    && nextDirect?.policy === currentDirect?.policy;
+  if (nextDirect && !preservingUnverified) assertManagedDirectPolicy(nextDirect, username);
+  return nextDirect;
+}
+
+function directPolicyWriteOperation(
+  currentDirect: VaultAclPolicy | null,
+  nextDirect: VaultAclPolicy,
+  directName: string,
+): ChangeOperation {
+  return {
+    id: 'write-direct-policy',
+    kind: 'write-policy',
+    label: currentDirect ? 'Update direct KV policy' : 'Create direct KV policy',
+    dependsOn: [],
+    requirements: capability(
+      `sys/policies/acl/${encodeURIComponent(directName)}`,
+      'create',
+      'update',
+    ),
+    effectTiming: 'next-request',
+    risk: 'normal',
+    policy: nextDirect,
+    created: !currentDirect,
+  };
+}
+
+function groupMembershipOperation(
+  group: VaultIdentityGroup,
+  entityId: string,
+  wantsMember: boolean,
+): ChangeOperation {
+  return {
+    id: `${wantsMember ? 'add' : 'remove'}-group-${group.id}`,
+    kind: 'update-group',
+    label: `${wantsMember ? 'Add user to' : 'Remove user from'} ${group.name}`,
+    dependsOn: [],
+    requirements: capability(
+      `identity/group/id/${encodeURIComponent(group.id)}`,
+      'update',
+    ),
+    effectTiming: 'next-request',
+    risk: 'normal',
+    groupId: group.id,
+    group: {
+      name: group.name,
+      policies: group.policies,
+      memberEntityIds: wantsMember
+        ? unique([...group.memberEntityIds, entityId])
+        : group.memberEntityIds.filter((id) => id !== entityId),
+      memberGroupIds: group.memberGroupIds,
+      metadata: group.metadata,
+    },
+  };
+}
+
+function groupMembershipOperations(
+  snapshot: UserLifecycleSnapshot,
+  draft: UserEditDraft,
+): readonly ChangeOperation[] {
   const entityId = snapshot.entity?.id;
   const requestedGroups = new Set(draft.groupIds);
   if (!entityId && draft.groupIds.length > 0) throw new VaultError('invalid-request');
 
-  const groupChanges = snapshot.groups
+  return snapshot.groups
     .filter((group) => (group.type ?? 'internal') === 'internal')
     .flatMap((group): readonly ChangeOperation[] => {
       const hasMember = entityId ? group.memberEntityIds.includes(entityId) : false;
       const wantsMember = requestedGroups.has(group.id);
       if (hasMember === wantsMember || !entityId) return [];
-      return [{
-        id: `${wantsMember ? 'add' : 'remove'}-group-${group.id}`,
-        kind: 'update-group',
-        label: `${wantsMember ? 'Add user to' : 'Remove user from'} ${group.name}`,
-        dependsOn: [],
-        requirements: capability(
-          `identity/group/id/${encodeURIComponent(group.id)}`,
-          'update',
-        ),
-        effectTiming: 'next-request',
-        risk: 'normal',
-        groupId: group.id,
-        group: {
-          name: group.name,
-          policies: group.policies,
-          memberEntityIds: wantsMember
-            ? unique([...group.memberEntityIds, entityId])
-            : group.memberEntityIds.filter((id) => id !== entityId),
-          memberGroupIds: group.memberGroupIds,
-          metadata: group.metadata,
-        },
-      }];
+      return [groupMembershipOperation(group, entityId, wantsMember)];
     })
     .sort((left, right) => {
       const leftRemoval = left.id.startsWith('remove-') ? 0 : 1;
       const rightRemoval = right.id.startsWith('remove-') ? 0 : 1;
       return leftRemoval - rightRemoval || left.id.localeCompare(right.id);
     });
-  operations.push(...groupChanges);
+}
 
+function nextTokenPolicies(
+  snapshot: UserLifecycleSnapshot,
+  draft: UserEditDraft,
+  nextDirect: VaultAclPolicy | null,
+  directName: string,
+): readonly string[] {
+  const currentDirect = snapshot.directPolicy;
+  const directAttachedToAccount = snapshot.account.tokenPolicies.includes(directName);
   const managedRoles = new Set(draft.managedRolePolicyNames);
   if (draft.directRolePolicyNames.some((name) => !managedRoles.has(name))) {
     throw new VaultError('invalid-request');
@@ -398,72 +433,125 @@ export function buildUserEditPlan(
   const preservedTokenPolicies = snapshot.account.tokenPolicies.filter((name) => (
     !managedRoles.has(name) && name !== ownedDirectName
   ));
-  const nextPolicies = unique([
+  return unique([
     ...preservedTokenPolicies,
     ...draft.directRolePolicyNames,
     ...(nextDirect && (directAttachedToAccount || !currentDirect) ? [directName] : []),
   ]);
-  if (!sameStrings(snapshot.account.tokenPolicies, nextPolicies)) {
-    operations.push({
-      id: 'update-userpass-policies',
-      kind: 'update-userpass-policies',
-      label: 'Update policies issued on the next login',
-      dependsOn: nextDirect && policyChanged ? ['write-direct-policy'] : [],
-      requirements: capability(
-        `auth/${snapshot.account.mount}/users/${encodeURIComponent(username)}/policies`,
-        'update',
-      ),
-      effectTiming: 'next-login',
-      risk: 'normal',
-      mount: snapshot.account.mount,
-      username,
-      policies: nextPolicies,
-    });
+}
+
+function userpassPoliciesOperation(
+  snapshot: UserLifecycleSnapshot,
+  policies: readonly string[],
+  writesDirectPolicy: boolean,
+): ChangeOperation {
+  const username = snapshot.account.username;
+  return {
+    id: 'update-userpass-policies',
+    kind: 'update-userpass-policies',
+    label: 'Update policies issued on the next login',
+    dependsOn: writesDirectPolicy ? ['write-direct-policy'] : [],
+    requirements: capability(
+      `auth/${snapshot.account.mount}/users/${encodeURIComponent(username)}/policies`,
+      'update',
+    ),
+    effectTiming: 'next-login',
+    risk: 'normal',
+    mount: snapshot.account.mount,
+    username,
+    policies,
+  };
+}
+
+function entityProfileOperation(
+  snapshot: UserLifecycleSnapshot,
+  draft: UserEditDraft,
+): ChangeOperation | null {
+  if (
+    !snapshot.entity
+    || assessIdentityOwnership(snapshot.entity.metadata) !== 'managed'
+    || !draft.displayName.trim()
+    || draft.displayName.trim() === snapshot.entity.name
+  ) return null;
+  return {
+    id: 'update-entity-profile',
+    kind: 'update-entity',
+    label: 'Update Identity display name',
+    dependsOn: [],
+    requirements: capability(
+      `identity/entity/id/${encodeURIComponent(snapshot.entity.id)}`,
+      'update',
+    ),
+    effectTiming: 'next-request',
+    risk: 'normal',
+    entityId: snapshot.entity.id,
+    entity: {
+      name: draft.displayName.trim(),
+      disabled: snapshot.entity.disabled,
+      policies: snapshot.entity.policies,
+      metadata: snapshot.entity.metadata ?? {},
+    },
+  };
+}
+
+function detachedDirectPolicyDeleteOperation(
+  directName: string,
+  afterPolicyUpdate: boolean,
+): ChangeOperation {
+  return {
+    id: 'delete-direct-policy',
+    kind: 'delete-policy',
+    label: 'Delete the detached direct KV policy',
+    dependsOn: afterPolicyUpdate ? ['update-userpass-policies'] : [],
+    requirements: capability(
+      `sys/policies/acl/${encodeURIComponent(directName)}`,
+      'delete',
+    ),
+    effectTiming: 'destructive-cleanup',
+    risk: 'normal',
+    policyName: directName,
+  };
+}
+
+export function buildUserEditPlan(
+  snapshot: UserLifecycleSnapshot,
+  draft: UserEditDraft,
+): ChangePlan {
+  const operations: ChangeOperation[] = [];
+  const username = snapshot.account.username;
+  const directName = `${USER_POLICY_PREFIX}${username}`;
+  const currentDirect = snapshot.directPolicy;
+  const nextDirect = resolveNextDirectPolicy(snapshot, draft, directName);
+
+  const policyChanged = (currentDirect?.policy.trim() ?? '')
+    !== (nextDirect?.policy.trim() ?? '');
+  if (
+    currentDirect
+    && policyChanged
+    && !snapshot.directPolicyEditable
+  ) {
+    throw new VaultError('invalid-request');
+  }
+  const writesDirectPolicy = Boolean(nextDirect && policyChanged);
+  if (nextDirect && policyChanged) {
+    operations.push(directPolicyWriteOperation(currentDirect, nextDirect, directName));
   }
 
-  if (
-    snapshot.entity
-    && assessIdentityOwnership(snapshot.entity.metadata) === 'managed'
-    && draft.displayName.trim()
-    && draft.displayName.trim() !== snapshot.entity.name
-  ) {
-    operations.push({
-      id: 'update-entity-profile',
-      kind: 'update-entity',
-      label: 'Update Identity display name',
-      dependsOn: [],
-      requirements: capability(
-        `identity/entity/id/${encodeURIComponent(snapshot.entity.id)}`,
-        'update',
-      ),
-      effectTiming: 'next-request',
-      risk: 'normal',
-      entityId: snapshot.entity.id,
-      entity: {
-        name: draft.displayName.trim(),
-        disabled: snapshot.entity.disabled,
-        policies: snapshot.entity.policies,
-        metadata: snapshot.entity.metadata ?? {},
-      },
-    });
+  operations.push(...groupMembershipOperations(snapshot, draft));
+
+  const nextPolicies = nextTokenPolicies(snapshot, draft, nextDirect, directName);
+  if (!sameStrings(snapshot.account.tokenPolicies, nextPolicies)) {
+    operations.push(userpassPoliciesOperation(snapshot, nextPolicies, writesDirectPolicy));
   }
+
+  const profileOperation = entityProfileOperation(snapshot, draft);
+  if (profileOperation) operations.push(profileOperation);
 
   if (currentDirect && !nextDirect && snapshot.directPolicyOwnership === 'managed') {
-    operations.push({
-      id: 'delete-direct-policy',
-      kind: 'delete-policy',
-      label: 'Delete the detached direct KV policy',
-      dependsOn: operations.some(({ id }) => id === 'update-userpass-policies')
-        ? ['update-userpass-policies']
-        : [],
-      requirements: capability(
-        `sys/policies/acl/${encodeURIComponent(directName)}`,
-        'delete',
-      ),
-      effectTiming: 'destructive-cleanup',
-      risk: 'normal',
-      policyName: directName,
-    });
+    operations.push(detachedDirectPolicyDeleteOperation(
+      directName,
+      operations.some(({ id }) => id === 'update-userpass-policies'),
+    ));
   }
 
   const diff = permissionDiff(policyRules(currentDirect), policyRules(nextDirect));
@@ -556,18 +644,15 @@ export interface UserRemovalPlan {
   readonly preservedReasons: readonly string[];
 }
 
-export function buildUserRemovalPlan(
+type VaultIdentityAlias = VaultIdentityEntity['aliases'][number];
+
+function removalPreservedReasons(
   snapshot: UserLifecycleSnapshot,
-): UserRemovalPlan {
-  const username = snapshot.account.username;
+  matchingAliases: readonly VaultIdentityAlias[],
+  externalAliases: readonly VaultIdentityAlias[],
+): readonly string[] {
   const entity = snapshot.entity;
-  const matchingAliases = entity?.aliases.filter((alias) => (
-    alias.name === username && alias.mountAccessor === snapshot.mountAccessor
-  )) ?? [];
-  const externalAliases = entity?.aliases.filter((alias) => (
-    !matchingAliases.some(({ id }) => id === alias.id)
-  )) ?? [];
-  const preservedReasons = [
+  return [
     ...(assessIdentityOwnership(entity?.metadata) !== 'managed'
       ? ['The linked identity is not managed by Vault Console.']
       : []),
@@ -584,7 +669,11 @@ export function buildUserRemovalPlan(
       ? snapshot.visibility.reasons
       : []),
   ];
-  const preservedPolicyReasons = [
+}
+
+function removalPolicyPreservedReasons(snapshot: UserLifecycleSnapshot): readonly string[] {
+  const entity = snapshot.entity;
+  return [
     ...(snapshot.directPolicy && snapshot.directPolicyOwnership !== 'managed'
       ? ['The direct policy is not managed and will be preserved.']
       : []),
@@ -594,7 +683,11 @@ export function buildUserRemovalPlan(
       ? ['The direct policy is referenced by another resource and will be preserved.']
       : []),
   ];
-  const accountDelete: ChangeOperation = {
+}
+
+function userpassAccountDeleteOperation(snapshot: UserLifecycleSnapshot): ChangeOperation {
+  const username = snapshot.account.username;
+  return {
     id: 'delete-userpass-account',
     kind: 'delete-userpass-account',
     label: 'Delete the userpass login',
@@ -608,30 +701,37 @@ export function buildUserRemovalPlan(
     mount: snapshot.account.mount,
     username,
   };
-  if (!entity || preservedReasons.length > 0) {
-    const operations = [accountDelete];
-    return {
-      mode: 'account-only',
-      preservedReasons,
-      plan: {
-        id: `user-remove-account:${snapshot.account.mount}:${username}`,
-        resourceKind: 'user',
-        resourceId: username,
-        baselineFingerprint: userpassAccountFingerprint(snapshot.account),
-        visibility: { complete: true, reasons: [] },
-        permissionDiff: { added: [], removed: [] },
-        operations,
-        confirmation: {
-          required: true,
-          value: username,
-          reasons: ['Deleting a login does not revoke existing tokens.'],
-        },
-      },
-    };
-  }
+}
 
-  const entityPath = `identity/entity/id/${encodeURIComponent(entity.id)}`;
-  const disable: ChangeOperation = {
+function accountOnlyRemovalPlan(
+  snapshot: UserLifecycleSnapshot,
+  accountDelete: ChangeOperation,
+  preservedReasons: readonly string[],
+): UserRemovalPlan {
+  const username = snapshot.account.username;
+  const operations = [accountDelete];
+  return {
+    mode: 'account-only',
+    preservedReasons,
+    plan: {
+      id: `user-remove-account:${snapshot.account.mount}:${username}`,
+      resourceKind: 'user',
+      resourceId: username,
+      baselineFingerprint: userpassAccountFingerprint(snapshot.account),
+      visibility: { complete: true, reasons: [] },
+      permissionDiff: { added: [], removed: [] },
+      operations,
+      confirmation: {
+        required: true,
+        value: username,
+        reasons: ['Deleting a login does not revoke existing tokens.'],
+      },
+    },
+  };
+}
+
+function disableEntityOperation(entity: VaultIdentityEntity, entityPath: string): ChangeOperation {
+  return {
     id: 'disable-entity',
     kind: 'update-entity',
     label: 'Disable Identity before removing login',
@@ -647,9 +747,13 @@ export function buildUserRemovalPlan(
       metadata: entity.metadata ?? {},
     },
   };
-  const deleteAccount = { ...accountDelete, dependsOn: ['disable-entity'] };
-  const alias = matchingAliases[0];
-  const deleteAlias: ChangeOperation = {
+}
+
+function deleteUserpassAliasOperation(
+  entity: VaultIdentityEntity,
+  alias: VaultIdentityAlias,
+): ChangeOperation {
+  return {
     id: 'delete-userpass-alias',
     kind: 'delete-entity-alias',
     label: 'Delete the removed login alias',
@@ -663,7 +767,13 @@ export function buildUserRemovalPlan(
     aliasId: alias.id,
     entityId: entity.id,
   };
-  const groupRemovals: ChangeOperation[] = snapshot.groups.flatMap(
+}
+
+function removedIdentityGroupOperations(
+  snapshot: UserLifecycleSnapshot,
+  entity: VaultIdentityEntity,
+): ChangeOperation[] {
+  return snapshot.groups.flatMap(
     (group): readonly ChangeOperation[] => (
       (group.type ?? 'internal') === 'internal'
       && group.memberEntityIds.includes(entity.id)
@@ -690,10 +800,18 @@ export function buildUserRemovalPlan(
         : []
     ),
   );
+}
+
+function disabledTombstoneOperation(
+  snapshot: UserLifecycleSnapshot,
+  entity: VaultIdentityEntity,
+  entityPath: string,
+  groupRemovals: readonly ChangeOperation[],
+): ChangeOperation {
   const tombstoneDependencies = groupRemovals.length > 0
     ? groupRemovals.map(({ id }) => id)
     : ['delete-userpass-alias'];
-  const tombstone: ChangeOperation = {
+  return {
     id: 'write-disabled-tombstone',
     kind: 'update-entity',
     label: 'Retain a minimal disabled Identity tombstone',
@@ -710,39 +828,79 @@ export function buildUserRemovalPlan(
         ...(entity.metadata ?? {}),
         managed_by: 'vault-console',
         lifecycle_state: 'login-removed',
-        username,
+        username: snapshot.account.username,
         auth_mount: snapshot.account.mount,
       },
     },
   };
-  const operations: ChangeOperation[] = [
-    disable,
-    deleteAccount,
-    deleteAlias,
-    ...groupRemovals,
-    tombstone,
-  ];
+}
+
+function unreferencedDirectPolicyDeleteOperation(
+  snapshot: UserLifecycleSnapshot,
+  entity: VaultIdentityEntity,
+): ChangeOperation | null {
   if (
-    snapshot.directPolicy?.name === `${USER_POLICY_PREFIX}${username}`
-    && snapshot.directPolicyOwnership === 'managed'
-    && snapshot.policyReferences.every((reference) => (
+    snapshot.directPolicy?.name !== `${USER_POLICY_PREFIX}${snapshot.account.username}`
+    || snapshot.directPolicyOwnership !== 'managed'
+    || !snapshot.policyReferences.every((reference) => (
       reference.kind === 'user' && reference.id === entity.id
     ))
-  ) {
-    operations.push({
-      id: 'delete-direct-policy',
-      kind: 'delete-policy',
-      label: 'Delete the unreferenced per-user policy',
-      dependsOn: ['write-disabled-tombstone'],
-      requirements: capability(
-        `sys/policies/acl/${encodeURIComponent(snapshot.directPolicy.name)}`,
-        'delete',
-      ),
-      effectTiming: 'destructive-cleanup',
-      risk: 'normal',
-      policyName: snapshot.directPolicy.name,
-    });
+  ) return null;
+  return {
+    id: 'delete-direct-policy',
+    kind: 'delete-policy',
+    label: 'Delete the unreferenced per-user policy',
+    dependsOn: ['write-disabled-tombstone'],
+    requirements: capability(
+      `sys/policies/acl/${encodeURIComponent(snapshot.directPolicy.name)}`,
+      'delete',
+    ),
+    effectTiming: 'destructive-cleanup',
+    risk: 'normal',
+    policyName: snapshot.directPolicy.name,
+  };
+}
+
+function managedRemovalOperations(
+  snapshot: UserLifecycleSnapshot,
+  entity: VaultIdentityEntity,
+  alias: VaultIdentityAlias,
+  accountDelete: ChangeOperation,
+): ChangeOperation[] {
+  const entityPath = `identity/entity/id/${encodeURIComponent(entity.id)}`;
+  const deleteAccount = { ...accountDelete, dependsOn: ['disable-entity'] };
+  const groupRemovals = removedIdentityGroupOperations(snapshot, entity);
+  const operations: ChangeOperation[] = [
+    disableEntityOperation(entity, entityPath),
+    deleteAccount,
+    deleteUserpassAliasOperation(entity, alias),
+    ...groupRemovals,
+    disabledTombstoneOperation(snapshot, entity, entityPath, groupRemovals),
+  ];
+  const policyDelete = unreferencedDirectPolicyDeleteOperation(snapshot, entity);
+  if (policyDelete) operations.push(policyDelete);
+  return operations;
+}
+
+export function buildUserRemovalPlan(
+  snapshot: UserLifecycleSnapshot,
+): UserRemovalPlan {
+  const username = snapshot.account.username;
+  const entity = snapshot.entity;
+  const matchingAliases = entity?.aliases.filter((alias) => (
+    alias.name === username && alias.mountAccessor === snapshot.mountAccessor
+  )) ?? [];
+  const externalAliases = entity?.aliases.filter((alias) => (
+    !matchingAliases.some(({ id }) => id === alias.id)
+  )) ?? [];
+  const preservedReasons = removalPreservedReasons(snapshot, matchingAliases, externalAliases);
+  const preservedPolicyReasons = removalPolicyPreservedReasons(snapshot);
+  const accountDelete = userpassAccountDeleteOperation(snapshot);
+  if (!entity || preservedReasons.length > 0) {
+    return accountOnlyRemovalPlan(snapshot, accountDelete, preservedReasons);
   }
+
+  const operations = managedRemovalOperations(snapshot, entity, matchingAliases[0], accountDelete);
   return {
     mode: 'managed-tombstone',
     preservedReasons: preservedPolicyReasons,

@@ -5,7 +5,10 @@ import {
   type KeyboardEvent,
 } from 'react';
 
-import { useKvSearch } from '@/application/vault/search/KvSearchContext';
+import {
+  useKvSearch,
+  type KvSearchMountState,
+} from '@/application/vault/search/KvSearchContext';
 import type { UserAccessReportResource } from '@/application/vault/useUserAccessReport';
 import {
   resolveEffectiveKvTree,
@@ -97,6 +100,204 @@ function scanStatusLabel(status: ReturnType<ReturnType<typeof useKvSearch>['stat
   return 'Not scanned';
 }
 
+const SCOPE_OPTIONS: readonly (readonly [MatrixScope, string])[] = [
+  ['policy', 'Policy paths'],
+  ['visible', 'All visible paths'],
+];
+
+function ScopeToggle({
+  scope,
+  onChange,
+}: {
+  readonly scope: MatrixScope;
+  readonly onChange: (scope: MatrixScope) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Access matrix scope"
+      className="inline-flex w-full rounded-md border border-background-300 bg-background-100 p-0.5 sm:w-auto"
+    >
+      {SCOPE_OPTIONS.map(([value, label]) => (
+        <button
+          key={value}
+          type="button"
+          aria-pressed={scope === value}
+          onClick={() => onChange(value)}
+          className={`min-h-10 flex-1 rounded px-2.5 text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-7 sm:flex-none ${
+            scope === value
+              ? 'bg-background-50 text-foreground-900 shadow-sm'
+              : 'text-foreground-500 hover:text-foreground-800'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function DiscoveryPanel({
+  mounts,
+  activeMount,
+  activeState,
+  hasPartialDiscovery,
+  onMountChange,
+  onCancel,
+  onRun,
+}: {
+  readonly mounts: readonly string[];
+  readonly activeMount: string;
+  readonly activeState: KvSearchMountState;
+  readonly hasPartialDiscovery: boolean;
+  readonly onMountChange: (mount: string) => void;
+  readonly onCancel: () => void;
+  readonly onRun: () => void;
+}) {
+  return (
+    <div className="mt-3 rounded-lg border border-background-200 bg-background-50 p-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <label className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="shrink-0 text-[10px] font-medium text-foreground-500">
+            Discover mount
+          </span>
+          <select
+            aria-label="Mount to discover"
+            value={activeMount}
+            onChange={(event) => onMountChange(event.target.value)}
+            className="h-11 min-w-0 flex-1 rounded-md border border-background-300 bg-background-50 px-2 font-mono text-[10px] text-foreground-800 focus:border-primary-400 focus:outline-none sm:h-8"
+          >
+            {mounts.map((mount) => (
+              <option key={mount} value={mount}>{mount}/</option>
+            ))}
+          </select>
+        </label>
+        <div className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-[10px] text-foreground-500 sm:flex-none">
+            {scanStatusLabel(activeState.status)} · {activeState.entries.length} paths
+          </span>
+          {activeState.status === 'scanning' ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="min-h-11 rounded-md border border-background-300 px-3 text-[10px] font-semibold text-foreground-700 hover:bg-background-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-8"
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onRun}
+              disabled={!activeMount}
+              className="min-h-11 rounded-md bg-primary-500 px-3 text-[10px] font-semibold text-on-primary hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-50 sm:min-h-8"
+            >
+              {activeState.status === 'idle'
+                ? 'Discover visible paths'
+                : activeState.status === 'complete'
+                  ? 'Rescan'
+                  : 'Continue'}
+            </button>
+          )}
+        </div>
+      </div>
+      <p className="mt-2 text-[10px] leading-4 text-foreground-400">
+        Uses metadata LIST only. Secret values and JSON keys are never read.
+      </p>
+      {hasPartialDiscovery && (
+        <div role="status" className="mt-2 rounded-md border border-warning-200 bg-warning-50 px-2.5 py-2 text-[10px] text-warning-900">
+          Discovery is partial. Inaccessible and failed branches stay unknown; policy-backed paths remain visible.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AccessMatrixRow({
+  target,
+  selected,
+  incomplete,
+  onToggle,
+  onKeyDown,
+}: {
+  readonly target: ExplainableAccessTarget;
+  readonly selected: boolean;
+  readonly incomplete: boolean;
+  readonly onToggle: () => void;
+  readonly onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+}) {
+  const presentation = LEVEL_PRESENTATION[target.level];
+  const sources = sourceLabel(target);
+  return (
+    <div
+      role="row"
+      className="border-b border-background-100 last:border-0"
+    >
+      <button
+        type="button"
+        data-access-row={target.id}
+        aria-label={`Explain access to ${fullPath(target)}`}
+        aria-pressed={selected}
+        onClick={onToggle}
+        onKeyDown={onKeyDown}
+        className={`relative grid min-h-14 w-full gap-2 px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 md:grid-cols-[minmax(0,1fr)_90px_130px_minmax(160px,0.8fr)_28px] md:items-center ${
+          selected
+            ? 'bg-primary-50'
+            : 'hover:bg-background-100'
+        }`}
+      >
+        <span role="cell" className="min-w-0">
+          <span className="block truncate font-mono text-[11px] font-medium text-foreground-800" title={fullPath(target)}>
+            {fullPath(target)}
+          </span>
+          <span className="mt-0.5 block text-[10px] text-foreground-400 md:hidden">
+            {target.target === 'folder' ? 'Folder' : 'Secret'}
+          </span>
+        </span>
+        <span role="cell" className="hidden text-[10px] capitalize text-foreground-500 md:block">
+          {target.target}
+        </span>
+        <span role="cell">
+          <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold ${presentation.classes}`}>
+            {presentation.label}
+          </span>
+        </span>
+        <span role="cell" className="flex min-w-0 flex-wrap gap-1">
+          {sources.length > 0 ? (
+            <>
+              {sources.slice(0, 2).map((source) => (
+                <span
+                  key={source}
+                  title={source}
+                  className="max-w-32 truncate rounded bg-background-200 px-1.5 py-0.5 text-[10px] text-foreground-600"
+                >
+                  {source}
+                </span>
+              ))}
+              {sources.length > 2 && (
+                <span className="text-[10px] text-foreground-400">+{sources.length - 2}</span>
+              )}
+            </>
+          ) : (
+            <span className="text-[10px] text-foreground-400">No resolved source</span>
+          )}
+        </span>
+        <span role="cell" className="absolute right-3 top-3 md:static">
+          {incomplete && (
+            <span aria-label="Result may be incomplete" title="Result may be incomplete">
+              <i className="ri-error-warning-line text-xs text-warning-600" aria-hidden="true" />
+            </span>
+          )}
+        </span>
+      </button>
+      {selected && (
+        <div className="md:hidden">
+          <AccessExplanation target={target} compact />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function EffectiveAccessMatrix({
   resource,
 }: EffectiveAccessMatrixProps) {
@@ -182,7 +383,7 @@ export default function EffectiveAccessMatrix({
     <section aria-labelledby="effective-access-heading">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-primary-600">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-600">
             Effective KV v2
           </p>
           <h2 id="effective-access-heading" className="mt-0.5 text-sm font-semibold text-foreground-900">
@@ -192,93 +393,19 @@ export default function EffectiveAccessMatrix({
             Logical paths proven by readable policy rules and optional metadata discovery.
           </p>
         </div>
-        <div
-          role="group"
-          aria-label="Access matrix scope"
-          className="inline-flex w-full rounded-md border border-background-300 bg-background-100 p-0.5 sm:w-auto"
-        >
-          <button
-            type="button"
-            aria-pressed={scope === 'policy'}
-            onClick={() => setScope('policy')}
-            className={`min-h-10 flex-1 rounded px-2.5 text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-7 sm:flex-none ${
-              scope === 'policy'
-                ? 'bg-background-50 text-foreground-900 shadow-sm'
-                : 'text-foreground-500 hover:text-foreground-800'
-            }`}
-          >
-            Policy paths
-          </button>
-          <button
-            type="button"
-            aria-pressed={scope === 'visible'}
-            onClick={() => setScope('visible')}
-            className={`min-h-10 flex-1 rounded px-2.5 text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-7 sm:flex-none ${
-              scope === 'visible'
-                ? 'bg-background-50 text-foreground-900 shadow-sm'
-                : 'text-foreground-500 hover:text-foreground-800'
-            }`}
-          >
-            All visible paths
-          </button>
-        </div>
+        <ScopeToggle scope={scope} onChange={setScope} />
       </div>
 
       {scope === 'visible' && (
-        <div className="mt-3 rounded-lg border border-background-200 bg-background-50 p-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <label className="flex min-w-0 flex-1 items-center gap-2">
-              <span className="shrink-0 text-[10px] font-medium text-foreground-500">
-                Discover mount
-              </span>
-              <select
-                aria-label="Mount to discover"
-                value={activeMount}
-                onChange={(event) => setActiveMount(event.target.value)}
-                className="h-11 min-w-0 flex-1 rounded-md border border-background-300 bg-background-50 px-2 font-mono text-[10px] text-foreground-800 focus:border-primary-400 focus:outline-none sm:h-8"
-              >
-                {resource.mounts.map((mount) => (
-                  <option key={mount} value={mount}>{mount}/</option>
-                ))}
-              </select>
-            </label>
-            <div className="flex items-center gap-2">
-              <span className="min-w-0 flex-1 truncate text-[10px] text-foreground-500 sm:flex-none">
-                {scanStatusLabel(activeState.status)} · {activeState.entries.length} paths
-              </span>
-              {activeState.status === 'scanning' ? (
-                <button
-                  type="button"
-                  onClick={() => search.cancel(activeMount)}
-                  className="min-h-11 rounded-md border border-background-300 px-3 text-[10px] font-semibold text-foreground-700 hover:bg-background-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-8"
-                >
-                  Cancel
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={runDiscovery}
-                  disabled={!activeMount}
-                  className="min-h-11 rounded-md bg-primary-500 px-3 text-[10px] font-semibold text-on-primary hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-50 sm:min-h-8"
-                >
-                  {activeState.status === 'idle'
-                    ? 'Discover visible paths'
-                    : activeState.status === 'complete'
-                      ? 'Rescan'
-                      : 'Continue'}
-                </button>
-              )}
-            </div>
-          </div>
-          <p className="mt-2 text-[9px] leading-4 text-foreground-400">
-            Uses metadata LIST only. Secret values and JSON keys are never read.
-          </p>
-          {hasPartialDiscovery && (
-            <div role="status" className="mt-2 rounded-md border border-warning-200 bg-warning-50 px-2.5 py-2 text-[10px] text-warning-900">
-              Discovery is partial. Inaccessible and failed branches stay unknown; policy-backed paths remain visible.
-            </div>
-          )}
-        </div>
+        <DiscoveryPanel
+          mounts={resource.mounts}
+          activeMount={activeMount}
+          activeState={activeState}
+          hasPartialDiscovery={hasPartialDiscovery}
+          onMountChange={setActiveMount}
+          onCancel={() => search.cancel(activeMount)}
+          onRun={runDiscovery}
+        />
       )}
 
       <div className="mt-3 overflow-hidden rounded-lg border border-background-200 bg-background-50">
@@ -302,7 +429,7 @@ export default function EffectiveAccessMatrix({
         <div role="table" aria-label="Effective KV access by logical path">
           <div
             role="row"
-            className="hidden grid-cols-[minmax(0,1fr)_90px_130px_minmax(160px,0.8fr)_28px] border-b border-background-200 px-3 py-2 text-[9px] font-semibold uppercase tracking-wider text-foreground-400 md:grid"
+            className="hidden grid-cols-[minmax(0,1fr)_90px_130px_minmax(160px,0.8fr)_28px] border-b border-background-200 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-foreground-400 md:grid"
           >
             <span role="columnheader">Logical path</span>
             <span role="columnheader">Target</span>
@@ -321,81 +448,16 @@ export default function EffectiveAccessMatrix({
                 Unresolved policies are listed in Access sources below.
               </p>
             </div>
-          ) : filteredTargets.map((target, index) => {
-            const presentation = LEVEL_PRESENTATION[target.level];
-            const sources = sourceLabel(target);
-            const selected = selectedId === target.id;
-            return (
-              <div
-                key={target.id}
-                role="row"
-                className="border-b border-background-100 last:border-0"
-              >
-                <button
-                  type="button"
-                  data-access-row={target.id}
-                  aria-label={`Explain access to ${fullPath(target)}`}
-                  aria-pressed={selected}
-                  onClick={() => setSelectedId(selected ? undefined : target.id)}
-                  onKeyDown={(event) => selectAdjacent(event, index)}
-                  className={`relative grid min-h-14 w-full gap-2 px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 md:grid-cols-[minmax(0,1fr)_90px_130px_minmax(160px,0.8fr)_28px] md:items-center ${
-                    selected
-                      ? 'bg-primary-50'
-                      : 'hover:bg-background-100'
-                  }`}
-                >
-                  <span role="cell" className="min-w-0">
-                    <span className="block truncate font-mono text-[11px] font-medium text-foreground-800" title={fullPath(target)}>
-                      {fullPath(target)}
-                    </span>
-                    <span className="mt-0.5 block text-[9px] text-foreground-400 md:hidden">
-                      {target.target === 'folder' ? 'Folder' : 'Secret'}
-                    </span>
-                  </span>
-                  <span role="cell" className="hidden text-[10px] capitalize text-foreground-500 md:block">
-                    {target.target}
-                  </span>
-                  <span role="cell">
-                    <span className={`inline-flex rounded-full px-2 py-1 text-[9px] font-semibold ${presentation.classes}`}>
-                      {presentation.label}
-                    </span>
-                  </span>
-                  <span role="cell" className="flex min-w-0 flex-wrap gap-1">
-                    {sources.length > 0 ? (
-                      <>
-                        {sources.slice(0, 2).map((source) => (
-                          <span
-                            key={source}
-                            title={source}
-                            className="max-w-32 truncate rounded bg-background-200 px-1.5 py-0.5 text-[9px] text-foreground-600"
-                          >
-                            {source}
-                          </span>
-                        ))}
-                        {sources.length > 2 && (
-                          <span className="text-[9px] text-foreground-400">+{sources.length - 2}</span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-[9px] text-foreground-400">No resolved source</span>
-                    )}
-                  </span>
-                  <span role="cell" className="absolute right-3 top-3 md:static">
-                    {incomplete && (
-                      <span aria-label="Result may be incomplete" title="Result may be incomplete">
-                        <i className="ri-error-warning-line text-xs text-warning-600" aria-hidden="true" />
-                      </span>
-                    )}
-                  </span>
-                </button>
-                {selected && (
-                  <div className="md:hidden">
-                    <AccessExplanation target={target} compact />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          ) : filteredTargets.map((target, index) => (
+            <AccessMatrixRow
+              key={target.id}
+              target={target}
+              selected={selectedId === target.id}
+              incomplete={incomplete}
+              onToggle={() => setSelectedId(selectedId === target.id ? undefined : target.id)}
+              onKeyDown={(event) => selectAdjacent(event, index)}
+            />
+          ))}
         </div>
       </div>
 

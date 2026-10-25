@@ -50,6 +50,79 @@ function flatten(nodes: readonly EffectiveKvAccessTreeNode[]): readonly Effectiv
   return nodes.flatMap((node) => [node, ...flatten(node.children)]);
 }
 
+function WizardHeader({
+  step,
+  onCancel,
+}: {
+  readonly step: DecisionStep;
+  readonly onCancel: () => void;
+}) {
+  return (
+    <header className="shrink-0 border-b border-background-200 bg-background-50 px-5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Cancel user creation"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"
+          >
+            <i className="ri-arrow-left-line" aria-hidden="true" />
+          </button>
+          <div>
+            <h1 className="text-sm font-semibold text-foreground-900">Create user</h1>
+            <p className="mt-0.5 text-[10px] text-foreground-400">Userpass account · identity · effective KV access</p>
+          </div>
+        </div>
+
+        <ol aria-label="Create user steps" className="flex items-center gap-1.5">
+          <li className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${step === 'account' ? 'border-primary-300 bg-primary-500 text-on-primary' : 'border-success-200 bg-success-50 text-success-700'}`}>
+            {step === 'access' ? <i className="ri-check-line" aria-hidden="true" /> : <span className="font-mono text-[10px]">01</span>}
+            Account
+          </li>
+          <li role="presentation" className="h-px w-5 bg-background-300" aria-hidden="true" />
+          <li className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${step === 'access' ? 'border-primary-300 bg-primary-500 text-on-primary' : 'border-background-200 bg-background-100 text-foreground-400'}`}>
+            <span className="font-mono text-[10px]">02</span> Access
+          </li>
+        </ol>
+      </div>
+    </header>
+  );
+}
+
+function WizardFooter({
+  step,
+  onBack,
+  onContinue,
+  onReview,
+}: {
+  readonly step: DecisionStep;
+  readonly onBack: () => void;
+  readonly onContinue: () => void;
+  readonly onReview: () => void;
+}) {
+  return (
+    <footer className="flex shrink-0 items-center justify-between border-t border-background-200 bg-background-50 px-5 py-3">
+      <div>
+        {step === 'access' && (
+          <Button type="button" variant="secondary" size="sm" onClick={onBack}>
+            <i className="ri-arrow-left-line" aria-hidden="true" /> Back
+          </Button>
+        )}
+      </div>
+      {step === 'account' ? (
+        <Button type="button" variant="primary" size="sm" onClick={onContinue}>
+          Continue to access <i className="ri-arrow-right-line" aria-hidden="true" />
+        </Button>
+      ) : (
+        <Button type="button" variant="primary" size="sm" onClick={onReview}>
+          Review & create <i className="ri-arrow-right-up-line" aria-hidden="true" />
+        </Button>
+      )}
+    </footer>
+  );
+}
+
 export default function CreateUserWizard({
   onDone,
   onCancel,
@@ -195,35 +268,7 @@ export default function CreateUserWizard({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background-50">
-      <header className="shrink-0 border-b border-background-200 bg-background-50 px-5 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={cancel}
-              aria-label="Cancel user creation"
-              className="flex h-11 w-11 items-center justify-center rounded-md text-foreground-400 hover:bg-background-100 hover:text-foreground-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:h-7 sm:w-7"
-            >
-              <i className="ri-arrow-left-line" aria-hidden="true" />
-            </button>
-            <div>
-              <h1 className="text-sm font-semibold text-foreground-900">Create user</h1>
-              <p className="mt-0.5 text-[10px] text-foreground-400">Userpass account · identity · effective KV access</p>
-            </div>
-          </div>
-
-          <ol aria-label="Create user steps" className="flex items-center gap-1.5">
-            <li className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${step === 'account' ? 'border-primary-300 bg-primary-500 text-on-primary' : 'border-success-200 bg-success-50 text-success-700'}`}>
-              {step === 'access' ? <i className="ri-check-line" aria-hidden="true" /> : <span className="font-mono text-[9px]">01</span>}
-              Account
-            </li>
-            <li role="presentation" className="h-px w-5 bg-background-300" aria-hidden="true" />
-            <li className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${step === 'access' ? 'border-primary-300 bg-primary-500 text-on-primary' : 'border-background-200 bg-background-100 text-foreground-400'}`}>
-              <span className="font-mono text-[9px]">02</span> Access
-            </li>
-          </ol>
-        </div>
-      </header>
+      <WizardHeader step={step} onCancel={cancel} />
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {step === 'account' ? (
@@ -245,24 +290,12 @@ export default function CreateUserWizard({
         )}
       </div>
 
-      <footer className="flex shrink-0 items-center justify-between border-t border-background-200 bg-background-50 px-5 py-3">
-        <div>
-          {step === 'access' && (
-            <Button type="button" variant="secondary" size="sm" onClick={() => setStep('account')}>
-              <i className="ri-arrow-left-line" aria-hidden="true" /> Back
-            </Button>
-          )}
-        </div>
-        {step === 'account' ? (
-          <Button type="button" variant="primary" size="sm" onClick={goToAccess}>
-            Continue to access <i className="ri-arrow-right-line" aria-hidden="true" />
-          </Button>
-        ) : (
-          <Button type="button" variant="primary" size="sm" onClick={openWorkflow}>
-            Review & create <i className="ri-arrow-right-up-line" aria-hidden="true" />
-          </Button>
-        )}
-      </footer>
+      <WizardFooter
+        step={step}
+        onBack={() => setStep('account')}
+        onContinue={goToAccess}
+        onReview={openWorkflow}
+      />
 
       <CreateUserWorkflowModal
         open={workflowOpen}

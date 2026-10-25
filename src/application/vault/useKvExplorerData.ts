@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import type {
+  KvV2Gateway,
   KvV2Mount,
   KvV2Secret,
   KvV2SecretHistory,
@@ -86,6 +87,120 @@ export function useKvDirectory(
   return [queryState(query, !mount || !enabled), () => { void query.refetch(); }];
 }
 
+interface SecretPermissionGate {
+  readonly status?: VaultQueryState<KvActionPermissions>['status'];
+  readonly scope: string;
+  readonly canReadData?: boolean;
+  readonly canReadMetadata?: boolean;
+  readonly canCreate?: boolean;
+  readonly canUpdate?: boolean;
+  readonly discovery?: KvActionPermissions['discovery'];
+}
+
+function secretPermissionGate(
+  permissions: VaultQueryState<KvActionPermissions> | undefined,
+): SecretPermissionGate {
+  const granted = permissions?.status === 'success' ? permissions.data : undefined;
+  return {
+    status: permissions?.status,
+    scope: permissions?.data?.scope ?? '',
+    canReadData: granted?.canReadData,
+    canReadMetadata: granted?.canReadMetadata,
+    canCreate: granted?.canCreate,
+    canUpdate: granted?.canUpdate,
+    discovery: permissions?.data?.discovery,
+  };
+}
+
+function canWriteWithoutRead(gate: SecretPermissionGate): boolean {
+  return gate.canCreate === true || gate.canUpdate === true || gate.discovery === 'unavailable';
+}
+
+function isWaitingForPermissions(gate: SecretPermissionGate, mount: string, path: string | null): boolean {
+  return Boolean(
+    gate.status
+    && (
+      gate.status === 'idle'
+      || gate.status === 'loading'
+      || (gate.status === 'success' && gate.scope !== `${mount}/data/${path}`)
+    ),
+  );
+}
+
+function secretPermissionKey(
+  permissions: VaultQueryState<KvActionPermissions> | undefined,
+  gate: SecretPermissionGate,
+): readonly unknown[] {
+  if (!permissions) return ['unchecked'];
+  return [
+    gate.status,
+    gate.scope,
+    gate.canReadData,
+    gate.canReadMetadata,
+    gate.canCreate,
+    gate.canUpdate,
+    gate.discovery,
+  ];
+}
+
+function resourceError<T>(result: ResourceResult<T>): VaultError | undefined {
+  return result.ok === false ? result.error : undefined;
+}
+
+function secretDetailsFromResources(
+  data: ResourceResult<KvV2Secret>,
+  versionHistory: ResourceResult<KvV2SecretHistory>,
+  writableWithoutRead: boolean,
+): KvSecretDetails {
+  const resourceErrors = [resourceError(data), resourceError(versionHistory)]
+    .filter((error): error is VaultError => Boolean(error));
+  const sessionError = resourceErrors.find((error) => error.code === 'session-expired');
+  if (sessionError) throw sessionError;
+
+  const history = versionHistory.ok ? versionHistory.data : undefined;
+  const current = history?.versions.find((version) => version.version === history.currentVersion);
+  const secret = data.ok && !current?.destroyed && !current?.deletionTime
+    ? data.data
+    : undefined;
+
+  if (secret || history || writableWithoutRead) {
+    const details: {
+      secret?: KvV2Secret;
+      history?: KvV2SecretHistory;
+      dataError?: VaultError;
+      historyError?: VaultError;
+    } = {};
+    if (secret) details.secret = secret;
+    if (history) details.history = history;
+    if (data.ok === false) details.dataError = data.error;
+    if (versionHistory.ok === false) details.historyError = versionHistory.error;
+    return details;
+  }
+
+  const error = resourceErrors[0];
+  throw error ?? new VaultError('unknown');
+}
+
+async function loadSecretDetails(
+  gateway: KvV2Gateway,
+  session: VaultSession,
+  mount: string,
+  path: string | null,
+  gate: SecretPermissionGate,
+  signal: AbortSignal,
+): Promise<KvSecretDetails> {
+  if (!path) throw new VaultError('invalid-request');
+  const dataResult = gate.status === 'success' && gate.canReadData === false
+    ? Promise.resolve(authorizationDeniedResource<KvV2Secret>())
+    : captureResource(() => gateway.readSecret(session, mount, path, undefined, signal));
+  const historyResult = gate.status === 'success' && gate.canReadMetadata === false
+    ? Promise.resolve(authorizationDeniedResource<KvV2SecretHistory>())
+    : captureResource(() => gateway.readSecretMetadata(session, mount, path, signal));
+
+  const [data, versionHistory] = await Promise.all([dataResult, historyResult]);
+  return secretDetailsFromResources(data, versionHistory, canWriteWithoutRead(gate));
+}
+
 export function useKvSecretDetails(
   session: VaultSession,
   mount: string,
@@ -93,77 +208,13 @@ export function useKvSecretDetails(
   permissions?: VaultQueryState<KvActionPermissions>,
 ): readonly [VaultQueryState<KvSecretDetails>, () => void] {
   const gateway = useKvV2Gateway();
-  const permissionStatus = permissions?.status;
-  const permissionScope = permissions?.data?.scope ?? '';
-  const canReadData = permissions?.status === 'success' ? permissions.data.canReadData : undefined;
-  const canReadMetadata = permissions?.status === 'success' ? permissions.data.canReadMetadata : undefined;
-  const canCreate = permissions?.status === 'success' ? permissions.data.canCreate : undefined;
-  const canUpdate = permissions?.status === 'success' ? permissions.data.canUpdate : undefined;
-  const discoveryUnavailable = permissions?.data?.discovery === 'unavailable';
-  const canWriteWithoutRead = canCreate === true || canUpdate === true || discoveryUnavailable;
-  const waitingForPermissions = Boolean(
-    permissionStatus
-    && (
-      permissionStatus === 'idle'
-      || permissionStatus === 'loading'
-      || (permissionStatus === 'success' && permissionScope !== `${mount}/data/${path}`)
-    ),
-  );
-  const permissionKey = permissions
-    ? [
-        permissionStatus,
-        permissionScope,
-        canReadData,
-        canReadMetadata,
-        canCreate,
-        canUpdate,
-        permissions?.data?.discovery,
-      ]
-    : ['unchecked'];
+  const gate = secretPermissionGate(permissions);
+  const waitingForPermissions = isWaitingForPermissions(gate, mount, path);
   const enabled = Boolean(mount && path && !waitingForPermissions);
   const query = useQuery({
-    queryKey: vaultQueryKeys.secret(mount, path ?? '', permissionKey),
+    queryKey: vaultQueryKeys.secret(mount, path ?? '', secretPermissionKey(permissions, gate)),
     enabled,
-    queryFn: async ({ signal }) => {
-      if (!path) throw new VaultError('invalid-request');
-      const dataResult = permissionStatus === 'success' && canReadData === false
-        ? Promise.resolve(authorizationDeniedResource<KvV2Secret>())
-        : captureResource(() => gateway.readSecret(session, mount, path, undefined, signal));
-      const historyResult = permissionStatus === 'success' && canReadMetadata === false
-        ? Promise.resolve(authorizationDeniedResource<KvV2SecretHistory>())
-        : captureResource(() => gateway.readSecretMetadata(session, mount, path, signal));
-
-      const [data, versionHistory] = await Promise.all([dataResult, historyResult]);
-      const resourceErrors = [
-        data.ok === false ? data.error : undefined,
-        versionHistory.ok === false ? versionHistory.error : undefined,
-      ].filter((error): error is VaultError => Boolean(error));
-      const sessionError = resourceErrors.find((error) => error.code === 'session-expired');
-      if (sessionError) throw sessionError;
-
-      const history = versionHistory.ok ? versionHistory.data : undefined;
-      const current = history?.versions.find((version) => version.version === history.currentVersion);
-      const secret = data.ok && !current?.destroyed && !current?.deletionTime
-        ? data.data
-        : undefined;
-
-      if (secret || history || canWriteWithoutRead) {
-        const details: {
-          secret?: KvV2Secret;
-          history?: KvV2SecretHistory;
-          dataError?: VaultError;
-          historyError?: VaultError;
-        } = {};
-        if (secret) details.secret = secret;
-        if (history) details.history = history;
-        if (data.ok === false) details.dataError = data.error;
-        if (versionHistory.ok === false) details.historyError = versionHistory.error;
-        return details;
-      }
-
-      const error = resourceErrors[0];
-      throw error ?? new VaultError('unknown');
-    },
+    queryFn: ({ signal }) => loadSecretDetails(gateway, session, mount, path, gate, signal),
   });
 
   const idle = !mount || !path;

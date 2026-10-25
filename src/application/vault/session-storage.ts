@@ -42,31 +42,47 @@ function validServerUrl(value: unknown): value is string {
   }
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isNonNegativeFiniteNumber(value: unknown): boolean {
+  return isFiniteNumber(value) && value >= 0;
+}
+
+function isString(value: unknown): boolean {
+  return typeof value === 'string';
+}
+
+function isBoolean(value: unknown): boolean {
+  return typeof value === 'boolean';
+}
+
+function optionalField(value: unknown, valid: (value: unknown) => boolean): boolean {
+  return value === undefined || valid(value);
+}
+
+function hasValidRequiredFields(record: Partial<StoredVaultSession>): boolean {
+  return record.version === 1
+    && validServerUrl(record.serverUrl)
+    && typeof record.token === 'string'
+    && Boolean(record.token.trim())
+    && ['token', 'userpass'].includes(record.authMethod ?? '')
+    && isFiniteNumber(record.createdAt);
+}
+
+function hasValidOptionalFields(record: Partial<StoredVaultSession>): boolean {
+  return optionalField(record.displayName, isString)
+    && optionalField(record.expiresAt, isFiniteNumber)
+    && optionalField(record.leaseDurationSeconds, isNonNegativeFiniteNumber)
+    && optionalField(record.renewable, isBoolean)
+    && optionalField(record.renewedAt, isFiniteNumber);
+}
+
 function asStoredSession(value: unknown): StoredVaultSession | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const record = value as Partial<StoredVaultSession>;
-  if (
-    record.version !== 1
-    || !validServerUrl(record.serverUrl)
-    || typeof record.token !== 'string'
-    || !record.token.trim()
-    || !['token', 'userpass'].includes(record.authMethod ?? '')
-    || typeof record.createdAt !== 'number'
-    || !Number.isFinite(record.createdAt)
-    || (record.displayName !== undefined && typeof record.displayName !== 'string')
-    || (record.expiresAt !== undefined && (
-      typeof record.expiresAt !== 'number' || !Number.isFinite(record.expiresAt)
-    ))
-    || (record.leaseDurationSeconds !== undefined && (
-      typeof record.leaseDurationSeconds !== 'number'
-      || !Number.isFinite(record.leaseDurationSeconds)
-      || record.leaseDurationSeconds < 0
-    ))
-    || (record.renewable !== undefined && typeof record.renewable !== 'boolean')
-    || (record.renewedAt !== undefined && (
-      typeof record.renewedAt !== 'number' || !Number.isFinite(record.renewedAt)
-    ))
-  ) return null;
+  if (!hasValidRequiredFields(record) || !hasValidOptionalFields(record)) return null;
   return record as StoredVaultSession;
 }
 

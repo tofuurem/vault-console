@@ -158,101 +158,122 @@ async function expectNotFound(read: () => Promise<unknown>): Promise<void> {
   throw new VaultError('conflict');
 }
 
+type OperationKind = ChangeOperation['kind'];
+
+type OperationHandler<K extends OperationKind> = (
+  gateway: VaultAccessControlGateway,
+  session: VaultSession,
+  operation: Extract<ChangeOperation, { kind: K }>,
+  signal?: AbortSignal,
+) => Promise<string | undefined>;
+
+const OPERATION_HANDLERS: { readonly [K in OperationKind]: OperationHandler<K> } = {
+  'write-policy': async (gateway, session, operation, signal) => {
+    await gateway.writePolicy(session, operation.policy, signal);
+    const verified = await gateway.readPolicy(session, operation.policy.name, signal);
+    if (verified.policy.trim() !== operation.policy.policy.trim()) throw new VaultError('conflict');
+    return undefined;
+  },
+  'delete-policy': async (gateway, session, operation, signal) => {
+    await gateway.deletePolicy(session, operation.policyName, signal);
+    await expectNotFound(() => gateway.readPolicy(session, operation.policyName, signal));
+    return undefined;
+  },
+  'update-userpass-policies': async (gateway, session, operation, signal) => {
+    await gateway.updateUserpassPolicies(
+      session,
+      operation.mount,
+      operation.username,
+      operation.policies,
+      signal,
+    );
+    const verified = await gateway.readUserpassAccount(
+      session,
+      operation.mount,
+      operation.username,
+      signal,
+    );
+    if (!verified || !sameStrings(verified.tokenPolicies, operation.policies)) {
+      throw new VaultError('conflict');
+    }
+    return undefined;
+  },
+  'reset-userpass-password': async (gateway, session, operation, signal) => {
+    await gateway.resetUserpassPassword(
+      session,
+      operation.mount,
+      operation.username,
+      operation.password,
+      signal,
+    );
+    return undefined;
+  },
+  'delete-userpass-account': async (gateway, session, operation, signal) => {
+    await gateway.deleteUserpassAccount(
+      session,
+      operation.mount,
+      operation.username,
+      signal,
+    );
+    if (await gateway.readUserpassAccount(
+      session,
+      operation.mount,
+      operation.username,
+      signal,
+    )) throw new VaultError('conflict');
+    return undefined;
+  },
+  'update-entity': async (gateway, session, operation, signal) => {
+    await gateway.updateEntity(session, operation.entityId, operation.entity, signal);
+    const verified = await gateway.readEntity(session, operation.entityId, signal);
+    if (!entityMatches(verified, operation.entity)) throw new VaultError('conflict');
+    return undefined;
+  },
+  'delete-entity': async (gateway, session, operation, signal) => {
+    await gateway.deleteEntity(session, operation.entityId, signal);
+    await expectNotFound(() => gateway.readEntity(session, operation.entityId, signal));
+    return undefined;
+  },
+  'delete-entity-alias': async (gateway, session, operation, signal) => {
+    await gateway.deleteEntityAlias(session, operation.aliasId, signal);
+    if (operation.entityId) {
+      const entity = await gateway.readEntity(session, operation.entityId, signal);
+      if (entity.aliases.some(({ id }) => id === operation.aliasId)) {
+        throw new VaultError('conflict');
+      }
+    }
+    return undefined;
+  },
+  'create-group': async (gateway, session, operation, signal) => {
+    const groupId = await gateway.createGroup(session, operation.group, signal);
+    const verified = await gateway.readGroup(session, groupId, signal);
+    if (!groupMatches(verified, operation.group)) throw new VaultError('conflict');
+    return groupId;
+  },
+  'update-group': async (gateway, session, operation, signal) => {
+    await gateway.updateGroup(session, operation.groupId, operation.group, signal);
+    const verified = await gateway.readGroup(session, operation.groupId, signal);
+    if (!groupMatches(verified, operation.group)) throw new VaultError('conflict');
+    return undefined;
+  },
+  'delete-group': async (gateway, session, operation, signal) => {
+    await gateway.deleteGroup(session, operation.groupId, signal);
+    await expectNotFound(() => gateway.readGroup(session, operation.groupId, signal));
+    return undefined;
+  },
+};
+
+function operationHandler<K extends OperationKind>(kind: K): OperationHandler<K> {
+  return OPERATION_HANDLERS[kind];
+}
+
 async function executeOperation(
   gateway: VaultAccessControlGateway,
   session: VaultSession,
   operation: ChangeOperation,
   signal?: AbortSignal,
 ): Promise<string | undefined> {
-  switch (operation.kind) {
-    case 'write-policy': {
-      await gateway.writePolicy(session, operation.policy, signal);
-      const verified = await gateway.readPolicy(session, operation.policy.name, signal);
-      if (verified.policy.trim() !== operation.policy.policy.trim()) throw new VaultError('conflict');
-      return undefined;
-    }
-    case 'delete-policy':
-      await gateway.deletePolicy(session, operation.policyName, signal);
-      await expectNotFound(() => gateway.readPolicy(session, operation.policyName, signal));
-      return undefined;
-    case 'update-userpass-policies': {
-      await gateway.updateUserpassPolicies(
-        session,
-        operation.mount,
-        operation.username,
-        operation.policies,
-        signal,
-      );
-      const verified = await gateway.readUserpassAccount(
-        session,
-        operation.mount,
-        operation.username,
-        signal,
-      );
-      if (!verified || !sameStrings(verified.tokenPolicies, operation.policies)) {
-        throw new VaultError('conflict');
-      }
-      return undefined;
-    }
-    case 'reset-userpass-password':
-      await gateway.resetUserpassPassword(
-        session,
-        operation.mount,
-        operation.username,
-        operation.password,
-        signal,
-      );
-      return undefined;
-    case 'delete-userpass-account':
-      await gateway.deleteUserpassAccount(
-        session,
-        operation.mount,
-        operation.username,
-        signal,
-      );
-      if (await gateway.readUserpassAccount(
-        session,
-        operation.mount,
-        operation.username,
-        signal,
-      )) throw new VaultError('conflict');
-      return undefined;
-    case 'update-entity': {
-      await gateway.updateEntity(session, operation.entityId, operation.entity, signal);
-      const verified = await gateway.readEntity(session, operation.entityId, signal);
-      if (!entityMatches(verified, operation.entity)) throw new VaultError('conflict');
-      return undefined;
-    }
-    case 'delete-entity':
-      await gateway.deleteEntity(session, operation.entityId, signal);
-      await expectNotFound(() => gateway.readEntity(session, operation.entityId, signal));
-      return undefined;
-    case 'delete-entity-alias':
-      await gateway.deleteEntityAlias(session, operation.aliasId, signal);
-      if (operation.entityId) {
-        const entity = await gateway.readEntity(session, operation.entityId, signal);
-        if (entity.aliases.some(({ id }) => id === operation.aliasId)) {
-          throw new VaultError('conflict');
-        }
-      }
-      return undefined;
-    case 'create-group': {
-      const groupId = await gateway.createGroup(session, operation.group, signal);
-      const verified = await gateway.readGroup(session, groupId, signal);
-      if (!groupMatches(verified, operation.group)) throw new VaultError('conflict');
-      return groupId;
-    }
-    case 'update-group': {
-      await gateway.updateGroup(session, operation.groupId, operation.group, signal);
-      const verified = await gateway.readGroup(session, operation.groupId, signal);
-      if (!groupMatches(verified, operation.group)) throw new VaultError('conflict');
-      return undefined;
-    }
-    case 'delete-group':
-      await gateway.deleteGroup(session, operation.groupId, signal);
-      await expectNotFound(() => gateway.readGroup(session, operation.groupId, signal));
-      return undefined;
-  }
+  return operationHandler(operation.kind)(gateway, session, operation, signal);
 }
 
 function blockedResult(preflight: Exclude<PlanPreflightResult, { ok: true }>): PlanExecutionResult {

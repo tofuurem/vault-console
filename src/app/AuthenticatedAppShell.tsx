@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { matchPath, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -8,16 +8,10 @@ import type { NavigationPath } from '@/application/navigation-history/navigation
 import { useToast } from '@/application/notifications/ToastContext';
 import { useShortcutCommands, useShortcuts } from '@/application/shortcuts/ShortcutContext';
 import { ShortcutProvider } from '@/application/shortcuts/ShortcutProvider';
-import {
-  buildKvIndexCommand,
-  buildVaultPathCommands,
-} from '@/application/shortcuts/vault-path-commands';
-import { useTheme } from '@/application/theme/ThemeContext';
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import { useKvMounts } from '@/application/vault/useKvExplorerData';
 import { useKvV2Gateway } from '@/application/vault/KvV2GatewayContext';
 import { KvSearchProvider } from '@/application/vault/search/KvSearchProvider';
-import { useKvSearch } from '@/application/vault/search/KvSearchContext';
 import { useSessionClock } from '@/application/vault/useSessionClock';
 import { useVaultSealedSignal } from '@/application/vault/useVaultSealedSignal';
 import CommandPalette from '@/components/feature/CommandPalette';
@@ -28,16 +22,11 @@ import Sidebar from '@/components/feature/Sidebar';
 import TopBar from '@/components/feature/TopBar';
 import Drawer from '@/components/base/Drawer';
 import type { AuthenticatedShellContextValue } from './authenticated-shell';
+import { useShellCommands } from './useShellCommands';
 import { directoryPathForSecret, explorerRoute } from '@/router/explorer-route';
 import { normalizeVaultError } from '@/domain/vault/errors';
 
 const NO_MOUNTS = [] as const;
-const ACCESS_COMMANDS = [
-  ['users', 'Open users', 'ri-user-settings-line'],
-  ['groups', 'Open groups', 'ri-group-line'],
-  ['roles', 'Open roles', 'ri-shield-check-line'],
-  ['policies', 'Open Policy Explorer', 'ri-file-code-line'],
-] as const;
 
 export default function AuthenticatedAppShell() {
   const vault = useVaultSession();
@@ -61,10 +50,8 @@ function AuthenticatedWorkspace() {
   const navigate = useNavigate();
   const location = useLocation();
   const vault = useVaultSession();
-  const theme = useTheme();
   const toast = useToast();
   const shortcuts = useShortcuts();
-  const kvSearch = useKvSearch();
   const navigationHistory = useNavigationHistory();
   const queryClient = useQueryClient();
   const session = vault.session!;
@@ -97,6 +84,7 @@ function AuthenticatedWorkspace() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [createMountOpen, setCreateMountOpen] = useState(false);
+  const openCreateMount = useCallback(() => setCreateMountOpen(true), []);
   const mounts = mountsState.data ?? NO_MOUNTS;
   const explorer = matchPath('/explorer/:mount/*', location.pathname);
   const activeMount = explorer?.params.mount ? decodeURIComponent(explorer.params.mount) : '';
@@ -128,100 +116,19 @@ function AuthenticatedWorkspace() {
           target.path,
         ));
   }, [navigate]);
-  const activeSearchState = kvSearch.stateFor(activeMount);
-  const pathCommands = useMemo(() => buildVaultPathCommands({
-    favorites: navigationHistory.favorites,
-    recents: navigationHistory.recents,
-    indexed: shortcuts.paletteOpen ? activeSearchState.entries : [],
-    onOpen: openNavigationPath,
-  }), [
-    activeSearchState.entries,
-    navigationHistory.favorites,
-    navigationHistory.recents,
-    openNavigationPath,
-    shortcuts.paletteOpen,
-  ]);
-  const indexCommand = useMemo(() => buildKvIndexCommand({
-    mount: activeMount,
-    state: activeSearchState,
-    onStart: () => kvSearch.start(activeMount),
-    onContinue: () => kvSearch.continueScan(activeMount),
-    onRestart: () => kvSearch.restart(activeMount),
-    onCancel: () => kvSearch.cancel(activeMount),
-  }), [activeMount, activeSearchState, kvSearch]);
-
+  const commands = useShellCommands({
+    mounts,
+    activeMount,
+    showAccessControl,
+    refreshMounts,
+    onCreateMount: openCreateMount,
+    onOpenPath: openNavigationPath,
+  });
+  useShortcutCommands(commands);
   const context: AuthenticatedShellContextValue = {
     mountsState,
     refreshMounts,
   };
-  const commands = useMemo(() => [
-    {
-      id: 'action-create-kv-mount',
-      label: 'Create KV v2 mount',
-      group: 'Actions',
-      keywords: ['enable', 'secrets engine', 'mount'],
-      icon: 'ri-folder-add-line',
-      run: () => setCreateMountOpen(true),
-    },
-    {
-      id: 'action-refresh-mounts',
-      label: 'Refresh KV mounts',
-      group: 'Actions',
-      keywords: ['reload', 'sync', 'list'],
-      icon: 'ri-refresh-line',
-      run: refreshMounts,
-    },
-    ...mounts.map((mount) => ({
-      id: `mount-${mount.path}`,
-      label: `Open ${mount.path}/`,
-      group: 'KV mounts',
-      keywords: ['secret', 'folder', mount.description, mount.path],
-      icon: 'ri-folder-keyhole-line',
-      run: () => navigate(`/explorer/${encodeURIComponent(mount.path)}`),
-    })),
-    ...pathCommands,
-    ...(indexCommand ? [indexCommand] : []),
-    ...(showAccessControl ? [
-      {
-        id: 'access-center',
-        label: 'Open Access Center',
-        group: 'Access control',
-        keywords: ['identity', 'acl', 'users', 'groups', 'roles', 'policies'],
-        icon: 'ri-shield-user-line',
-        run: () => navigate('/access-control/users'),
-      },
-      ...ACCESS_COMMANDS.map(([section, label, icon]) => ({
-        id: `access-${section}`,
-        label,
-        group: 'Access control',
-        keywords: ['identity', 'acl', section],
-        icon,
-        run: () => navigate(`/access-control/${section}`),
-      })),
-    ] : []),
-    ...([
-      ['system', 'Use system appearance', 'ri-computer-line'],
-      ['light', 'Use light appearance', 'ri-sun-line'],
-      ['dark', 'Use dark appearance', 'ri-moon-line'],
-    ] as const).map(([preference, label, icon]) => ({
-      id: `theme-${preference}`,
-      label,
-      group: 'Appearance',
-      keywords: ['theme', 'color', preference],
-      icon,
-      disabledReason: theme.preference === preference ? 'Currently selected.' : undefined,
-      run: () => theme.setPreference(preference),
-    })),
-  ], [
-    mounts,
-    navigate,
-    indexCommand,
-    pathCommands,
-    refreshMounts,
-    showAccessControl,
-    theme,
-  ]);
-  useShortcutCommands(commands);
 
   return (
     <div data-testid="authenticated-app-shell" className="relative flex h-full flex-col bg-background-50">

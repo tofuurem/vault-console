@@ -42,6 +42,91 @@ interface LazyPermissionNodeProps {
   readonly onDirectRuleChange: (node: KvAccessTreeNode, level: KvPermissionLevel) => void;
 }
 
+function childrenFromKeys(
+  node: KvAccessTreeNode,
+  listPath: string,
+  keys: readonly string[],
+): readonly KvAccessTreeNode[] {
+  return keys.map((key): KvAccessTreeNode => {
+    const folder = key.endsWith('/');
+    const label = key.replace(/\/$/, '');
+    const path = `${listPath}${key}`.replace(/\/$/, '');
+    return {
+      id: `${node.mount}:${path}`,
+      label,
+      mount: node.mount,
+      path,
+      target: folder ? 'folder' : 'secret',
+      children: [],
+    };
+  });
+}
+
+function provenanceLabel(sources: EffectiveKvAccessTreeNode['sources']): string {
+  return sources
+    .slice(0, 2)
+    .map((source) => source.kind === 'group' && source.via
+      ? `${source.label} → ${source.via}`
+      : source.label)
+    .join(', ');
+}
+
+interface LazyNodeChildrenProps extends Omit<LazyPermissionNodeProps, 'node'> {
+  readonly directory: ReturnType<typeof useKvDirectory>[0];
+  readonly refresh: () => void;
+  readonly childNodes: readonly KvAccessTreeNode[];
+}
+
+function LazyNodeChildren({
+  directory,
+  refresh,
+  childNodes: nodes,
+  depth,
+  rules,
+  directRules,
+  session,
+  onDirectRuleChange,
+}: LazyNodeChildrenProps) {
+  return (
+    <div>
+      {directory.status === 'loading' && (
+        <div
+          className="border-b border-background-200"
+          style={{ paddingLeft: `${38 + depth * 16}px` }}
+        >
+          <ContentSkeleton label="Loading this prefix" compact />
+        </div>
+      )}
+      {directory.status === 'error' && (
+        <div role="alert" className="flex items-center gap-2 border-b border-warning-200 bg-warning-50 py-2 pr-3 text-[11px] text-warning-800" style={{ paddingLeft: `${50 + depth * 16}px` }}>
+          <span className="flex-1">
+            {directory.error.code === 'authorization'
+              ? 'This token cannot list this prefix.'
+              : 'This prefix could not be loaded.'}
+          </span>
+          <button type="button" onClick={refresh} className="font-semibold underline">Retry</button>
+        </div>
+      )}
+      {directory.status === 'success' && nodes.length === 0 && (
+        <div className="border-b border-background-200 py-2 text-[11px] text-foreground-400" style={{ paddingLeft: `${50 + depth * 16}px` }}>
+          No readable children
+        </div>
+      )}
+      {directory.status === 'success' && nodes.map((child) => (
+        <LazyPermissionNode
+          key={child.id}
+          node={child}
+          depth={depth + 1}
+          rules={rules}
+          directRules={directRules}
+          session={session}
+          onDirectRuleChange={onDirectRuleChange}
+        />
+      ))}
+    </div>
+  );
+}
+
 function LazyPermissionNode({
   node,
   depth,
@@ -61,25 +146,8 @@ function LazyPermissionNode({
   const effective = resolveEffectiveKvTree([{ ...node, children: [] }], rules)[0];
   const direct = directRules.find((rule) => rule.nodeId === node.id);
   const logicalPath = node.path ? `${node.mount}/${node.path}` : `${node.mount}/`;
-  const children = (directory.data ?? []).map((key): KvAccessTreeNode => {
-    const folder = key.endsWith('/');
-    const label = key.replace(/\/$/, '');
-    const path = `${listPath}${key}`.replace(/\/$/, '');
-    return {
-      id: `${node.mount}:${path}`,
-      label,
-      mount: node.mount,
-      path,
-      target: folder ? 'folder' : 'secret',
-      children: [],
-    };
-  });
-  const provenance = effective.sources
-    .slice(0, 2)
-    .map((source) => source.kind === 'group' && source.via
-      ? `${source.label} → ${source.via}`
-      : source.label)
-    .join(', ');
+  const children = childrenFromKeys(node, listPath, directory.data ?? []);
+  const provenance = provenanceLabel(effective.sources);
 
   return (
     <div>
@@ -104,7 +172,7 @@ function LazyPermissionNode({
           <div className="flex min-w-0 items-center gap-2">
             <span className="break-all font-mono text-xs font-medium text-foreground-800">{node.label}</span>
             {direct && (
-              <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${direct.level === 'deny' ? 'bg-danger-100 text-danger-700' : 'bg-primary-100 text-primary-700'}`}>
+              <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${direct.level === 'deny' ? 'bg-danger-100 text-danger-700' : 'bg-primary-100 text-primary-700'}`}>
                 {direct.level === 'deny' ? 'Direct deny' : 'Direct'}
               </span>
             )}
@@ -127,42 +195,16 @@ function LazyPermissionNode({
       </div>
 
       {expanded && node.target === 'folder' && (
-        <div>
-          {directory.status === 'loading' && (
-            <div
-              className="border-b border-background-200"
-              style={{ paddingLeft: `${38 + depth * 16}px` }}
-            >
-              <ContentSkeleton label="Loading this prefix" compact />
-            </div>
-          )}
-          {directory.status === 'error' && (
-            <div role="alert" className="flex items-center gap-2 border-b border-warning-200 bg-warning-50 py-2 pr-3 text-[11px] text-warning-800" style={{ paddingLeft: `${50 + depth * 16}px` }}>
-              <span className="flex-1">
-                {directory.error.code === 'authorization'
-                  ? 'This token cannot list this prefix.'
-                  : 'This prefix could not be loaded.'}
-              </span>
-              <button type="button" onClick={refresh} className="font-semibold underline">Retry</button>
-            </div>
-          )}
-          {directory.status === 'success' && children.length === 0 && (
-            <div className="border-b border-background-200 py-2 text-[11px] text-foreground-400" style={{ paddingLeft: `${50 + depth * 16}px` }}>
-              No readable children
-            </div>
-          )}
-          {directory.status === 'success' && children.map((child) => (
-            <LazyPermissionNode
-              key={child.id}
-              node={child}
-              depth={depth + 1}
-              rules={rules}
-              directRules={directRules}
-              session={session}
-              onDirectRuleChange={onDirectRuleChange}
-            />
-          ))}
-        </div>
+        <LazyNodeChildren
+          directory={directory}
+          refresh={refresh}
+          depth={depth}
+          rules={rules}
+          directRules={directRules}
+          session={session}
+          childNodes={children}
+          onDirectRuleChange={onDirectRuleChange}
+        />
       )}
     </div>
   );

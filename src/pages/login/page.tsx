@@ -1,31 +1,27 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-} from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useRuntimeConfig } from '@/application/config/RuntimeConfigContext';
 import { initialVaultServerUrl, requestedVaultServerUrl } from '@/application/config/runtime-config';
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
-import Button from '@/components/base/Button';
-import { Input } from '@/components/base/Input';
-import type { VaultHealth } from '@/domain/vault/contracts';
-import { normalizeVaultError, type VaultError } from '@/domain/vault/errors';
-import { normalizeVaultServerUrl } from '@/domain/vault/server-url';
+import CenteredPanelLayout from '@/components/base/CenteredPanelLayout';
+import { normalizeVaultError } from '@/domain/vault/errors';
 import { postLoginDestination } from '@/router/post-login-destination';
+import AdvancedConnectionSettings from './components/AdvancedConnectionSettings';
+import AuthMethodTabs, { type AuthTab } from './components/AuthMethodTabs';
+import ConnectionStatusBar from './components/ConnectionStatusBar';
+import TokenLoginForm from './components/TokenLoginForm';
+import UserpassLoginForm, { type UserpassFields } from './components/UserpassLoginForm';
+import { serverErrorMessage, useVaultConnection } from './useVaultConnection';
 
-type AuthTab = 'token' | 'userpass';
-type ConnectionStatus = 'idle' | 'checking' | 'ready' | 'sealed' | 'uninitialized' | 'unavailable';
+const SIGN_IN_NOTICES: Readonly<Record<string, string>> = {
+  expired: 'Your Vault session expired. Sign in again.',
+  revoked: 'Token revoked. Sign in with another Vault token or userpass account.',
+};
 
-function serverErrorMessage(error: VaultError): string {
-  if (error.code === 'unavailable') {
-    return 'Vault could not be reached. Check the address, certificate, network, and CORS configuration.';
-  }
-  return error.message;
+function initialNotice(state: unknown): string {
+  const reason = (state as { reason?: unknown } | null)?.reason;
+  return typeof reason === 'string' ? SIGN_IN_NOTICES[reason] ?? '' : '';
 }
 
 export default function LoginPage() {
@@ -33,346 +29,116 @@ export default function LoginPage() {
   const location = useLocation();
   const runtimeConfig = useRuntimeConfig();
   const session = useVaultSession();
-  const checkHealth = session.checkHealth;
-  const requestRef = useRef<AbortController | null>(null);
   const [authTab, setAuthTab] = useState<AuthTab>('userpass');
-  const [serverUrl, setServerUrl] = useState(
-    () => initialVaultServerUrl(runtimeConfig, requestedVaultServerUrl(location.state)),
-  );
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle');
-  const [health, setHealth] = useState<VaultHealth>();
-  const [errorMessage, setErrorMessage] = useState(
-    (location.state as { reason?: string } | null)?.reason === 'expired'
-      ? 'Your Vault session expired. Sign in again.'
-      : (location.state as { reason?: string } | null)?.reason === 'revoked'
-        ? 'Token revoked. Sign in with another Vault token or userpass account.'
-        : '',
-  );
-  const [serverError, setServerError] = useState('');
-  const [token, setToken] = useState('');
+  const [errorMessage, setErrorMessage] = useState(() => initialNotice(location.state));
   const [userpassPath, setUserpassPath] = useState(runtimeConfig.userpassMount);
+  const connection = useVaultConnection({
+    initialServerUrl: initialVaultServerUrl(runtimeConfig, requestedVaultServerUrl(location.state)),
+    checkOnMount: !runtimeConfig.allowCustomVaultAddress,
+    checkHealth: session.checkHealth,
+    onError: setErrorMessage,
+  });
   const destination = postLoginDestination(location.state);
+  const authenticating = session.status === 'authenticating';
 
-  const beginRequest = useCallback(() => {
-    requestRef.current?.abort();
-    const controller = new AbortController();
-    requestRef.current = controller;
-    return controller;
-  }, []);
-
-  const validatedServerUrl = useCallback((): string | null => {
-    try {
-      const normalized = normalizeVaultServerUrl(serverUrl);
-      setServerError('');
-      return normalized;
-    } catch {
-      setServerError('Enter a complete HTTP or HTTPS Vault address.');
-      return null;
-    }
-  }, [serverUrl]);
-
-  const checkConnection = useCallback(async (clearExistingError = true) => {
-    const normalized = validatedServerUrl();
+  const signIn = async (authenticate: (serverUrl: string, signal: AbortSignal) => Promise<void>) => {
+    const normalized = connection.validatedServerUrl();
     if (!normalized) return;
-    const controller = beginRequest();
-    setConnectionStatus('checking');
-    if (clearExistingError) setErrorMessage('');
-    setHealth(undefined);
-    try {
-      const result = await checkHealth(normalized, controller.signal);
-      setHealth(result);
-      if (!result.initialized) setConnectionStatus('uninitialized');
-      else if (result.sealed) setConnectionStatus('sealed');
-      else setConnectionStatus('ready');
-    } catch (cause) {
-      const error = normalizeVaultError(cause);
-      if (error.code === 'aborted') return;
-      setConnectionStatus('unavailable');
-      setErrorMessage(serverErrorMessage(error));
-    }
-  }, [beginRequest, checkHealth, validatedServerUrl]);
-
-  useEffect(() => {
-    if (!runtimeConfig.allowCustomVaultAddress) void checkConnection(false);
-    return () => requestRef.current?.abort();
-  }, [checkConnection, runtimeConfig.allowCustomVaultAddress]);
-
-  const handleTokenLogin = async (event: FormEvent) => {
-    event.preventDefault();
-    const normalized = validatedServerUrl();
-    if (!normalized) return;
-    if (!token.trim()) {
-      setErrorMessage('Enter a Vault token.');
-      return;
-    }
-    const controller = beginRequest();
+    const controller = connection.beginRequest();
     setErrorMessage('');
     try {
-      await session.signInWithToken(normalized, token.trim(), controller.signal);
-      setToken('');
+      await authenticate(normalized, controller.signal);
       navigate(destination, { replace: true });
     } catch (cause) {
       const error = normalizeVaultError(cause);
       if (error.code !== 'aborted') setErrorMessage(serverErrorMessage(error));
-      setToken('');
     }
   };
 
-  const handleUserpassLogin = async (event: FormEvent) => {
-    event.preventDefault();
-    const form = event.currentTarget as HTMLFormElement;
-    const usernameInput = form.elements.namedItem('username');
-    const passwordInput = form.elements.namedItem('password');
-    if (!(usernameInput instanceof HTMLInputElement)
-      || !(passwordInput instanceof HTMLInputElement)) {
-      setErrorMessage('The userpass login form is unavailable. Reload the page and try again.');
+  const signInWithToken = async (token: string) => {
+    if (!token) {
+      setErrorMessage('Enter a Vault token.');
       return;
     }
-    const username = usernameInput.value.trim();
-    const password = passwordInput.value;
-    const normalized = validatedServerUrl();
-    if (!normalized) return;
+    await signIn((serverUrl, signal) => session.signInWithToken(serverUrl, token, signal));
+  };
+
+  const signInWithUserpass = async ({ username, password }: UserpassFields) => {
     if (!userpassPath.trim() || !username || !password) {
       setErrorMessage(runtimeConfig.allowCustomUserpassMount
         ? 'Enter the auth mount, username, and password.'
         : 'Enter the username and password.');
       return;
     }
-    const controller = beginRequest();
-    setErrorMessage('');
-    try {
-      await session.signInWithUserpass({
-        serverUrl: normalized,
-        mount: userpassPath.trim(),
-        username,
-        password,
-      }, controller.signal);
-      navigate(destination, { replace: true });
-    } catch (cause) {
-      const error = normalizeVaultError(cause);
-      if (error.code !== 'aborted') setErrorMessage(serverErrorMessage(error));
-    } finally {
-      passwordInput.value = '';
-    }
+    await signIn((serverUrl, signal) => session.signInWithUserpass({
+      serverUrl,
+      mount: userpassPath.trim(),
+      username,
+      password,
+    }, signal));
   };
 
-  const statusContent: Readonly<Record<Exclude<ConnectionStatus, 'idle'>, { dot: string; title: string }>> = {
-    checking: { dot: 'bg-warning-400 animate-pulse', title: 'Checking Vault…' },
-    ready: { dot: 'bg-success-500', title: health?.standby ? 'Connected to standby' : 'Vault is ready' },
-    sealed: { dot: 'bg-warning-500', title: 'Vault is sealed' },
-    uninitialized: { dot: 'bg-danger-500', title: 'Vault is not initialized' },
-    unavailable: { dot: 'bg-danger-500', title: 'Vault is unavailable' },
-  };
-  const status = connectionStatus === 'idle' ? null : statusContent[connectionStatus];
-  const isAuthenticating = session.status === 'authenticating';
-  const selectAuthTabFromKeyboard = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault();
-    const nextTab: AuthTab = event.key === 'ArrowLeft' || event.key === 'Home' ? 'token' : 'userpass';
-    setAuthTab(nextTab);
+  const selectAuthTab = (tab: AuthTab) => {
+    setAuthTab(tab);
     setErrorMessage('');
-    document.getElementById(`${nextTab}-tab`)?.focus();
   };
 
   return (
-    <main id="main-content" tabIndex={-1} className="relative flex h-full items-center justify-center overflow-auto bg-background-100 px-4 py-8">
-      <div className="pointer-events-none absolute inset-0 opacity-50 [background-image:linear-gradient(to_right,oklch(var(--background-300)/.35)_1px,transparent_1px),linear-gradient(to_bottom,oklch(var(--background-300)/.35)_1px,transparent_1px)] [background-size:32px_32px]" />
-      <section aria-labelledby="login-heading" className="relative w-full max-w-[430px] overflow-hidden rounded-xl border border-background-300 bg-background-50 shadow-xl shadow-overlay/10">
-        <header className="border-b border-background-200 px-6 pb-5 pt-6">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-500 text-background-50">
-              <i className="ri-shield-keyhole-fill text-base" aria-hidden="true" />
-            </div>
-            <div>
-              <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.17em] text-primary-600">Self-hosted control plane</p>
-              <h1 id="login-heading" className="text-lg font-semibold tracking-tight text-foreground-900">Vault Console</h1>
-            </div>
+    <CenteredPanelLayout labelledBy="login-heading">
+      <header className="border-b border-background-200 px-6 pb-5 pt-6">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-500 text-background-50">
+            <i className="ri-shield-keyhole-fill text-base" aria-hidden="true" />
           </div>
-          <p className="text-xs leading-5 text-foreground-500">Sign in directly to the Vault server configured for this console. The session token stays scoped to this tab; the console never stores your password.</p>
-        </header>
+          <div>
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.17em] text-primary-600">Self-hosted control plane</p>
+            <h1 id="login-heading" className="text-lg font-semibold tracking-tight text-foreground-900">Vault Console</h1>
+          </div>
+        </div>
+        <p className="text-xs leading-5 text-foreground-500">Sign in directly to the Vault server configured for this console. The session token stays scoped to this tab; the console never stores your password.</p>
+      </header>
 
-        {(runtimeConfig.allowCustomVaultAddress || runtimeConfig.allowCustomUserpassMount) && (
-          <details className="border-b border-background-200 px-6 py-3">
-            <summary className="cursor-pointer text-[11px] font-medium text-foreground-500 hover:text-foreground-800">
-              Advanced connection settings
-            </summary>
-            <div className="mt-3 space-y-3">
-              {runtimeConfig.allowCustomVaultAddress && (
-                <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-                  <Input
-                    id="vault-address"
-                    label="Vault server"
-                    type="url"
-                    value={serverUrl}
-                    onChange={(event) => {
-                      setServerUrl(event.target.value);
-                      setConnectionStatus('idle');
-                      setHealth(undefined);
-                      setServerError('');
-                    }}
-                    error={serverError}
-                    placeholder="https://vault.example.com:8200"
-                    monospace
-                    spellCheck={false}
-                  />
-                  <Button type="button" size="md" onClick={() => void checkConnection()} loading={connectionStatus === 'checking'}>
-                    Test
-                  </Button>
-                </div>
-              )}
-              {runtimeConfig.allowCustomUserpassMount && authTab === 'userpass' && (
-                <Input
-                  id="userpass-mount"
-                  label="Auth mount path"
-                  value={userpassPath}
-                  onChange={(event) => setUserpassPath(event.target.value)}
-                  placeholder="userpass"
-                  autoComplete="off"
-                  monospace
-                  icon="ri-folder-3-line"
-                />
-              )}
-            </div>
-          </details>
-        )}
+      <AdvancedConnectionSettings
+        showAddress={runtimeConfig.allowCustomVaultAddress}
+        showMount={runtimeConfig.allowCustomUserpassMount && authTab === 'userpass'}
+        serverUrl={connection.serverUrl}
+        serverError={connection.serverError}
+        checking={connection.status === 'checking'}
+        userpassPath={userpassPath}
+        onServerUrlChange={connection.setServerUrl}
+        onTest={() => void connection.checkConnection()}
+        onUserpassPathChange={setUserpassPath}
+      />
 
-        {status && (
-          <div className="border-b border-background-200 px-6 py-3">
-            <div className="flex items-center gap-2 text-[11px]" aria-live="polite">
-              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.dot}`} />
-              <span className="font-medium text-foreground-700">{status.title}</span>
-              {health?.version && <span className="font-mono text-foreground-400">v{health.version}</span>}
-              {connectionStatus === 'ready' && (
-                <span className="ml-auto text-foreground-400">{serverUrl.trim().startsWith('https://') ? 'TLS' : 'No TLS'}</span>
-              )}
-              {connectionStatus === 'sealed' && (
-                <Link
-                  to="/unseal"
-                  state={{ serverUrl }}
-                  className="ml-auto inline-flex min-h-11 items-center gap-1 rounded px-1 font-medium text-primary-700 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-0"
-                >
-                  <i className="ri-lock-unlock-line" aria-hidden="true" />
-                  Unseal Vault
-                </Link>
-              )}
-            </div>
+      <ConnectionStatusBar status={connection.status} health={connection.health} serverUrl={connection.serverUrl} />
+
+      <AuthMethodTabs selected={authTab} onSelect={selectAuthTab} />
+
+      <div className="p-6">
+        {errorMessage && (
+          <div role="alert" className="mb-4 flex items-start gap-2 rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs leading-5 text-danger-700">
+            <i className="ri-error-warning-line mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+            <span>{errorMessage}</span>
           </div>
         )}
 
-        <div role="tablist" aria-label="Authentication method" className="grid grid-cols-2 border-b border-background-200 bg-background-100/50 px-6 pt-2">
-          <button
-            id="token-tab"
-            type="button"
-            role="tab"
-            aria-selected={authTab === 'token'}
-            aria-controls="token-panel"
-            tabIndex={authTab === 'token' ? 0 : -1}
-            onClick={() => { setAuthTab('token'); setErrorMessage(''); }}
-            onKeyDown={selectAuthTabFromKeyboard}
-            className={`border-b-2 px-3 py-2 text-xs font-medium transition-colors ${authTab === 'token' ? 'border-primary-500 text-primary-700' : 'border-transparent text-foreground-500 hover:text-foreground-800'}`}
-          >
-            Token
-          </button>
-          <button
-            id="userpass-tab"
-            type="button"
-            role="tab"
-            aria-selected={authTab === 'userpass'}
-            aria-controls="userpass-panel"
-            tabIndex={authTab === 'userpass' ? 0 : -1}
-            onClick={() => { setAuthTab('userpass'); setErrorMessage(''); }}
-            onKeyDown={selectAuthTabFromKeyboard}
-            className={`border-b-2 px-3 py-2 text-xs font-medium transition-colors ${authTab === 'userpass' ? 'border-primary-500 text-primary-700' : 'border-transparent text-foreground-500 hover:text-foreground-800'}`}
-          >
-            Username &amp; password
-          </button>
-        </div>
+        <UserpassLoginForm
+          hidden={authTab !== 'userpass'}
+          authenticating={authenticating}
+          onUnavailable={() => setErrorMessage('The userpass login form is unavailable. Reload the page and try again.')}
+          onSubmit={signInWithUserpass}
+        />
+        {authTab === 'token' && (
+          <TokenLoginForm authenticating={authenticating} onSubmit={signInWithToken} />
+        )}
+      </div>
 
-        <div className="p-6">
-          {errorMessage && (
-            <div role="alert" className="mb-4 flex items-start gap-2 rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs leading-5 text-danger-700">
-              <i className="ri-error-warning-line mt-0.5 shrink-0 text-sm" aria-hidden="true" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          <form
-            id="userpass-panel"
-            name="vault-userpass-login"
-            method="post"
-            autoComplete="on"
-            role="tabpanel"
-            aria-labelledby="userpass-tab"
-            hidden={authTab !== 'userpass'}
-            inert={authTab !== 'userpass'}
-            onSubmit={(event) => void handleUserpassLogin(event)}
-            className="space-y-3"
-          >
-            <Input
-              id="userpass-username"
-              name="username"
-              label="Username"
-              type="text"
-              placeholder="ops-team"
-              autoComplete="username"
-              icon="ri-user-line"
-              required
-              autoFocus
-            />
-            <Input
-              id="userpass-password"
-              name="password"
-              label="Password"
-              type="password"
-              placeholder="••••••••••••"
-              autoComplete="current-password"
-              icon="ri-lock-line"
-              required
-            />
-            <Button type="submit" variant="primary" className="mt-1 w-full" size="lg" loading={isAuthenticating}>
-              <i className="ri-login-box-line text-sm" aria-hidden="true" />
-              Sign in
-            </Button>
-          </form>
-
-          {authTab === 'token' && (
-            <form
-              id="token-panel"
-              name="vault-token-login"
-              autoComplete="off"
-              role="tabpanel"
-              aria-labelledby="token-tab"
-              onSubmit={(event) => void handleTokenLogin(event)}
-              className="space-y-4"
-            >
-              <Input
-                id="vault-token"
-                name="vault-token"
-                label="Vault token"
-                type="password"
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
-                placeholder="hvs.xxxxxxxxxxxxxxxxxxxx"
-                autoComplete="off"
-                monospace
-                icon="ri-key-2-line"
-                autoFocus
-              />
-              <Button type="submit" variant="primary" className="w-full" size="lg" loading={isAuthenticating}>
-                <i className="ri-login-box-line text-sm" aria-hidden="true" />
-                Sign in
-              </Button>
-            </form>
-          )}
-        </div>
-
-        <footer className="flex items-center justify-center gap-2 border-t border-background-200 bg-background-100 px-6 py-3 text-[10px] text-foreground-400">
-          <i className="ri-shield-check-line text-success-600" aria-hidden="true" />
-          {session.sessionPersistenceAvailable
-            ? 'Token stays in this tab; password storage follows your browser settings'
-            : 'Session restore is unavailable; credentials remain in memory only'}
-        </footer>
-      </section>
-    </main>
+      <footer className="flex items-center justify-center gap-2 border-t border-background-200 bg-background-100 px-6 py-3 text-[11px] text-foreground-500">
+        <i className="ri-shield-check-line text-success-600" aria-hidden="true" />
+        {session.sessionPersistenceAvailable
+          ? 'Token stays in this tab; password storage follows your browser settings'
+          : 'Session restore is unavailable; credentials remain in memory only'}
+      </footer>
+    </CenteredPanelLayout>
   );
 }

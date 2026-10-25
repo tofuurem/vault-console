@@ -118,6 +118,89 @@ function uniqueIssues(
   ));
 }
 
+type RuleClassification =
+  | { readonly kind: 'issue'; readonly issue: ManagedKvTargetIssue }
+  | { readonly kind: 'ignored-traversal'; readonly pattern: string }
+  | { readonly kind: 'candidate'; readonly candidate: Candidate };
+
+function ruleIssue(pattern: string, reason: ManagedKvTargetIssueReason): RuleClassification {
+  return { kind: 'issue', issue: { pattern, reason } };
+}
+
+function logicalTargetIssue(
+  endpoint: string,
+  logicalSegments: readonly string[],
+): ManagedKvTargetIssueReason | undefined {
+  if (!KV_ENDPOINTS.has(endpoint)) return 'unsupported-endpoint';
+  if (unsafeSegments(logicalSegments)) return 'unsafe-pattern';
+  if (hasUnsupportedWildcard(logicalSegments)) return 'unsupported-wildcard';
+  return undefined;
+}
+
+function rootCandidate(
+  rule: AccessPolicyRule,
+  mount: string,
+  endpoint: string,
+  pattern: string,
+): RuleClassification {
+  const metadataRootDeny = endpoint === 'metadata' && onlyCapability(rule, 'deny');
+  if (!metadataRootDeny) return ruleIssue(pattern, 'ambiguous-target');
+  return {
+    kind: 'candidate',
+    candidate: {
+      mount,
+      path: '',
+      target: 'secret',
+      endpoint,
+      pattern,
+      metadataRootDeny,
+      onlyDeny: true,
+    },
+  };
+}
+
+function classifyRule(
+  rule: AccessPolicyRule,
+  normalizedMounts: readonly string[],
+): RuleClassification {
+  const pattern = normalizeVaultPath(rule.pattern);
+  const segments = pattern.split('/');
+  if (!pattern || unsafeSegments(segments)) return ruleIssue(pattern, 'unsafe-pattern');
+
+  const mount = matchedMount(pattern, normalizedMounts);
+  if (!mount) return ruleIssue(pattern, 'outside-kv-mount');
+
+  const remainder = pattern.slice(mount.length + 1).split('/');
+  const [endpoint, ...logicalSegments] = remainder;
+  const issue = logicalTargetIssue(endpoint, logicalSegments);
+  if (issue) return ruleIssue(pattern, issue);
+
+  if (
+    endpoint === 'metadata'
+    && onlyCapability(rule, 'list')
+    && logicalSegments.at(-1) !== '*'
+  ) {
+    return { kind: 'ignored-traversal', pattern };
+  }
+
+  if (logicalSegments.length === 0) return rootCandidate(rule, mount, endpoint, pattern);
+
+  const recursive = logicalSegments.at(-1) === '*';
+  const path = (recursive ? logicalSegments.slice(0, -1) : logicalSegments).join('/');
+  return {
+    kind: 'candidate',
+    candidate: {
+      mount,
+      path,
+      target: recursive ? 'folder' : 'secret',
+      endpoint,
+      pattern,
+      metadataRootDeny: false,
+      onlyDeny: onlyCapability(rule, 'deny'),
+    },
+  };
+}
+
 export function deriveManagedKvTargets(
   mounts: readonly string[],
   rules: readonly AccessPolicyRule[],
@@ -128,72 +211,10 @@ export function deriveManagedKvTargets(
   const issues: ManagedKvTargetIssue[] = [];
 
   for (const rule of rules) {
-    const pattern = normalizeVaultPath(rule.pattern);
-    const segments = pattern.split('/');
-    if (!pattern || unsafeSegments(segments)) {
-      issues.push({ pattern, reason: 'unsafe-pattern' });
-      continue;
-    }
-
-    const mount = matchedMount(pattern, normalizedMounts);
-    if (!mount) {
-      issues.push({ pattern, reason: 'outside-kv-mount' });
-      continue;
-    }
-
-    const remainder = pattern.slice(mount.length + 1).split('/');
-    const [endpoint, ...logicalSegments] = remainder;
-    if (!KV_ENDPOINTS.has(endpoint)) {
-      issues.push({ pattern, reason: 'unsupported-endpoint' });
-      continue;
-    }
-    if (unsafeSegments(logicalSegments)) {
-      issues.push({ pattern, reason: 'unsafe-pattern' });
-      continue;
-    }
-    if (hasUnsupportedWildcard(logicalSegments)) {
-      issues.push({ pattern, reason: 'unsupported-wildcard' });
-      continue;
-    }
-
-    if (
-      endpoint === 'metadata'
-      && onlyCapability(rule, 'list')
-      && logicalSegments.at(-1) !== '*'
-    ) {
-      ignoredTraversalPatterns.push(pattern);
-      continue;
-    }
-
-    if (logicalSegments.length === 0) {
-      const metadataRootDeny = endpoint === 'metadata' && onlyCapability(rule, 'deny');
-      if (!metadataRootDeny) {
-        issues.push({ pattern, reason: 'ambiguous-target' });
-        continue;
-      }
-      candidates.push({
-        mount,
-        path: '',
-        target: 'secret',
-        endpoint,
-        pattern,
-        metadataRootDeny,
-        onlyDeny: true,
-      });
-      continue;
-    }
-
-    const recursive = logicalSegments.at(-1) === '*';
-    const path = (recursive ? logicalSegments.slice(0, -1) : logicalSegments).join('/');
-    candidates.push({
-      mount,
-      path,
-      target: recursive ? 'folder' : 'secret',
-      endpoint,
-      pattern,
-      metadataRootDeny: false,
-      onlyDeny: onlyCapability(rule, 'deny'),
-    });
+    const classification = classifyRule(rule, normalizedMounts);
+    if (classification.kind === 'issue') issues.push(classification.issue);
+    else if (classification.kind === 'ignored-traversal') ignoredTraversalPatterns.push(classification.pattern);
+    else candidates.push(classification.candidate);
   }
 
   const folderLogicalKeys = new Set(

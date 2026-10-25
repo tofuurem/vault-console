@@ -3,23 +3,15 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 
 import {
   useUserLifecycleSnapshot,
 } from '@/application/vault/access-lifecycle/lifecycle-queries';
-import { vaultQueryKeys } from '@/application/query/vault-query-keys';
-import {
-  ChangePlanExecutor,
-} from '@/application/vault/access-lifecycle/change-plan-executor';
-import {
-  buildUserEditPlan,
-  loadUserLifecycleSnapshot,
-  type UserLifecycleRef,
-} from '@/application/vault/access-lifecycle/user-lifecycle';
+import type { UserLifecycleRef } from '@/application/vault/access-lifecycle/user-lifecycle';
 import Button from '@/components/base/Button';
 import ContentSkeleton from '@/components/base/ContentSkeleton';
 import type {
+  ChangePlan,
   OperationRunState,
   PlanExecutionResult,
   UserLifecycleSnapshot,
@@ -33,14 +25,12 @@ import type { CreateUserAccessCatalog } from '../create-user/access';
 import AccessReview from '../workspace/AccessReview';
 import AccessWorkspaceShell, {
   type AccessWorkspaceShellHandle,
-  type WorkspaceStep,
 } from '../workspace/AccessWorkspaceShell';
 import PlanExecutionNotice from '../workspace/PlanExecutionNotice';
-import WorkspaceErrorSummary, {
-  type WorkspaceValidationError,
-} from '../workspace/WorkspaceErrorSummary';
+import WorkspaceErrorSummary from '../workspace/WorkspaceErrorSummary';
 import UserAccountStep from './UserAccountStep';
 import UserDirectKvStep from './UserDirectKvStep';
+import UserEditorFooter from './UserEditorFooter';
 import UserGroupsRolesStep from './UserGroupsRolesStep';
 import {
   createUserEditorInitialState,
@@ -48,15 +38,15 @@ import {
   userEditorDraftKey,
   type UserEditorDraft,
 } from './user-editor-draft';
-
-type UserEditorStep = 'account' | 'sources' | 'direct' | 'review';
-
-const STEP_ORDER: readonly UserEditorStep[] = [
-  'account',
-  'sources',
-  'direct',
-  'review',
-];
+import {
+  buildUserEditPlanOrNull,
+  buildUserEditorSteps,
+  canApplyUserEditPlan,
+  STEP_ORDER,
+  userEditorErrors,
+  type UserEditorStep,
+} from './user-editor-plan';
+import { useUserEditorApply } from './useUserEditorApply';
 
 function ErrorState({
   message,
@@ -128,6 +118,45 @@ export default function UserAccessEditor({
   );
 }
 
+function UserEditorReview({
+  plan,
+  confirmation,
+  onConfirmationChange,
+  progress,
+  result,
+}: {
+  readonly plan: ChangePlan;
+  readonly confirmation: string;
+  readonly onConfirmationChange: (value: string) => void;
+  readonly progress: Readonly<Record<string, OperationRunState>>;
+  readonly result: PlanExecutionResult | undefined;
+}) {
+  return (
+    <div className="space-y-4">
+      <AccessReview
+        plan={plan}
+        confirmation={confirmation}
+        onConfirmationChange={onConfirmationChange}
+      />
+      {Object.keys(progress).length > 0 && (
+        <section aria-live="polite" className="rounded-lg border border-background-300 bg-background-50 p-3">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground-400">
+            Apply progress
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {Object.entries(progress).map(([operationId, state]) => (
+              <span key={operationId} className="rounded-sm bg-background-100 px-2 py-1 font-mono text-[10px] text-foreground-600">
+                {operationId}: {state}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+      <PlanExecutionNotice result={result} />
+    </div>
+  );
+}
+
 function UserAccessEditorForm({
   snapshot,
   reference,
@@ -147,7 +176,6 @@ function UserAccessEditorForm({
   readonly onDone: () => void;
   readonly onSessionExpired?: () => void;
 }) {
-  const queryClient = useQueryClient();
   const workspace = useRef<AccessWorkspaceShellHandle>(null);
   const initial = useMemo(
     () => createUserEditorInitialState(snapshot, catalog),
@@ -156,29 +184,26 @@ function UserAccessEditorForm({
   const [draft, setDraft] = useState<UserEditorDraft>(initial.draft);
   const [step, setStep] = useState<UserEditorStep>('account');
   const [confirmation, setConfirmation] = useState('');
-  const [progress, setProgress] = useState<Record<string, OperationRunState>>({});
-  const [result, setResult] = useState<PlanExecutionResult>();
-  const [applying, setApplying] = useState(false);
-  const executorRef = useRef<ChangePlanExecutor | null>(null);
-  const initialKey = userEditorDraftKey(initial.draft);
-  const draftKey = userEditorDraftKey(draft);
-  const dirty = draftKey !== initialKey;
+  const {
+    apply: applyPlan,
+    applying,
+    progress,
+    result,
+  } = useUserEditorApply({
+    reference,
+    gateway,
+    session,
+    workspace,
+    onDone,
+    onSessionExpired,
+  });
+  const dirty = userEditorDraftKey(draft) !== userEditorDraftKey(initial.draft);
   const managedRolePolicyNames = catalog.roles.flatMap(({ policyNames }) => policyNames);
-  const errors = useMemo<readonly WorkspaceValidationError[]>(() => {
-    const values: WorkspaceValidationError[] = [];
-    if (
-      snapshot.entity?.metadata?.managed_by === 'vault-console'
-      && !draft.displayName.trim()
-    ) {
-      values.push({
-        id: 'display-name',
-        message: 'Display name is required for a managed Identity entity.',
-        step: 'account',
-        fieldId: 'user-display-name',
-      });
-    }
-    return values;
-  }, [draft.displayName, snapshot.entity?.metadata?.managed_by]);
+  const managedBy = snapshot.entity?.metadata?.managed_by;
+  const errors = useMemo(
+    () => userEditorErrors(managedBy, draft.displayName),
+    [draft.displayName, managedBy],
+  );
   const displayNameError = errors.find(
     ({ fieldId }) => fieldId === 'user-display-name',
   )?.message;
@@ -187,62 +212,23 @@ function UserAccessEditorForm({
     draft,
     initial.directPolicySupported,
   );
-  const plan = useMemo(() => {
-    try {
-      return buildUserEditPlan(snapshot, {
-        displayName: draft.displayName,
-        groupIds: draft.groupIds,
-        directRolePolicyNames: draft.directRoleIds,
-        managedRolePolicyNames,
-        directPolicy,
-        adoptDirectPolicy: draft.adoptDirectPolicy,
-      });
-    } catch {
-      return null;
-    }
-  }, [
+  const plan = useMemo(() => buildUserEditPlanOrNull(snapshot, {
+    displayName: draft.displayName,
+    groupIds: draft.groupIds,
+    directRolePolicyNames: draft.directRoleIds,
+    managedRolePolicyNames,
+    directPolicy,
+    adoptDirectPolicy: draft.adoptDirectPolicy,
+  }), [
     directPolicy,
     draft,
     managedRolePolicyNames,
     snapshot,
   ]);
-  const confirmationValid = !plan?.confirmation?.required
-    || confirmation === plan.confirmation.value;
-  const canApply = Boolean(
-    plan
-    && plan.operations.length > 0
-    && plan.visibility.complete
-    && errors.length === 0
-    && confirmationValid
-    && !applying,
-  );
-  const steps: readonly WorkspaceStep[] = [
-    {
-      id: 'account',
-      label: 'Account',
-      description: 'Login and token settings',
-      complete: step !== 'account' && errors.length === 0,
-      invalid: errors.some((error) => error.step === 'account'),
-    },
-    {
-      id: 'sources',
-      label: 'Groups & roles',
-      description: 'Identity and token policies',
-      complete: ['direct', 'review'].includes(step),
-    },
-    {
-      id: 'direct',
-      label: 'Direct KV',
-      description: 'Per-user policy layer',
-      complete: step === 'review',
-    },
-    {
-      id: 'review',
-      label: 'Review',
-      description: 'Preflight and apply',
-    },
-  ];
+  const canApply = canApplyUserEditPlan({ plan, errors, confirmation, applying });
+  const steps = buildUserEditorSteps(step, errors);
   const stepIndex = STEP_ORDER.indexOf(step);
+  const continueBlocked = errors.length > 0 && step === 'account';
   const goTo = (next: string, fieldId?: string) => {
     setStep(next as UserEditorStep);
     if (fieldId) {
@@ -251,72 +237,7 @@ function UserAccessEditorForm({
   };
   const apply = async () => {
     if (!plan || !canApply) return;
-    setApplying(true);
-    setResult(undefined);
-    executorRef.current = new ChangePlanExecutor({
-      gateway,
-      session,
-      plan,
-      loadFreshState: async (signal) => {
-        const fresh = await loadUserLifecycleSnapshot(
-          gateway,
-          session,
-          reference,
-          signal,
-        );
-        return {
-          fingerprint: fresh.fingerprint,
-          visibility: fresh.visibility,
-        };
-      },
-    });
-    try {
-      const execution = await executorRef.current.apply({
-        confirmation,
-        onProgress: (operationId, state) => {
-          setProgress((current) => ({ ...current, [operationId]: state }));
-        },
-      });
-      setResult(execution);
-      if (execution.status === 'completed') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: vaultQueryKeys.allUserpassUsers() }),
-          queryClient.invalidateQueries({ queryKey: vaultQueryKeys.groups() }),
-          queryClient.invalidateQueries({ queryKey: vaultQueryKeys.policies() }),
-          queryClient.invalidateQueries({
-            queryKey: vaultQueryKeys.policyRecords(),
-          }),
-          queryClient.invalidateQueries({
-            queryKey: vaultQueryKeys.policyCatalogs(),
-          }),
-          queryClient.invalidateQueries({
-            queryKey: vaultQueryKeys.userAccessAccount(reference.mount, reference.username),
-          }),
-          queryClient.invalidateQueries({
-            queryKey: vaultQueryKeys.userAccessIdentity(reference.mount, reference.username),
-          }),
-          queryClient.invalidateQueries({
-            queryKey: vaultQueryKeys.userAccessGroups(reference.mount, reference.username),
-          }),
-        ]);
-        workspace.current?.allowNextNavigation();
-        onDone();
-      }
-    } catch (cause) {
-      const error = normalizeVaultError(cause);
-      if (error.code === 'session-expired') {
-        workspace.current?.allowNextNavigation();
-        onSessionExpired?.();
-      }
-      setResult({
-        status: 'partial',
-        operations: [],
-        recovery: [],
-        errorMessage: error.message,
-      });
-    } finally {
-      setApplying(false);
-    }
+    await applyPlan(plan, confirmation);
   };
 
   return (
@@ -332,47 +253,21 @@ function UserAccessEditorForm({
       dirty={dirty && result?.status !== 'completed'}
       stateLabel={applying ? 'Applying' : 'Draft'}
       footer={(
-        <>
-          <span className="hidden font-mono text-[9px] text-foreground-400 sm:block">
-            {dirty ? `${plan?.operations.length ?? 0} staged Vault changes` : 'No draft changes'}
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            {stepIndex > 0 && (
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setStep(STEP_ORDER[stepIndex - 1])}
-              >
-                <i className="ri-arrow-left-line" aria-hidden="true" /> Back
-              </Button>
-            )}
-            {step !== 'review' ? (
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  if (errors.length > 0 && step === 'account') return;
-                  setStep(STEP_ORDER[stepIndex + 1]);
-                }}
-                disabled={errors.length > 0 && step === 'account'}
-              >
-                Continue <i className="ri-arrow-right-line" aria-hidden="true" />
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                loading={applying}
-                disabled={!canApply}
-                onClick={() => { void apply(); }}
-              >
-                Apply {plan?.operations.length ?? 0} change{plan?.operations.length === 1 ? '' : 's'}
-              </Button>
-            )}
-          </div>
-        </>
+        <UserEditorFooter
+          dirty={dirty}
+          operationCount={plan?.operations.length ?? 0}
+          showBack={stepIndex > 0}
+          reviewing={step === 'review'}
+          continueBlocked={continueBlocked}
+          applying={applying}
+          canApply={canApply}
+          onBack={() => setStep(STEP_ORDER[stepIndex - 1])}
+          onContinue={() => {
+            if (continueBlocked) return;
+            setStep(STEP_ORDER[stepIndex + 1]);
+          }}
+          onApply={() => { void apply(); }}
+        />
       )}
     >
       <WorkspaceErrorSummary errors={errors} onNavigate={goTo} />
@@ -403,28 +298,13 @@ function UserAccessEditorForm({
         />
       )}
       {step === 'review' && plan && (
-        <div className="space-y-4">
-          <AccessReview
-            plan={plan}
-            confirmation={confirmation}
-            onConfirmationChange={setConfirmation}
-          />
-          {Object.keys(progress).length > 0 && (
-            <section aria-live="polite" className="rounded-lg border border-background-300 bg-background-50 p-3">
-              <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-foreground-400">
-                Apply progress
-              </p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {Object.entries(progress).map(([operationId, state]) => (
-                  <span key={operationId} className="rounded-sm bg-background-100 px-2 py-1 font-mono text-[9px] text-foreground-600">
-                    {operationId}: {state}
-                  </span>
-                ))}
-              </div>
-            </section>
-          )}
-          <PlanExecutionNotice result={result} />
-        </div>
+        <UserEditorReview
+          plan={plan}
+          confirmation={confirmation}
+          onConfirmationChange={setConfirmation}
+          progress={progress}
+          result={result}
+        />
       )}
       {step === 'review' && !plan && (
         <div role="alert" className="rounded-lg border border-danger-300 bg-danger-50 p-4 text-xs text-danger-900">
