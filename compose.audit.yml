@@ -1,0 +1,38 @@
+# Optional Activity log. Use together with compose.yml:
+#   docker compose -f compose.yml -f compose.audit.yml up -d
+#
+# Vault must write a file audit device into VAULT_AUDIT_DIR, for example:
+#   vault audit enable file file_path=/vault/audit/audit.log
+# with the same host directory mounted into the Vault container at /vault/audit.
+
+services:
+  vault-console:
+    environment:
+      VAULT_CONSOLE_AUDIT_UPSTREAM: http://vault-console-audit:8090
+
+  vault-console-audit:
+    image: ${VAULT_CONSOLE_IMAGE:-vault-console:local}
+    entrypoint: ["/usr/local/bin/vault-console-audit"]
+    restart: unless-stopped
+    # The official Vault image writes audit files as vault (100:1000) with mode 0600.
+    user: "${VAULT_AUDIT_READER_USER:-100:1000}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      VAULT_UPSTREAM: ${VAULT_UPSTREAM:?Set VAULT_UPSTREAM to the existing Vault URL on the Docker network}
+      VAULT_AUDIT_LOG: /vault/audit/${VAULT_AUDIT_FILE:-audit.log}
+    volumes:
+      - type: bind
+        source: ${VAULT_AUDIT_DIR:?Set VAULT_AUDIT_DIR to the host directory that holds the Vault audit log}
+        target: /vault/audit
+        read_only: true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8090/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    networks:
+      - vault-network

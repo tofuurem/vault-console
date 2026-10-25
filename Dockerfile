@@ -6,6 +6,12 @@ RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
 
+FROM golang:1.24-alpine@sha256:8bee1901f1e530bfb4a7850aa7a479d17ae3a18beb6e09064ed54cfd245b7191 AS audit-reader
+
+WORKDIR /src
+COPY services/audit-reader/ ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/vault-console-audit .
+
 FROM nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
 
 COPY deploy/nginx.conf /etc/vault-console/nginx.conf
@@ -14,6 +20,7 @@ COPY deploy/security-headers.conf /etc/nginx/security-headers.conf
 COPY deploy/runtime-config.js.template /etc/vault-console/runtime-config.js.template
 COPY deploy/vault-console-entrypoint.sh /usr/local/bin/vault-console-entrypoint
 COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=audit-reader /out/vault-console-audit /usr/local/bin/vault-console-audit
 
 RUN chmod 0555 /usr/local/bin/vault-console-entrypoint
 

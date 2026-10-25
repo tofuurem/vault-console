@@ -42,6 +42,8 @@ jobs:
         run: npm run audit:production
       - name: Audit complete dependency tree
         run: npm run audit
+      - name: Test the audit reader service
+        run: npm run test:audit-reader
 
   vault-integration:
     name: Vault ${{ matrix.tier }} (${{ matrix.version }})
