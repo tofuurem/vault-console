@@ -40,3 +40,20 @@ export function resolveRuntimeConfig(input: RuntimeConfigInput | undefined): Vau
       : DEFAULT_RUNTIME_CONFIG.allowCustomUserpassMount,
   };
 }
+
+/** Address the pre-session screens contact before the operator edits it. */
+export function initialVaultServerUrl(
+  config: VaultConsoleRuntimeConfig,
+  requested?: unknown,
+): string {
+  if (!config.allowCustomVaultAddress) return window.location.origin;
+  if (typeof requested === 'string' && requested.trim()) return requested;
+  return import.meta.env.VITE_VAULT_ADDR || window.location.origin;
+}
+
+/** Reads a server URL handed between pre-session routes through history state. */
+export function requestedVaultServerUrl(state: unknown): string | undefined {
+  if (typeof state !== 'object' || state === null || !('serverUrl' in state)) return undefined;
+  const { serverUrl } = state as { readonly serverUrl?: unknown };
+  return typeof serverUrl === 'string' ? serverUrl : undefined;
+}

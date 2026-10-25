@@ -10,6 +10,7 @@ import LazyRoute from './LazyRoute';
 
 const ExplorerPage = lazy(() => import('../pages/explorer/page'));
 const AccessControlPage = lazy(() => import('../pages/access-control/page'));
+const UnsealPage = lazy(() => import('../pages/unseal/page'));
 
 const applicationRoutes: RouteObject[] = [
   {
@@ -19,6 +20,10 @@ const applicationRoutes: RouteObject[] = [
   {
     path: "/login",
     element: <LoginRoute><LoginPage /></LoginRoute>,
+  },
+  {
+    path: '/unseal',
+    element: <LazyRoute><UnsealPage /></LazyRoute>,
   },
   {
     element: <RequireSession><AuthenticatedAppShell /></RequireSession>,

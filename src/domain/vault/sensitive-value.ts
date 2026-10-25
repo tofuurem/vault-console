@@ -31,11 +31,16 @@ class MemoryOnlySensitiveValue<Kind extends string> implements SensitiveValue<Ki
 
 export type VaultToken = SensitiveValue<'vault-token'>;
 export type VaultPassword = SensitiveValue<'vault-password'>;
+export type VaultUnsealKey = SensitiveValue<'vault-unseal-key'>;
 
 export function vaultToken(value: string): VaultToken {
   return new MemoryOnlySensitiveValue(value);
 }
 
 export function vaultPassword(value: string): VaultPassword {
+  return new MemoryOnlySensitiveValue(value);
+}
+
+export function vaultUnsealKey(value: string): VaultUnsealKey {
   return new MemoryOnlySensitiveValue(value);
 }

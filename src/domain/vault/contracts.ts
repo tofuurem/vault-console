@@ -1,4 +1,5 @@
-import type { VaultPassword, VaultToken } from './sensitive-value';
+import type { VaultPassword, VaultToken, VaultUnsealKey } from './sensitive-value';
+import type { VaultSealStatus } from './seal';
 import type { CreateKvV2Mount } from './kv-mount';
 import type {
   KvV2MountConfig,
@@ -58,6 +59,12 @@ export interface VaultAuthGateway {
   renewSelf(session: VaultSession, signal?: AbortSignal): Promise<VaultSessionLease>;
   revokeSelf(session: VaultSession, signal?: AbortSignal): Promise<void>;
   getCapabilities(session: VaultSession, paths: readonly string[], signal?: AbortSignal): Promise<VaultCapabilityMap>;
+}
+
+export interface VaultSealGateway {
+  getSealStatus(serverUrl: string, signal?: AbortSignal): Promise<VaultSealStatus>;
+  submitUnsealKey(serverUrl: string, key: VaultUnsealKey, signal?: AbortSignal): Promise<VaultSealStatus>;
+  resetUnseal(serverUrl: string, signal?: AbortSignal): Promise<VaultSealStatus>;
 }
 
 export interface KvV2Mount {

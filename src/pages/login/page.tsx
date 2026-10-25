@@ -6,31 +6,20 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { useRuntimeConfig } from '@/application/config/RuntimeConfigContext';
+import { initialVaultServerUrl, requestedVaultServerUrl } from '@/application/config/runtime-config';
 import { useVaultSession } from '@/application/vault/VaultSessionContext';
 import Button from '@/components/base/Button';
 import { Input } from '@/components/base/Input';
 import type { VaultHealth } from '@/domain/vault/contracts';
 import { normalizeVaultError, type VaultError } from '@/domain/vault/errors';
+import { normalizeVaultServerUrl } from '@/domain/vault/server-url';
 import { postLoginDestination } from '@/router/post-login-destination';
 
 type AuthTab = 'token' | 'userpass';
 type ConnectionStatus = 'idle' | 'checking' | 'ready' | 'sealed' | 'uninitialized' | 'unavailable';
-
-const DEFAULT_VAULT_ADDRESS = import.meta.env.VITE_VAULT_ADDR || window.location.origin;
-
-function normalizeServerUrl(value: string): string {
-  const url = new URL(value.trim());
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
-    throw new Error('Invalid Vault address');
-  }
-  url.hash = '';
-  url.search = '';
-  url.pathname = url.pathname.replace(/\/+$/, '').replace(/\/v1$/, '');
-  return url.toString().replace(/\/$/, '');
-}
 
 function serverErrorMessage(error: VaultError): string {
   if (error.code === 'unavailable') {
@@ -48,7 +37,7 @@ export default function LoginPage() {
   const requestRef = useRef<AbortController | null>(null);
   const [authTab, setAuthTab] = useState<AuthTab>('userpass');
   const [serverUrl, setServerUrl] = useState(
-    runtimeConfig.allowCustomVaultAddress ? DEFAULT_VAULT_ADDRESS : window.location.origin,
+    () => initialVaultServerUrl(runtimeConfig, requestedVaultServerUrl(location.state)),
   );
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle');
   const [health, setHealth] = useState<VaultHealth>();
@@ -73,7 +62,7 @@ export default function LoginPage() {
 
   const validatedServerUrl = useCallback((): string | null => {
     try {
-      const normalized = normalizeServerUrl(serverUrl);
+      const normalized = normalizeVaultServerUrl(serverUrl);
       setServerError('');
       return normalized;
     } catch {
@@ -255,6 +244,16 @@ export default function LoginPage() {
               {health?.version && <span className="font-mono text-foreground-400">v{health.version}</span>}
               {connectionStatus === 'ready' && (
                 <span className="ml-auto text-foreground-400">{serverUrl.trim().startsWith('https://') ? 'TLS' : 'No TLS'}</span>
+              )}
+              {connectionStatus === 'sealed' && (
+                <Link
+                  to="/unseal"
+                  state={{ serverUrl }}
+                  className="ml-auto inline-flex min-h-11 items-center gap-1 rounded px-1 font-medium text-primary-700 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:min-h-0"
+                >
+                  <i className="ri-lock-unlock-line" aria-hidden="true" />
+                  Unseal Vault
+                </Link>
               )}
             </div>
           </div>

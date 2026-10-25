@@ -179,6 +179,23 @@ describe('VaultHttpClient', () => {
     ).resolves.toEqual({ sealed: true });
   });
 
+  it('classifies the structured sealed marker without exposing Vault text', async () => {
+    const client = new VaultHttpClient(
+      vi.fn<VaultFetch>().mockResolvedValue(
+        new Response(JSON.stringify({ errors: ['Vault is sealed'] }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    );
+
+    await expect(client.request('https://vault.example.test', 'sys/mounts')).rejects.toMatchObject({
+      code: 'sealed',
+      status: 503,
+      message: 'Vault is sealed. Unseal it before continuing.',
+    });
+  });
+
   it('rejects non-http server URLs before sending a request', async () => {
     const fetchRequest = vi.fn<VaultFetch>();
     const client = new VaultHttpClient(fetchRequest);

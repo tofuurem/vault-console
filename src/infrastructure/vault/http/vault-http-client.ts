@@ -50,6 +50,7 @@ interface VaultErrorResponseSummary {
   readonly requestId?: string;
   readonly invalidToken: boolean;
   readonly casConflict: boolean;
+  readonly sealed: boolean;
 }
 
 function vaultErrorLines(value: unknown): readonly string[] {
@@ -73,6 +74,10 @@ function isCasConflictError(value: unknown): boolean {
   ));
 }
 
+function isSealedError(value: unknown): boolean {
+  return vaultErrorLines(value).includes('vault is sealed');
+}
+
 async function errorResponseSummary(response: Response): Promise<VaultErrorResponseSummary> {
   try {
     const payload = await response.clone().json() as { request_id?: unknown };
@@ -80,9 +85,10 @@ async function errorResponseSummary(response: Response): Promise<VaultErrorRespo
       ...(typeof payload.request_id === 'string' ? { requestId: payload.request_id } : {}),
       invalidToken: isInvalidTokenError(payload),
       casConflict: isCasConflictError(payload),
+      sealed: isSealedError(payload),
     };
   } catch {
-    return { invalidToken: false, casConflict: false };
+    return { invalidToken: false, casConflict: false, sealed: false };
   }
 }
 
@@ -194,6 +200,12 @@ export class VaultHttpClient {
         const requestId = responseRequestId(response) ?? summary.requestId;
         if (summary.invalidToken) {
           throw new VaultError('session-expired', {
+            status: response.status,
+            diagnostic: diagnosticFor(options, startedAt, response, requestId),
+          });
+        }
+        if (summary.sealed) {
+          throw new VaultError('sealed', {
             status: response.status,
             diagnostic: diagnosticFor(options, startedAt, response, requestId),
           });

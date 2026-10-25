@@ -19,8 +19,10 @@ import { useKvV2Gateway } from '@/application/vault/KvV2GatewayContext';
 import { KvSearchProvider } from '@/application/vault/search/KvSearchProvider';
 import { useKvSearch } from '@/application/vault/search/KvSearchContext';
 import { useSessionClock } from '@/application/vault/useSessionClock';
+import { useVaultSealedSignal } from '@/application/vault/useVaultSealedSignal';
 import CommandPalette from '@/components/feature/CommandPalette';
 import CreateKvMountDialog from '@/components/feature/CreateKvMountDialog';
+import SealedVaultBanner from '@/components/feature/SealedVaultBanner';
 import SessionExpiryBanner from '@/components/feature/SessionExpiryBanner';
 import Sidebar from '@/components/feature/Sidebar';
 import TopBar from '@/components/feature/TopBar';
@@ -91,6 +93,7 @@ function AuthenticatedWorkspace() {
     navigate('/login', { replace: true, state: { reason: 'revoked' } });
   }, [navigate, queryClient, vault]);
   const [mountsState, refreshMounts] = useKvMounts(session);
+  const [vaultSealed, dismissSealedNotice] = useVaultSealedSignal();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [createMountOpen, setCreateMountOpen] = useState(false);
@@ -241,6 +244,7 @@ function AuthenticatedWorkspace() {
         renewal={vault.renewal}
         onRenew={renewSession}
       />
+      {vaultSealed && <SealedVaultBanner onDismiss={dismissSealedNotice} />}
       {accessNotice && (
         <div className="flex items-center gap-2 border-b border-warning-200 bg-warning-50 px-4 py-1.5 text-xs text-warning-700" role="status">
           <i className="ri-shield-user-line shrink-0 text-sm" aria-hidden="true" />
