@@ -238,8 +238,46 @@ HCL policies остаются External/read-only и не переписываю�
 
 ## Reverse proxy и TLS
 
-Контейнер слушает порт `8080`. Если Vault Console и штатный Vault UI работают
-на одном origin, явно разделите UI и API routes:
+Контейнер слушает порт `8080`.
+
+### Отдельный сайт рядом с существующим Vault (рекомендуется)
+
+Если Caddy уже обслуживает Vault на своём домене (например,
+`vault.example.com`), добавьте Vault Console отдельным сайтом, не меняя ни
+блок Vault, ни контейнер Vault. Готовый файл:
+[`deploy/caddy/vault-console.caddy`](deploy/caddy/vault-console.caddy).
+
+1. Скопируйте файл в каталог, смонтированный в контейнер Caddy, например
+   `/etc/caddy/sites/vault-console.caddy`.
+2. Добавьте в конец основного Caddyfile одну строку:
+
+   ```caddyfile
+   import /etc/caddy/sites/vault-console.caddy
+   ```
+
+3. Задайте домен консоли в окружении Caddy
+   (`VAULT_CONSOLE_DOMAIN=vault-console.example.com`) или замените значение по
+   умолчанию в файле.
+4. Убедитесь, что Caddy, Vault и Vault Console подключены к одной network
+   (`VAULT_DOCKER_NETWORK`), а `VAULT_UPSTREAM` указывает на Vault внутри неё.
+5. Проверьте и перезагрузите Caddy:
+
+   ```bash
+   docker exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+   docker exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+   ```
+
+Весь трафик сайта идёт в `vault-console:8080`; встроенный Nginx сам
+пересылает `/v1/*` в `VAULT_UPSTREAM`, поэтому Caddy не нужен маршрут к Vault
+и CORS не требуется. Unseal, seal-status и health работают через тот же прокси,
+пока Vault запечатан. Если Caddy запущен на хосте, а не в Docker, замените
+upstream на `127.0.0.1:8080`. Access log в сайте намеренно не включён: пути
+запросов содержат имена mounts, секретов и пользователей.
+
+### Один origin со штатным Vault UI
+
+Если Vault Console и штатный Vault UI работают на одном origin, явно разделите
+UI и API routes:
 
 ```caddyfile
 vault-console.example.com {

@@ -1,0 +1,55 @@
+# Vault Console as a separate Caddy site next to an existing Vault site.
+#
+# The existing Vault site block (for example vault.example.com -> vault:8200)
+# and the Vault container stay exactly as they are. Add one line to the end of
+# the main Caddyfile and reload Caddy:
+#
+#     import /etc/caddy/sites/vault-console.caddy
+#
+# Requirements:
+#   - Caddy, Vault, and Vault Console share the Docker network from
+#     VAULT_DOCKER_NETWORK (caddy_net by default);
+#   - VAULT_UPSTREAM in Vault Console's .env points to Vault inside that
+#     network, for example http://vault:8200;
+#   - DNS for the console domain points to this Caddy instance.
+#
+# Vault Console's own Nginx serves the application and forwards /v1/* to
+# VAULT_UPSTREAM, so this site never needs a route to Vault and needs no CORS
+# configuration. Unseal, seal-status, and health endpoints work through the
+# same proxy while Vault is sealed.
+#
+# Set VAULT_CONSOLE_DOMAIN in Caddy's environment or replace the default below.
+# If Caddy runs on the host instead of in Docker, change the upstream to
+# 127.0.0.1:8080 (the port published by compose.yml).
+
+{$VAULT_CONSOLE_DOMAIN:vault-console.example.com} {
+	encode zstd gzip
+
+	# Matches client_max_body_size in Vault Console's Nginx.
+	request_body {
+		max_size 32MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+		-Via
+	}
+
+	reverse_proxy vault-console:8080 {
+		# Vault Console publishes an unauthenticated container health endpoint.
+		health_uri /healthz
+		health_interval 30s
+		health_timeout 3s
+
+		# Long-running Vault calls (bulk operations, large KV documents).
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 65s
+		}
+	}
+
+	# Access logging is intentionally not enabled: request paths contain KV
+	# mount names, secret paths, and usernames. Use a Vault audit device for
+	# the authoritative operation trail.
+}
