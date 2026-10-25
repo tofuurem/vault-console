@@ -1,7 +1,18 @@
-import GenericEngineBrowser from '../components/GenericEngineBrowser';
+import { DatabaseGatewayProvider } from '@/application/engines/database/DatabaseGatewayProvider';
+import type { DatabaseEngineGateway } from '@/domain/engines/database/database';
 import type { EnginePageProps } from '../engine-page';
+import DatabaseWorkspace from './components/DatabaseWorkspace';
 
-/** Placeholder until the dedicated database workspace lands. */
-export default function DatabaseEnginePage(props: EnginePageProps) {
-  return <GenericEngineBrowser {...props} />;
+interface DatabaseEnginePageProps extends EnginePageProps {
+  /** Replaces the Vault adapter, for tests. */
+  readonly gateway?: DatabaseEngineGateway;
+}
+
+/** Workspace for the database secrets engine: connections, roles, and static roles. */
+export default function DatabaseEnginePage({ gateway, ...props }: DatabaseEnginePageProps) {
+  return (
+    <DatabaseGatewayProvider gateway={gateway}>
+      <DatabaseWorkspace {...props} />
+    </DatabaseGatewayProvider>
+  );
 }

@@ -366,6 +366,36 @@ test('creates and opens a KV v2 mount through real Vault', async ({ page }) => {
   expect(body.data['e2e-created/'].options.version).toBe('2');
 });
 
+test('enables a Transit engine, creates a key, and round-trips a ciphertext', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('button', { name: 'Enable secrets engine' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Enable secrets engine' });
+  await dialog.getByRole('radio', { name: /Transit/ }).click();
+  await dialog.getByLabel('Mount path').fill('e2e-transit');
+  await dialog.getByRole('button', { name: 'Enable Transit' }).click();
+  await expect(page).toHaveURL(/\/engines\/e2e-transit$/);
+
+  await page.getByRole('button', { name: 'Create key' }).first().click();
+  await page.getByLabel('Key name').fill('orders');
+  await page.getByRole('dialog').getByRole('button', { name: 'Create key' }).click();
+  await expect(page).toHaveURL(/\/engines\/e2e-transit\/keys\/orders/);
+
+  await page.getByRole('textbox', { name: 'Plaintext' }).fill('order 1042');
+  await page.getByRole('button', { name: 'Encrypt', exact: true }).last().click();
+  const ciphertext = page.getByRole('region', { name: 'Ciphertext' }).locator('output');
+  await expect(ciphertext).toHaveText(/^vault:v1:/);
+  expect(page.url()).not.toContain('1042');
+
+  const decrypted = await page.request.post('/v1/e2e-transit/decrypt/orders', {
+    headers: { 'X-Vault-Token': vaultToken! },
+    data: { ciphertext: (await ciphertext.textContent())?.trim() },
+  });
+  expect(decrypted.ok()).toBe(true);
+  const body = await decrypted.json();
+  expect(Buffer.from(body.data.plaintext, 'base64').toString()).toBe('order 1042');
+});
+
 test('browses KV v2 and creates an identity-backed user in real Vault', async ({ page }) => {
   await login(page);
 
