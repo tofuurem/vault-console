@@ -8,7 +8,7 @@ import { Input, Textarea } from '@/components/base/Input';
 import Modal from '@/components/base/Modal';
 import { useConfirmDialog } from '@/components/base/useConfirmDialog';
 import { enginePath, type VaultApiResponse } from '@/domain/engines/engines';
-import { normalizeVaultError } from '@/domain/vault/errors';
+import { describeVaultError, normalizeVaultError } from '@/domain/vault/errors';
 import { parseSecretJson } from '@/domain/vault/secret-json';
 import type { EnginePageProps } from '../engine-page';
 import ApiResponsePanel from './ApiResponsePanel';
@@ -183,7 +183,7 @@ function BrowserBody({ engine, subPath, navigateTo }: EnginePageProps) {
         toast.success(`Deleted ${fullPath}.`);
         setResponse(undefined);
       },
-      onError: (error) => toast.error(normalizeVaultError(error).message, { title: 'Delete failed' }),
+      onError: (error) => toast.error(describeVaultError(error), { title: 'Delete failed' }),
     });
   };
 
@@ -218,7 +218,7 @@ function BrowserBody({ engine, subPath, navigateTo }: EnginePageProps) {
       <OpenPathForm subPath={subPath} navigateTo={navigateTo} />
 
       {readError && (
-        <p role="alert" className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">{readError.message}</p>
+        <p role="alert" className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">{describeVaultError(readError)}</p>
       )}
       {response && (
         <ApiResponsePanel title={response.title} response={response.value} onDismiss={() => setResponse(undefined)} />
@@ -241,7 +241,7 @@ function BrowserBody({ engine, subPath, navigateTo }: EnginePageProps) {
         open={writeOpen}
         path={subPath}
         pending={write.isPending}
-        error={write.isError ? normalizeVaultError(write.error).message : undefined}
+        error={write.isError ? describeVaultError(write.error) : undefined}
         onClose={() => {
           setWriteOpen(false);
           write.reset();

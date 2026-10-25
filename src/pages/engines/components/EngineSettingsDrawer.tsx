@@ -14,7 +14,7 @@ import {
   secondsToDuration,
   type SecretEngine,
 } from '@/domain/engines/engines';
-import { normalizeVaultError } from '@/domain/vault/errors';
+import { describeVaultError, normalizeVaultError } from '@/domain/vault/errors';
 
 interface EngineSettingsDrawerProps {
   readonly engine: SecretEngine;
@@ -52,7 +52,7 @@ function DisableEngineSection({ engine, onDisabled }: { readonly engine: SecretE
           monospace
         />
         {error && (
-          <p role="alert" className="text-xs text-danger-700">{error.message}</p>
+          <p role="alert" className="text-xs text-danger-700">{describeVaultError(error)}</p>
         )}
         <Button type="submit" size="sm" variant="danger" disabled={!confirmed} loading={mutation.isPending}>
           Disable {engine.path}
@@ -155,7 +155,7 @@ export default function EngineSettingsDrawer({ engine, open, onClose }: EngineSe
             </div>
             {saveError && (
               <p role="alert" className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">
-                {saveError.message}
+                {describeVaultError(saveError)}
               </p>
             )}
             <div className="flex justify-end">

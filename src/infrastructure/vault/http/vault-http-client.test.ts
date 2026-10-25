@@ -163,6 +163,24 @@ describe('VaultHttpClient', () => {
     expect(JSON.stringify(error)).not.toContain('check-and-set parameter');
   });
 
+  it('attaches the sanitized Vault reason only when the request opts in', async () => {
+    const body = JSON.stringify({ errors: ['1 error occurred:\n\t* common name evil.example not allowed by this role\n\n'] });
+    const fetchRequest = vi.fn<VaultFetch>().mockImplementation(async () => new Response(body, { status: 400 }));
+    const client = new VaultHttpClient(fetchRequest);
+
+    const plain = await client.request('https://vault.example.test', 'pki/issue/web').catch((error: unknown) => error);
+    expect(plain).toMatchObject({ code: 'invalid-request', reason: undefined });
+
+    const reasoned = await client.request('https://vault.example.test', 'pki/issue/web', { includeReason: true })
+      .catch((error: unknown) => error);
+    expect(reasoned).toBeInstanceOf(VaultError);
+    expect(reasoned).toMatchObject({
+      code: 'invalid-request',
+      message: 'Vault rejected the requested operation.',
+      reason: 'common name evil.example not allowed by this role',
+    });
+  });
+
   it('keeps status-based handling for non-JSON error responses', async () => {
     const client = new VaultHttpClient(
       vi.fn<VaultFetch>().mockResolvedValue(

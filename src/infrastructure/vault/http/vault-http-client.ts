@@ -4,6 +4,7 @@ import {
   vaultErrorFromStatus,
   type VaultErrorDiagnostic,
 } from '@/domain/vault/errors';
+import { sanitizeVaultReason } from '@/domain/vault/vault-reason';
 import type { VaultToken, VaultWrappingToken } from '@/domain/vault/sensitive-value';
 
 export interface VaultRequestOptions {
@@ -16,6 +17,12 @@ export interface VaultRequestOptions {
   readonly allowStatuses?: readonly number[];
   /** Asks Vault to wrap the response for this duration, for example `1h`. */
   readonly wrapTtl?: string;
+  /**
+   * Attach Vault's sanitized error text as `VaultError.reason`. Secrets-engine
+   * operations opt in because their validation messages are the only useful
+   * explanation; other requests keep the fixed safe messages.
+   */
+  readonly includeReason?: boolean;
 }
 
 const WRAP_TTL = /^[1-9][0-9]{0,6}[smh]?$/;
@@ -56,6 +63,7 @@ interface VaultErrorResponseSummary {
   readonly invalidToken: boolean;
   readonly casConflict: boolean;
   readonly sealed: boolean;
+  readonly errors: readonly unknown[];
 }
 
 function vaultErrorLines(value: unknown): readonly string[] {
@@ -85,16 +93,21 @@ function isSealedError(value: unknown): boolean {
 
 async function errorResponseSummary(response: Response): Promise<VaultErrorResponseSummary> {
   try {
-    const payload = await response.clone().json() as { request_id?: unknown };
+    const payload = await response.clone().json() as { request_id?: unknown; errors?: unknown };
     return {
       ...(typeof payload.request_id === 'string' ? { requestId: payload.request_id } : {}),
       invalidToken: isInvalidTokenError(payload),
       casConflict: isCasConflictError(payload),
       sealed: isSealedError(payload),
+      errors: Array.isArray(payload.errors) ? payload.errors : [],
     };
   } catch {
-    return { invalidToken: false, casConflict: false, sealed: false };
+    return { invalidToken: false, casConflict: false, sealed: false, errors: [] };
   }
+}
+
+function reasonFor(options: VaultRequestOptions, summary: VaultErrorResponseSummary): string | undefined {
+  return options.includeReason ? sanitizeVaultReason(summary.errors) : undefined;
 }
 
 function diagnosticFor(
@@ -228,6 +241,7 @@ export class VaultHttpClient {
         throw vaultErrorFromStatus(
           response.status,
           diagnosticFor(options, startedAt, response, requestId),
+          reasonFor(options, summary),
         );
       }
       if (response.status === 204) return null;

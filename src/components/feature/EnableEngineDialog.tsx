@@ -10,7 +10,7 @@ import {
   type EngineCatalogEntry,
   type EngineKind,
 } from '@/domain/engines/engines';
-import { normalizeVaultError } from '@/domain/vault/errors';
+import { describeVaultError, normalizeVaultError } from '@/domain/vault/errors';
 import { kvMountPathError, normalizeKvMountPath } from '@/domain/vault/kv-mount';
 
 interface EnableEngineDialogProps {
@@ -186,7 +186,7 @@ export default function EnableEngineDialog({
           {mutationError && (
             <div role="alert" className="rounded-md border border-danger-200 bg-danger-50 p-3 text-xs leading-5 text-danger-800">
               <p className="font-semibold">Engine was not enabled</p>
-              <p>{mutationError.message}</p>
+              <p>{describeVaultError(mutationError)}</p>
             </div>
           )}
         </div>

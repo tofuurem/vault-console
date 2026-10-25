@@ -82,6 +82,7 @@ export class VaultEnginesAdapter implements SecretEnginesGateway {
     await this.client.request(session.serverUrl, `sys/mounts/${mountPath(input.path)}`, {
       method: 'POST',
       token: session.token,
+      includeReason: true,
       body: {
         type: input.type,
         description: input.description.trim(),
@@ -109,6 +110,7 @@ export class VaultEnginesAdapter implements SecretEnginesGateway {
     await this.client.request(session.serverUrl, `sys/mounts/${mountPath(path)}/tune`, {
       method: 'POST',
       token: session.token,
+      includeReason: true,
       body: {
         description: input.description.trim(),
         ...(input.defaultLeaseTtl === undefined ? {} : { default_lease_ttl: input.defaultLeaseTtl.trim() || 'system' }),
@@ -122,6 +124,7 @@ export class VaultEnginesAdapter implements SecretEnginesGateway {
     await this.client.request(session.serverUrl, `sys/mounts/${mountPath(path)}`, {
       method: 'DELETE',
       token: session.token,
+      includeReason: true,
       signal,
     });
   }
@@ -153,6 +156,7 @@ export class VaultApiAdapter implements VaultApiGateway {
     return apiResponse(await this.client.request(session.serverUrl, encodeVaultPath(path), {
       token: session.token,
       signal,
+      includeReason: true,
     }));
   }
 
@@ -167,6 +171,7 @@ export class VaultApiAdapter implements VaultApiGateway {
       token: session.token,
       body,
       signal,
+      includeReason: true,
     }));
   }
 
@@ -175,6 +180,7 @@ export class VaultApiAdapter implements VaultApiGateway {
       method: 'DELETE',
       token: session.token,
       signal,
+      includeReason: true,
     });
   }
 }

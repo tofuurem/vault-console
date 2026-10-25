@@ -41,11 +41,17 @@ export class VaultError extends Error {
   readonly retryable: boolean;
   readonly status?: number;
   readonly diagnostic?: VaultErrorDiagnostic;
+  /**
+   * Vault's own sanitized explanation, captured only for requests that opt in
+   * (secrets-engine operations). Shown to the operator, never logged.
+   */
+  readonly reason?: string;
 
   constructor(code: VaultErrorCode, options: {
     cause?: unknown;
     status?: number;
     diagnostic?: VaultErrorDiagnostic;
+    reason?: string;
   } = {}) {
     super(SAFE_MESSAGES[code], { cause: options.cause });
     this.name = 'VaultError';
@@ -53,6 +59,7 @@ export class VaultError extends Error {
     const previous = options.cause instanceof VaultError ? options.cause : undefined;
     this.status = options.status ?? previous?.status;
     this.diagnostic = options.diagnostic ?? previous?.diagnostic;
+    this.reason = options.reason ?? previous?.reason;
     this.retryable = code === 'rate-limited' || code === 'unavailable';
   }
 }
@@ -60,8 +67,9 @@ export class VaultError extends Error {
 export function vaultErrorFromStatus(
   status: number,
   diagnostic?: VaultErrorDiagnostic,
+  reason?: string,
 ): VaultError {
-  const options = { status, diagnostic };
+  const options = { status, diagnostic, reason };
   if (status === 400 || status === 422) return new VaultError('invalid-request', options);
   if (status === 401) return new VaultError('session-expired', options);
   if (status === 403) return new VaultError('authorization', options);
@@ -81,4 +89,12 @@ export function normalizeVaultError(error: unknown): VaultError {
     return new VaultError('unavailable', { cause: error });
   }
   return new VaultError('unknown', { cause: error });
+}
+
+/** The safe message plus Vault's sanitized reason when the request captured one. */
+export function describeVaultError(error: unknown): string {
+  const normalized = normalizeVaultError(error);
+  return normalized.reason && normalized.code !== 'authorization'
+    ? `${normalized.message} Vault reported: ${normalized.reason}`
+    : normalized.message;
 }
