@@ -18,6 +18,7 @@ import { KvV2GatewayProvider } from './application/vault/KvV2GatewayProvider';
 import { SealGatewayProvider } from './application/vault/SealGatewayProvider';
 import { VaultSessionProvider } from './application/vault/VaultSessionProvider';
 import routes from './router/config';
+import ToastViewport from './components/base/ToastViewport';
 
 interface AppProps {
   readonly authGateway?: VaultAuthGateway;
@@ -39,7 +40,7 @@ function App({
   }));
   return (
     <ThemeProvider>
-      <ToastProvider>
+      <ToastProvider viewport={ToastViewport}>
         <RuntimeConfigProvider config={runtimeConfig}>
           <SealGatewayProvider gateway={sealGateway}>
             <AccessControlGatewayProvider gateway={accessControlGateway}>

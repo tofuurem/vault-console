@@ -3,11 +3,12 @@ import {
   useMemo,
   useState,
 } from 'react';
-import {
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 
+import {
+  useIdentityTombstoneSnapshot,
+  usePlanCapabilities,
+} from '@/application/vault/access-lifecycle/lifecycle-queries';
 import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import { ChangePlanExecutor } from '@/application/vault/access-lifecycle/change-plan-executor';
 import {
@@ -50,15 +51,7 @@ export default function TombstoneDetail({
   const [confirmation, setConfirmation] = useState('');
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState<PlanExecutionResult>();
-  const query = useQuery({
-    queryKey: vaultQueryKeys.identityTombstone(entityId),
-    queryFn: ({ signal }) => loadIdentityTombstoneSnapshot(
-      gateway,
-      session,
-      entityId,
-      signal,
-    ),
-  });
+  const query = useIdentityTombstoneSnapshot({ gateway, session }, entityId);
   const plan = useMemo(() => {
     if (!query.data) return undefined;
     try {
@@ -72,11 +65,7 @@ export default function TombstoneDetail({
     [plan],
   );
   const paths = useMemo(() => requirements.map(({ path }) => path), [requirements]);
-  const capabilities = useQuery({
-    queryKey: vaultQueryKeys.accessPlanCapabilities(paths),
-    queryFn: ({ signal }) => gateway.getCapabilities(session, paths, signal),
-    enabled: paths.length > 0,
-  });
+  const capabilities = usePlanCapabilities({ gateway, session }, paths);
   const allowed = Boolean(
     plan
     && capabilities.data

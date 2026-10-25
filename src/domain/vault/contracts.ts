@@ -1,5 +1,8 @@
 import type { VaultPassword, VaultToken, VaultUnsealKey } from './sensitive-value';
 import type { VaultSealStatus } from './seal';
+import type { VaultCapability } from './capabilities';
+
+export type { VaultCapability } from './capabilities';
 import type { CreateKvV2Mount } from './kv-mount';
 import type {
   KvV2MountConfig,
@@ -30,18 +33,6 @@ export interface VaultHealth {
   readonly version?: string;
 }
 
-export type VaultCapability =
-  | 'create'
-  | 'read'
-  | 'update'
-  | 'patch'
-  | 'delete'
-  | 'list'
-  | 'sudo'
-  | 'subscribe'
-  | 'recover'
-  | 'deny'
-  | 'root';
 
 export type VaultCapabilityMap = Readonly<Record<string, readonly VaultCapability[]>>;
 

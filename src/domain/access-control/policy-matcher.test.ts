@@ -5,7 +5,7 @@ import {
   matchesPolicyPattern,
   resolvePolicyAccess,
 } from './policy-matcher';
-import type { PolicyRule, PolicySource, VaultCapability } from './types';
+import type { PolicyRule, PolicySource, VaultPolicyCapability } from './types';
 
 const readerRole: PolicySource = { kind: 'role', id: 'reader', label: 'Platform reader' };
 const editorGroup: PolicySource = {
@@ -18,7 +18,7 @@ const userOverride: PolicySource = { kind: 'user-rule', id: 'alice-1', label: 'A
 
 function rule(
   pattern: string,
-  capabilities: readonly VaultCapability[],
+  capabilities: readonly VaultPolicyCapability[],
   source: PolicySource = readerRole,
 ): PolicyRule {
   return { pattern, capabilities, source };

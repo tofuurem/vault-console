@@ -3,11 +3,11 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 
+import {
+  useGroupLifecycleSnapshot,
+} from '@/application/vault/access-lifecycle/lifecycle-queries';
 import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import { ChangePlanExecutor } from '@/application/vault/access-lifecycle/change-plan-executor';
 import {
@@ -73,15 +73,7 @@ export default function GroupEditor({
   onDone,
   onSessionExpired,
 }: GroupEditorProps) {
-  const query = useQuery({
-    queryKey: vaultQueryKeys.groupEditor(groupId ?? 'new'),
-    queryFn: ({ signal }) => loadGroupLifecycleSnapshot(
-      gateway,
-      session,
-      groupId,
-      signal,
-    ),
-  });
+  const query = useGroupLifecycleSnapshot({ gateway, session }, groupId);
   if (query.isPending || !query.data) {
     return <ContentSkeleton label="Loading the group workspace" variant="workspace" />;
   }

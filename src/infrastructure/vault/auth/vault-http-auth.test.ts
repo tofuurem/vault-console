@@ -247,4 +247,44 @@ describe('VaultAuthAdapter', () => {
       JSON.stringify({ paths: ['sys/auth', 'identity/group/id'] }),
     );
   });
+
+  it('accepts every capability Vault can report, including subscribe, recover and root', async () => {
+    const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(
+      jsonResponse({
+        'sys/events/subscribe/*': ['read', 'subscribe'],
+        'kv/data/app': ['recover', 'patch'],
+        'sys/mounts': ['root'],
+      }),
+    );
+    const gateway = new VaultAuthAdapter(new VaultHttpClient(fetchRequest));
+    const session = {
+      serverUrl: 'https://vault.example.test',
+      token: vaultToken('hvs.admin'),
+      authMethod: 'token' as const,
+    };
+
+    await expect(
+      gateway.getCapabilities(session, ['sys/events/subscribe/*', 'kv/data/app', 'sys/mounts']),
+    ).resolves.toEqual({
+      'sys/events/subscribe/*': ['read', 'subscribe'],
+      'kv/data/app': ['recover', 'patch'],
+      'sys/mounts': ['root'],
+    });
+  });
+
+  it('rejects unknown capability names instead of guessing', async () => {
+    const fetchRequest = vi.fn<VaultFetch>().mockResolvedValue(
+      jsonResponse({ 'sys/auth': ['read', 'teleport'] }),
+    );
+    const gateway = new VaultAuthAdapter(new VaultHttpClient(fetchRequest));
+    const session = {
+      serverUrl: 'https://vault.example.test',
+      token: vaultToken('hvs.admin'),
+      authMethod: 'token' as const,
+    };
+
+    await expect(gateway.getCapabilities(session, ['sys/auth'])).rejects.toMatchObject({
+      code: 'invalid-response',
+    });
+  });
 });

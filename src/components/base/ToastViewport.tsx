@@ -7,13 +7,11 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
-import type { ToastKind, ToastRecord } from '@/application/notifications/toast';
-
-interface ToastViewportProps {
-  readonly toasts: readonly ToastRecord[];
-  readonly onDismiss: (id: string) => void;
-  readonly onAction: (id: string) => void;
-}
+import type {
+  ToastKind,
+  ToastRecord,
+  ToastViewportProps,
+} from '@/application/notifications/toast';
 
 interface ToastItemProps {
   readonly toast: ToastRecord;

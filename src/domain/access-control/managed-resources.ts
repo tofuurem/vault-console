@@ -1,5 +1,5 @@
 import type { AccessPolicyRule } from './effective-access';
-import type { VaultCapability } from './types';
+import type { VaultPolicyCapability } from './types';
 
 export {
   ROLE_POLICY_PREFIX,
@@ -23,7 +23,7 @@ export function managedRoleName(policyName: string): string {
   return slug.split('-').filter(Boolean).map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`).join(' ');
 }
 
-const SUPPORTED_CAPABILITIES = new Set<VaultCapability>([
+const SUPPORTED_CAPABILITIES = new Set<VaultPolicyCapability>([
   'create',
   'read',
   'update',
@@ -67,7 +67,7 @@ class ManagedPolicyParser {
     return this.consume('{') ? pattern : null;
   }
 
-  private parseCapabilitiesBlock(): readonly VaultCapability[] | null {
+  private parseCapabilitiesBlock(): readonly VaultPolicyCapability[] | null {
     this.skipTrivia();
     if (!this.consumeWord('capabilities')) return null;
     this.skipTrivia();
@@ -76,13 +76,13 @@ class ManagedPolicyParser {
     if (!this.consume('[')) return null;
     this.skipTrivia();
 
-    const capabilities: VaultCapability[] = [];
+    const capabilities: VaultPolicyCapability[] = [];
     while (!this.peek(']')) {
       const capability = this.consumeJsonString();
-      if (capability === null || !SUPPORTED_CAPABILITIES.has(capability as VaultCapability)) {
+      if (capability === null || !SUPPORTED_CAPABILITIES.has(capability as VaultPolicyCapability)) {
         return null;
       }
-      capabilities.push(capability as VaultCapability);
+      capabilities.push(capability as VaultPolicyCapability);
       this.skipTrivia();
       if (this.peek(']')) break;
       if (!this.consume(',')) return null;

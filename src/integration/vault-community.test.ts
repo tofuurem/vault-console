@@ -38,7 +38,7 @@ import {
   identityEntityFingerprint,
   userpassAccountFingerprint,
 } from '@/application/vault/access-lifecycle/snapshot-normalization';
-import { CreateUserTransaction } from '@/application/vault/createUserTransaction';
+import { CreateUserTransaction } from '@/application/vault/access-lifecycle/create-user-transaction';
 import type { AccessControlSnapshot } from '@/application/vault/useAccessControlData';
 import type {
   ChangePlan,

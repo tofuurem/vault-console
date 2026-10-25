@@ -7,13 +7,13 @@ import { parseManagedPolicyHcl } from './managed-resources';
 import type { KvPermissionLevel } from './permission-presets';
 import type {
   PolicySource,
-  VaultCapability,
+  VaultPolicyCapability,
 } from './types';
 
 function ruleMap(
   rules: readonly {
     readonly pattern: string;
-    readonly capabilities: readonly VaultCapability[];
+    readonly capabilities: readonly VaultPolicyCapability[];
   }[],
 ): ReadonlyMap<string, string> {
   return new Map(rules.map((rule) => [
@@ -43,7 +43,7 @@ function matchMount(
 }
 
 function permissionLevel(
-  capabilities: readonly VaultCapability[],
+  capabilities: readonly VaultPolicyCapability[],
   allRules: ReadonlyMap<string, string>,
   mount: string,
   logicalPath: string,

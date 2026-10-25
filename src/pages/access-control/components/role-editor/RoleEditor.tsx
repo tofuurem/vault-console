@@ -3,11 +3,11 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 
+import {
+  useRoleLifecycleSnapshot,
+} from '@/application/vault/access-lifecycle/lifecycle-queries';
 import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import { ChangePlanExecutor } from '@/application/vault/access-lifecycle/change-plan-executor';
 import {
@@ -79,15 +79,7 @@ export default function RoleEditor({
   onDone,
   onSessionExpired,
 }: RoleEditorProps) {
-  const query = useQuery({
-    queryKey: vaultQueryKeys.roleEditor(policyName ?? 'new'),
-    queryFn: ({ signal }) => loadRoleLifecycleSnapshot(
-      gateway,
-      session,
-      policyName,
-      signal,
-    ),
-  });
+  const query = useRoleLifecycleSnapshot({ gateway, session }, policyName);
   if (query.isPending || !query.data) {
     return <ContentSkeleton label="Loading the role workspace" variant="workspace" />;
   }

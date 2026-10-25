@@ -1,10 +1,10 @@
 import { KV_PERMISSION_PRESETS, type KvPermissionLevel } from './permission-presets';
 import { normalizeVaultPath } from './policy-matcher';
 import {
-  VAULT_CAPABILITIES,
+  VAULT_POLICY_CAPABILITIES,
   type PolicyRule,
   type PolicySource,
-  type VaultCapability,
+  type VaultPolicyCapability,
 } from './types';
 
 export type KvAccessTarget = 'folder' | 'secret';
@@ -63,7 +63,7 @@ function ancestorMetadataPaths(mount: string, path: string, target: KvAccessTarg
 
 function createRule(
   pattern: string,
-  capabilities: readonly VaultCapability[],
+  capabilities: readonly VaultPolicyCapability[],
   source: PolicySource,
 ): PolicyRule {
   return { pattern, capabilities, source };
@@ -82,7 +82,7 @@ export function compileKvV2Rule(input: LogicalKvAccessRule): readonly PolicyRule
 
   const preset = KV_PERMISSION_PRESETS[input.level];
   const rules: PolicyRule[] = [];
-  const addEndpointRule = (endpoint: string, capabilities: readonly VaultCapability[]) => {
+  const addEndpointRule = (endpoint: string, capabilities: readonly VaultPolicyCapability[]) => {
     if (capabilities.length === 0) return;
     rules.push(createRule(endpointPath(mount, endpoint, path, input.target), capabilities, input.source));
   };
@@ -115,10 +115,10 @@ function comparePaths(left: string, right: string): number {
 }
 
 function mergeRulesForHcl(rules: readonly PolicyRule[]): readonly Omit<PolicyRule, 'source'>[] {
-  const capabilitiesByPattern = new Map<string, Set<VaultCapability>>();
+  const capabilitiesByPattern = new Map<string, Set<VaultPolicyCapability>>();
 
   for (const rule of rules) {
-    const capabilities = capabilitiesByPattern.get(rule.pattern) ?? new Set<VaultCapability>();
+    const capabilities = capabilitiesByPattern.get(rule.pattern) ?? new Set<VaultPolicyCapability>();
     rule.capabilities.forEach((capability) => capabilities.add(capability));
     capabilitiesByPattern.set(rule.pattern, capabilities);
   }
@@ -129,7 +129,7 @@ function mergeRulesForHcl(rules: readonly PolicyRule[]): readonly Omit<PolicyRul
       pattern,
       capabilities: capabilities.has('deny')
         ? ['deny']
-        : VAULT_CAPABILITIES.filter(
+        : VAULT_POLICY_CAPABILITIES.filter(
             (capability) => capability !== 'deny' && capabilities.has(capability),
           ),
     }));

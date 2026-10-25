@@ -1,9 +1,9 @@
 import {
-  VAULT_CAPABILITIES,
+  VAULT_POLICY_CAPABILITIES,
   type PolicyRule,
   type PolicySource,
   type ResolvedPolicyAccess,
-  type VaultCapability,
+  type VaultPolicyCapability,
 } from './types';
 
 function escapeRegExp(value: string): string {
@@ -121,7 +121,7 @@ export function resolvePolicyAccess(requestPath: string, rules: readonly PolicyR
   const denied = allCapabilities.has('deny');
   const capabilities = denied
     ? (['deny'] as const)
-    : VAULT_CAPABILITIES.filter((capability) => capability !== 'deny' && allCapabilities.has(capability));
+    : VAULT_POLICY_CAPABILITIES.filter((capability) => capability !== 'deny' && allCapabilities.has(capability));
   const capabilitySources = Object.fromEntries(
     capabilities.map((capability) => [
       capability,
@@ -131,7 +131,7 @@ export function resolvePolicyAccess(requestPath: string, rules: readonly PolicyR
           .map((rule) => rule.source),
       ),
     ]),
-  ) as Partial<Record<VaultCapability, readonly PolicySource[]>>;
+  ) as Partial<Record<VaultPolicyCapability, readonly PolicySource[]>>;
 
   return {
     requestPath: normalizedRequestPath,

@@ -1,13 +1,14 @@
 import {
-  useEffect,
   useMemo,
   useState,
 } from 'react';
-import {
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 
+import {
+  usePlanCapabilities,
+  useSessionExpiryFromErrors,
+  useUserLifecycleSnapshot,
+} from '@/application/vault/access-lifecycle/lifecycle-queries';
 import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import { ChangePlanExecutor } from '@/application/vault/access-lifecycle/change-plan-executor';
 import {
@@ -43,7 +44,6 @@ import type {
   VaultCapabilityMap,
   VaultSession,
 } from '@/domain/vault/contracts';
-import { normalizeVaultError } from '@/domain/vault/errors';
 import {
   vaultPassword,
 } from '@/domain/vault/sensitive-value';
@@ -138,16 +138,11 @@ export default function UserLifecycleActions({
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState<PlanExecutionResult>();
 
-  const snapshotQuery = useQuery({
-    queryKey: vaultQueryKeys.userEditor(reference.mount, reference.username),
-    queryFn: ({ signal }) => loadUserLifecycleSnapshot(
-      gateway,
-      session,
-      reference,
-      signal,
-    ),
-    enabled: Boolean(panel),
-  });
+  const snapshotQuery = useUserLifecycleSnapshot(
+    { gateway, session },
+    reference,
+    { enabled: Boolean(panel) },
+  );
   const snapshot = snapshotQuery.data;
   const togglePlan = useMemo(() => {
     if (!snapshot?.entity || snapshot.entity.metadata?.managed_by !== 'vault-console') {
@@ -176,11 +171,7 @@ export default function UserLifecycleActions({
     ])].sort(),
     [removal, resetRequirements, togglePlan],
   );
-  const capabilityQuery = useQuery({
-    queryKey: vaultQueryKeys.accessPlanCapabilities(capabilityPaths),
-    queryFn: ({ signal }) => gateway.getCapabilities(session, capabilityPaths, signal),
-    enabled: capabilityPaths.length > 0,
-  });
+  const capabilityQuery = usePlanCapabilities({ gateway, session }, capabilityPaths);
   const resetAllowed = Boolean(
     snapshot
     && capabilityQuery.data
@@ -191,12 +182,7 @@ export default function UserLifecycleActions({
   const capabilitiesPending = snapshotQuery.isPending || capabilityQuery.isPending;
   const passwordStrength = assessPassword(password);
 
-  useEffect(() => {
-    const cause = snapshotQuery.error ?? capabilityQuery.error;
-    if (cause && normalizeVaultError(cause).code === 'session-expired') {
-      onSessionExpired?.();
-    }
-  }, [capabilityQuery.error, onSessionExpired, snapshotQuery.error]);
+  useSessionExpiryFromErrors(onSessionExpired, snapshotQuery.error, capabilityQuery.error);
 
   const clearTransient = () => {
     setPassword('');
@@ -223,7 +209,7 @@ export default function UserLifecycleActions({
       queryClient.invalidateQueries({
         queryKey: vaultQueryKeys.userEditor(reference.mount, reference.username),
       }),
-      queryClient.invalidateQueries({ queryKey: ['vault', 'userpass-users'] }),
+      queryClient.invalidateQueries({ queryKey: vaultQueryKeys.allUserpassUsers() }),
       queryClient.invalidateQueries({ queryKey: vaultQueryKeys.groups() }),
       queryClient.invalidateQueries({
         queryKey: vaultQueryKeys.userAccessAccount(reference.mount, reference.username),

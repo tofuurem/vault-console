@@ -1,4 +1,4 @@
-import type { VaultCapability } from './types';
+import type { VaultPolicyCapability } from './types';
 
 export const KV_PERMISSION_LEVELS = [
   'inherited',
@@ -15,11 +15,11 @@ export interface KvPermissionPreset {
   readonly label: string;
   readonly description: string;
   readonly dangerous: boolean;
-  readonly data: readonly VaultCapability[];
-  readonly metadata: readonly VaultCapability[];
-  readonly deleteVersions: readonly VaultCapability[];
-  readonly undeleteVersions: readonly VaultCapability[];
-  readonly destroyVersions: readonly VaultCapability[];
+  readonly data: readonly VaultPolicyCapability[];
+  readonly metadata: readonly VaultPolicyCapability[];
+  readonly deleteVersions: readonly VaultPolicyCapability[];
+  readonly undeleteVersions: readonly VaultPolicyCapability[];
+  readonly destroyVersions: readonly VaultPolicyCapability[];
 }
 
 export const KV_PERMISSION_PRESETS: Readonly<Record<KvPermissionLevel, KvPermissionPreset>> = {

@@ -4,11 +4,13 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 
+import {
+  usePlanCapabilities,
+  useRoleLifecycleSnapshot,
+  useSessionExpiryFromErrors,
+} from '@/application/vault/access-lifecycle/lifecycle-queries';
 import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import { ChangePlanExecutor } from '@/application/vault/access-lifecycle/change-plan-executor';
 import {
@@ -70,15 +72,7 @@ export default function RoleDetail({
   const [confirmation, setConfirmation] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [result, setResult] = useState<PlanExecutionResult>();
-  const query = useQuery({
-    queryKey: vaultQueryKeys.roleEditor(policyName),
-    queryFn: ({ signal }) => loadRoleLifecycleSnapshot(
-      gateway,
-      session,
-      policyName,
-      signal,
-    ),
-  });
+  const query = useRoleLifecycleSnapshot({ gateway, session }, policyName);
   const snapshot = query.data;
   const policy = snapshot?.policy;
   const visualRules = useMemo(() => (
@@ -105,23 +99,14 @@ export default function RoleDetail({
     [deletePlan],
   );
   const paths = useMemo(() => requirements.map(({ path }) => path), [requirements]);
-  const capabilities = useQuery({
-    queryKey: vaultQueryKeys.accessPlanCapabilities(paths),
-    queryFn: ({ signal }) => gateway.getCapabilities(session, paths, signal),
-    enabled: paths.length > 0,
-  });
+  const capabilities = usePlanCapabilities({ gateway, session }, paths);
   const deleteAllowed = Boolean(
     deletePlan
     && capabilities.data
     && capabilityRequirementsSatisfied(requirements, capabilities.data).allowed,
   );
 
-  useEffect(() => {
-    const cause = query.error ?? capabilities.error;
-    if (cause && normalizeVaultError(cause).code === 'session-expired') {
-      onSessionExpired?.();
-    }
-  }, [capabilities.error, onSessionExpired, query.error]);
+  useSessionExpiryFromErrors(onSessionExpired, query.error, capabilities.error);
 
   useEffect(() => {
     if (query.isSuccess) headingRef.current?.focus();

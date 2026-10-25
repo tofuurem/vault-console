@@ -7,12 +7,12 @@ import type {
   PolicyRule,
   PolicySource,
   ResolvedPolicyAccess,
-  VaultCapability,
+  VaultPolicyCapability,
 } from './types';
 
 export interface AccessPolicyRule {
   readonly pattern: string;
-  readonly capabilities: readonly VaultCapability[];
+  readonly capabilities: readonly VaultPolicyCapability[];
 }
 
 export interface AccessPolicy {
@@ -229,7 +229,7 @@ export function resolveAccessSelection(input: ResolveAccessSelectionInput): Reso
 
 function includesAll(
   access: ResolvedPolicyAccess,
-  capabilities: readonly VaultCapability[],
+  capabilities: readonly VaultPolicyCapability[],
 ): boolean {
   return capabilities.every((capability) => access.capabilities.includes(capability));
 }

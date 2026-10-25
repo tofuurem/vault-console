@@ -1,17 +1,14 @@
-export type OperationState =
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'compensating'
-  | 'compensated'
-  | 'compensation-failed';
+import type {
+  OperationState,
+  WorkflowOperation,
+} from '@/application/vault/access-lifecycle/create-user-workflow';
 
-export interface WorkflowOperation {
-  readonly id: string;
-  readonly label: string;
-  readonly state: OperationState;
-}
+export type {
+  ApplyUser,
+  ApplyUserContext,
+  OperationState,
+  WorkflowOperation,
+} from '@/application/vault/access-lifecycle/create-user-workflow';
 
 export type CreateUserWorkflowStage = 'closed' | 'confirmation' | 'applying' | 'failure' | 'success';
 
@@ -58,14 +55,3 @@ export function createUserWorkflowReducer(
       return { ...state, stage: 'success', error: undefined };
   }
 }
-
-export interface ApplyProgressReporter {
-  (operationId: string, state: OperationState): void;
-}
-
-export interface ApplyUserContext {
-  readonly report: ApplyProgressReporter;
-  readonly signal: AbortSignal;
-}
-
-export type ApplyUser = (context: ApplyUserContext) => Promise<void>;

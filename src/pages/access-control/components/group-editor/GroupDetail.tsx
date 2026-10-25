@@ -4,11 +4,13 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 
+import {
+  useGroupLifecycleSnapshot,
+  usePlanCapabilities,
+  useSessionExpiryFromErrors,
+} from '@/application/vault/access-lifecycle/lifecycle-queries';
 import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import { ChangePlanExecutor } from '@/application/vault/access-lifecycle/change-plan-executor';
 import {
@@ -59,15 +61,7 @@ export default function GroupDetail({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [result, setResult] = useState<PlanExecutionResult>();
-  const query = useQuery({
-    queryKey: vaultQueryKeys.groupEditor(groupId),
-    queryFn: ({ signal }) => loadGroupLifecycleSnapshot(
-      gateway,
-      session,
-      groupId,
-      signal,
-    ),
-  });
+  const query = useGroupLifecycleSnapshot({ gateway, session }, groupId);
   const group = query.data?.group;
   const managed = Boolean(
     group
@@ -90,23 +84,14 @@ export default function GroupDetail({
     () => requirements.map(({ path }) => path),
     [requirements],
   );
-  const capabilities = useQuery({
-    queryKey: vaultQueryKeys.accessPlanCapabilities(capabilityPaths),
-    queryFn: ({ signal }) => gateway.getCapabilities(session, capabilityPaths, signal),
-    enabled: capabilityPaths.length > 0,
-  });
+  const capabilities = usePlanCapabilities({ gateway, session }, capabilityPaths);
   const deleteAllowed = Boolean(
     deletePlan
     && capabilities.data
     && capabilityRequirementsSatisfied(requirements, capabilities.data).allowed,
   );
 
-  useEffect(() => {
-    const cause = query.error ?? capabilities.error;
-    if (cause && normalizeVaultError(cause).code === 'session-expired') {
-      onSessionExpired?.();
-    }
-  }, [capabilities.error, onSessionExpired, query.error]);
+  useSessionExpiryFromErrors(onSessionExpired, query.error, capabilities.error);
 
   useEffect(() => {
     if (query.isSuccess) headingRef.current?.focus();

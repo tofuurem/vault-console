@@ -1,29 +1,17 @@
 import type {
   UserpassLogin,
   VaultAuthGateway,
-  VaultCapability,
   VaultCapabilityMap,
   VaultHealth,
   VaultSession,
   VaultSessionLease,
 } from '../../../domain/vault/contracts';
+import { isVaultCapability } from '../../../domain/vault/capabilities';
 import { VaultError } from '../../../domain/vault/errors';
 import { leaseFromDuration, leaseFromLookup } from '../../../domain/vault/session-lease';
 import { vaultToken, type VaultToken } from '../../../domain/vault/sensitive-value';
 import { encodeVaultPath, VaultHttpClient } from '../http/vault-http-client';
 import { asBoolean, asNumber, asObject, asString, asStringArray, optionalString } from '../http/validation';
-
-const VAULT_CAPABILITIES = new Set<VaultCapability>([
-  'create',
-  'read',
-  'update',
-  'patch',
-  'delete',
-  'list',
-  'sudo',
-  'deny',
-  'root',
-]);
 
 function optionalNumber(value: unknown): number | undefined {
   return value === undefined || value === null ? undefined : asNumber(value);
@@ -170,11 +158,10 @@ export class VaultAuthAdapter implements VaultAuthGateway {
     );
 
     return Object.fromEntries(paths.map((path) => {
-      const capabilities = asStringArray(response[path]);
-      if (capabilities.some((capability) => !VAULT_CAPABILITIES.has(capability as VaultCapability))) {
-        throw new VaultError('invalid-response');
-      }
-      return [path, capabilities as readonly VaultCapability[]];
+      const reported = asStringArray(response[path]);
+      const capabilities = reported.filter(isVaultCapability);
+      if (capabilities.length !== reported.length) throw new VaultError('invalid-response');
+      return [path, capabilities];
     }));
   }
 }

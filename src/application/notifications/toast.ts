@@ -42,3 +42,9 @@ export function createToastRecord(id: string, input: ToastInput): ToastRecord {
       : input.durationMs,
   };
 }
+
+export interface ToastViewportProps {
+  readonly toasts: readonly ToastRecord[];
+  readonly onDismiss: (id: string) => void;
+  readonly onAction: (id: string) => void;
+}

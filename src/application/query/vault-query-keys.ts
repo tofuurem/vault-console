@@ -43,9 +43,9 @@ export const vaultQueryKeys = {
     mount,
   ] as const,
   authMounts: () => [...vaultQueryKeys.all, 'auth-mounts'] as const,
+  allUserpassUsers: () => [...vaultQueryKeys.all, 'userpass-users'] as const,
   userpassUsers: (mounts: readonly string[]) => [
-    ...vaultQueryKeys.all,
-    'userpass-users',
+    ...vaultQueryKeys.allUserpassUsers(),
     ...mounts,
   ] as const,
   userpassUser: (mount: string, username: string) => [

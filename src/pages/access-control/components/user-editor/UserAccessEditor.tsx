@@ -3,11 +3,11 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 
+import {
+  useUserLifecycleSnapshot,
+} from '@/application/vault/access-lifecycle/lifecycle-queries';
 import { vaultQueryKeys } from '@/application/query/vault-query-keys';
 import {
   ChangePlanExecutor,
@@ -100,15 +100,7 @@ export default function UserAccessEditor({
   onDone,
   onSessionExpired,
 }: UserAccessEditorProps) {
-  const query = useQuery({
-    queryKey: vaultQueryKeys.userEditor(reference.mount, reference.username),
-    queryFn: ({ signal }) => loadUserLifecycleSnapshot(
-      gateway,
-      session,
-      reference,
-      signal,
-    ),
-  });
+  const query = useUserLifecycleSnapshot({ gateway, session }, reference);
   if (query.isPending || !query.data) {
     return <ContentSkeleton label="Loading the user access editor" variant="workspace" />;
   }
@@ -288,7 +280,7 @@ function UserAccessEditorForm({
       setResult(execution);
       if (execution.status === 'completed') {
         await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['vault', 'userpass-users'] }),
+          queryClient.invalidateQueries({ queryKey: vaultQueryKeys.allUserpassUsers() }),
           queryClient.invalidateQueries({ queryKey: vaultQueryKeys.groups() }),
           queryClient.invalidateQueries({ queryKey: vaultQueryKeys.policies() }),
           queryClient.invalidateQueries({

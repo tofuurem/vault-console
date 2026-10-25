@@ -22,7 +22,7 @@ import {
   CreateUserTransaction,
   createUserOperationPlan,
   type CreateUserTransactionInput,
-} from '@/application/vault/createUserTransaction';
+} from '@/application/vault/access-lifecycle/create-user-transaction';
 import type { AccessControlSnapshot } from '@/application/vault/useAccessControlData';
 import type { VaultAccessControlGateway, VaultSession } from '@/domain/vault/contracts';
 import { normalizeVaultError } from '@/domain/vault/errors';

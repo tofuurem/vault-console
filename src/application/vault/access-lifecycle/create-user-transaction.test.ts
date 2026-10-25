@@ -7,8 +7,8 @@ import type {
 } from '@/domain/vault/contracts';
 import { VaultError } from '@/domain/vault/errors';
 import { vaultToken } from '@/domain/vault/sensitive-value';
-import { CreateUserTransaction, type CreateUserTransactionInput } from './createUserTransaction';
-import type { AccessControlSnapshot } from './useAccessControlData';
+import { CreateUserTransaction, type CreateUserTransactionInput } from './create-user-transaction';
+import type { AccessControlSnapshot } from '../useAccessControlData';
 
 const session: VaultSession = {
   serverUrl: 'https://vault.example.test',

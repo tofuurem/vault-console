@@ -1,4 +1,4 @@
-import type { AccessControlSnapshot } from './useAccessControlData';
+import type { AccessControlSnapshot } from '../useAccessControlData';
 import type {
   VaultAccessControlGateway,
   VaultIdentityGroup,
@@ -7,7 +7,7 @@ import type {
 import { VaultError } from '@/domain/vault/errors';
 import { vaultPassword } from '@/domain/vault/sensitive-value';
 import { renderManagedPolicy } from '@/domain/access-control/policy-ownership';
-import type { ApplyUserContext, WorkflowOperation } from '@/pages/access-control/components/create-user/workflow';
+import type { ApplyUserContext, WorkflowOperation } from './create-user-workflow';
 
 export interface CreateUserTransactionInput {
   readonly username: string;

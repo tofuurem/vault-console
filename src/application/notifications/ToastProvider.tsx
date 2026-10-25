@@ -3,10 +3,10 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentType,
   type ReactNode,
 } from 'react';
 
-import ToastViewport from '@/components/base/ToastViewport';
 import { ToastContext, type ToastContextValue } from './ToastContext';
 import {
   createToastRecord,
@@ -14,15 +14,18 @@ import {
   type ToastInput,
   type ToastOptions,
   type ToastRecord,
+  type ToastViewportProps,
 } from './toast';
 
 const MAX_VISIBLE_TOASTS = 4;
 
 interface ToastProviderProps {
   readonly children: ReactNode;
+  /** Presentation is injected so the application layer never imports UI components. */
+  readonly viewport: ComponentType<ToastViewportProps>;
 }
 
-export function ToastProvider({ children }: ToastProviderProps) {
+export function ToastProvider({ children, viewport: ToastViewport }: ToastProviderProps) {
   const nextId = useRef(0);
   const actionConsumed = useRef(new Set<string>());
   const [toasts, setToasts] = useState<readonly ToastRecord[]>([]);

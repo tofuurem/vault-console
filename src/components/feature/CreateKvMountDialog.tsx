@@ -1,45 +1,21 @@
 import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
-import {
   useEffect,
   useState,
   type FormEvent,
 } from 'react';
 
-import { vaultQueryKeys } from '@/application/query/vault-query-keys';
-import { useKvV2Gateway } from '@/application/vault/KvV2GatewayContext';
-import { useVaultSession } from '@/application/vault/VaultSessionContext';
+import {
+  useCreateKvMount,
+  useKvMountCreationPermission,
+} from '@/application/vault/useCreateKvMount';
 import Button from '@/components/base/Button';
 import { Input, Textarea } from '@/components/base/Input';
 import Modal from '@/components/base/Modal';
-import type { VaultCapabilityMap } from '@/domain/vault/contracts';
-import { normalizeVaultError, VaultError } from '@/domain/vault/errors';
+import { normalizeVaultError } from '@/domain/vault/errors';
 import {
   kvMountPathError,
   normalizeKvMountPath,
-  type CreateKvV2Mount,
 } from '@/domain/vault/kv-mount';
-
-type MountCreationPermission =
-  | { readonly state: 'allowed' }
-  | { readonly state: 'denied' }
-  | { readonly state: 'unknown'; readonly reason: string };
-
-function resolveMountCreationPermission(
-  path: string,
-  capabilities: VaultCapabilityMap,
-): MountCreationPermission {
-  const values = capabilities[`sys/mounts/${path}`] ?? [];
-  if (values.includes('deny')) return { state: 'denied' };
-  if (values.includes('root')) return { state: 'allowed' };
-  const canWrite = values.includes('create') || values.includes('update');
-  return canWrite && values.includes('sudo')
-    ? { state: 'allowed' }
-    : { state: 'denied' };
-}
 
 interface CreateKvMountDialogProps {
   readonly open: boolean;
@@ -54,10 +30,6 @@ export default function CreateKvMountDialog({
   onClose,
   onCreated,
 }: CreateKvMountDialogProps) {
-  const vault = useVaultSession();
-  const session = vault.session!;
-  const gateway = useKvV2Gateway();
-  const queryClient = useQueryClient();
   const [path, setPath] = useState('');
   const [description, setDescription] = useState('');
   const [showErrors, setShowErrors] = useState(false);
@@ -78,48 +50,13 @@ export default function CreateKvMountDialog({
     return () => clearTimeout(timer);
   }, [normalizedPath, open, pathError]);
 
-  const readPermission = async (targetPath: string, signal?: AbortSignal) => {
-    try {
-      const capabilities = await vault.queryCapabilities(
-        [`sys/mounts/${targetPath}`],
-        signal,
-      );
-      return resolveMountCreationPermission(targetPath, capabilities);
-    } catch (cause) {
-      const error = normalizeVaultError(cause);
-      if (error.code === 'session-expired' || error.code === 'aborted') throw error;
-      return {
-        state: 'unknown' as const,
-        reason: 'Vault could not preflight this permission. The create request remains authoritative.',
-      };
-    }
-  };
-  const permission = useQuery({
-    queryKey: vaultQueryKeys.mountCreationPermission(permissionPath),
-    queryFn: ({ signal }) => readPermission(permissionPath, signal),
-    enabled: open && Boolean(permissionPath),
-    staleTime: 10_000,
-  });
-  const mutation = useMutation({
-    mutationFn: async (mount: CreateKvV2Mount) => {
-      const decision = await queryClient.fetchQuery({
-        queryKey: vaultQueryKeys.mountCreationPermission(mount.path),
-        queryFn: ({ signal }) => readPermission(mount.path, signal),
-        staleTime: 10_000,
-      });
-      if (decision.state === 'denied') {
-        throw new VaultError('authorization', { status: 403 });
-      }
-      await gateway.createKvV2Mount(session, mount);
-    },
-    onSuccess: async (_result, mount) => {
-      await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.mounts() });
-      setPath('');
-      setDescription('');
-      setShowErrors(false);
-      mutation.reset();
-      onCreated(mount.path);
-    },
+  const permission = useKvMountCreationPermission(permissionPath, open);
+  const mutation = useCreateKvMount((mount) => {
+    setPath('');
+    setDescription('');
+    setShowErrors(false);
+    mutation.reset();
+    onCreated(mount.path);
   });
 
   const close = () => {

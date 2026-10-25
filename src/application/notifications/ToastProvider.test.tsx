@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useToast } from './ToastContext';
 import { ToastProvider } from './ToastProvider';
+import ToastViewport from '@/components/base/ToastViewport';
 
 function ToastHarness({ onUndo = () => undefined }: { readonly onUndo?: () => void }) {
   const toast = useToast();
@@ -36,7 +37,7 @@ afterEach(() => {
 describe('ToastProvider', () => {
   it('shows at most four notifications and advances the queue in order', async () => {
     const user = userEvent.setup();
-    render(<ToastProvider><ToastHarness /></ToastProvider>);
+    render(<ToastProvider viewport={ToastViewport}><ToastHarness /></ToastProvider>);
 
     await user.click(screen.getByRole('button', { name: 'Queue five' }));
 
@@ -49,7 +50,7 @@ describe('ToastProvider', () => {
 
   it('keeps errors until dismissal and gives them an assertive live region', async () => {
     vi.useFakeTimers();
-    render(<ToastProvider><ToastHarness /></ToastProvider>);
+    render(<ToastProvider viewport={ToastViewport}><ToastHarness /></ToastProvider>);
 
     act(() => screen.getByRole('button', { name: 'Error' }).click());
     expect(screen.getByRole('alert')).toHaveTextContent('Vault is unavailable');
@@ -60,7 +61,7 @@ describe('ToastProvider', () => {
 
   it('pauses auto-dismiss while the toast is hovered', () => {
     vi.useFakeTimers();
-    render(<ToastProvider><ToastHarness /></ToastProvider>);
+    render(<ToastProvider viewport={ToastViewport}><ToastHarness /></ToastProvider>);
 
     act(() => screen.getByRole('button', { name: 'Success' }).click());
     const notice = screen.getByRole('status');
@@ -77,7 +78,7 @@ describe('ToastProvider', () => {
   it('runs an action at most once', async () => {
     const user = userEvent.setup();
     const onUndo = vi.fn();
-    render(<ToastProvider><ToastHarness onUndo={onUndo} /></ToastProvider>);
+    render(<ToastProvider viewport={ToastViewport}><ToastHarness onUndo={onUndo} /></ToastProvider>);
 
     await user.click(screen.getByRole('button', { name: 'Action' }));
     const undo = screen.getByRole('button', { name: 'Undo' });
