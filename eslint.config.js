@@ -72,6 +72,8 @@ export default [
       complexity: 'off',
       // Vitest writes inline snapshots with escaped quotes.
       'no-useless-escape': 'off',
+      // Test helpers mix render utilities and fixture components; fast refresh never loads them.
+      'react-refresh/only-export-components': 'off',
     },
   },
   boundary(

@@ -5,6 +5,7 @@ import {
 } from 'react-router-dom';
 import { RuntimeConfigProvider } from './application/config/RuntimeConfigProvider';
 import { ToastProvider } from './application/notifications/ToastProvider';
+import { EnginesGatewayProvider } from './application/engines/EnginesGatewayProvider';
 import { VaultQueryProvider } from './application/query/VaultQueryProvider';
 import { ThemeProvider } from './application/theme/ThemeProvider';
 import type {
@@ -21,6 +22,7 @@ import { VaultSessionProvider } from './application/vault/VaultSessionProvider';
 import { WrappingGatewayProvider } from './application/vault/WrappingGatewayProvider';
 import routes from './router/config';
 import ToastViewport from './components/base/ToastViewport';
+import type { SecretEnginesGateway, VaultApiGateway } from './domain/engines/engines';
 
 interface AppProps {
   readonly authGateway?: VaultAuthGateway;
@@ -28,6 +30,8 @@ interface AppProps {
   readonly accessControlGateway?: VaultAccessControlGateway;
   readonly sealGateway?: VaultSealGateway;
   readonly wrappingGateway?: VaultWrappingGateway;
+  readonly enginesGateway?: SecretEnginesGateway;
+  readonly vaultApiGateway?: VaultApiGateway;
   readonly runtimeConfig?: Readonly<Record<string, unknown>>;
 }
 
@@ -37,6 +41,8 @@ function App({
   accessControlGateway,
   sealGateway,
   wrappingGateway,
+  enginesGateway,
+  vaultApiGateway,
   runtimeConfig,
 }: AppProps) {
   const [router] = useState(() => createBrowserRouter(routes, {
@@ -52,7 +58,9 @@ function App({
                 <KvV2GatewayProvider gateway={kvV2Gateway}>
                   <VaultSessionProvider gateway={authGateway}>
                     <VaultQueryProvider>
-                      <RouterProvider router={router} />
+                      <EnginesGatewayProvider engines={enginesGateway} api={vaultApiGateway}>
+                        <RouterProvider router={router} />
+                      </EnginesGatewayProvider>
                     </VaultQueryProvider>
                   </VaultSessionProvider>
                 </KvV2GatewayProvider>

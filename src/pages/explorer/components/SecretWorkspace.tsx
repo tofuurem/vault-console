@@ -10,7 +10,7 @@ import {
   formatSecretJson,
   redactSecretValue,
 } from '@/domain/vault/secret-json';
-import SecretDataTree from './SecretDataTree';
+import SecretDataTree from '@/components/feature/SecretDataTree';
 import SecretEditPanel from './SecretEditPanel';
 import { useSecretEditDraft } from './useSecretEditDraft';
 import { formatDateTime } from '@/shared/format/date-time';

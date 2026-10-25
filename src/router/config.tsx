@@ -14,6 +14,7 @@ const UnsealPage = lazy(() => import('@/pages/unseal/page'));
 const ActivityPage = lazy(() => import('@/pages/activity/page'));
 const HomePage = lazy(() => import('@/pages/home/page'));
 const UnwrapPage = lazy(() => import('@/pages/unwrap/page'));
+const EnginesPage = lazy(() => import('@/pages/engines/page'));
 
 const applicationRoutes: RouteObject[] = [
   {
@@ -46,6 +47,10 @@ const applicationRoutes: RouteObject[] = [
       {
         path: '/home',
         element: <LazyRoute><HomePage /></LazyRoute>,
+      },
+      {
+        path: '/engines/*',
+        element: <LazyRoute><EnginesPage /></LazyRoute>,
       },
       {
         path: '/activity',

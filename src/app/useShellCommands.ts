@@ -10,7 +10,9 @@ import {
 } from '@/application/shortcuts/vault-path-commands';
 import { useTheme } from '@/application/theme/ThemeContext';
 import { useKvSearch } from '@/application/vault/search/KvSearchContext';
+import { engineIcon, type SecretEngine } from '@/domain/engines/engines';
 import type { KvV2Mount } from '@/domain/vault/contracts';
+import { engineRoute } from '@/router/engine-route';
 
 const ACCESS_COMMANDS = [
   ['users', 'Open users', 'ri-user-settings-line'],
@@ -27,6 +29,9 @@ interface ShellCommandOptions {
   /** Must be referentially stable. */
   readonly onCreateMount: () => void;
   readonly onOpenPath: (target: NavigationPath) => void;
+  readonly engines: readonly SecretEngine[];
+  /** Must be referentially stable. */
+  readonly onEnableEngine: () => void;
 }
 
 /** Command palette entries for the authenticated workspace. */
@@ -37,6 +42,8 @@ export function useShellCommands({
   refreshMounts,
   onCreateMount,
   onOpenPath,
+  engines,
+  onEnableEngine,
 }: ShellCommandOptions) {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -82,6 +89,22 @@ export function useShellCommands({
       icon: 'ri-folder-add-line',
       run: onCreateMount,
     },
+    ...engines.map((engine) => ({
+      id: `engine-${engine.path}`,
+      label: `Open ${engine.path}/`,
+      group: 'Secrets engines',
+      keywords: ['engine', engine.type, engine.description, engine.path],
+      icon: engineIcon(engine.kind),
+      run: () => navigate(engineRoute(engine.path)),
+    })),
+    {
+      id: 'action-enable-engine',
+      label: 'Enable secrets engine',
+      group: 'Actions',
+      keywords: ['mount', 'database', 'transit', 'pki', 'ssh', 'certificate', 'encryption'],
+      icon: 'ri-instance-line',
+      run: onEnableEngine,
+    },
     {
       id: 'action-refresh-mounts',
       label: 'Refresh KV mounts',
@@ -124,9 +147,11 @@ export function useShellCommands({
       run: () => theme.setPreference(preference),
     })),
   ], [
+    engines,
     mounts,
     navigate,
     onCreateMount,
+    onEnableEngine,
     indexCommand,
     pathCommands,
     refreshMounts,

@@ -7,6 +7,7 @@ import {
   MountsCard,
   PathListCard,
 } from './components/NavigationCards';
+import { EnginesCard } from './components/EnginesCard';
 import { SessionCard, VaultStatusCard } from './components/StatusCards';
 
 // The authenticated shell owns session expiry; this clock only displays time left.
@@ -51,6 +52,7 @@ export default function HomePage() {
             emptyText="Secrets you inspect in Explorer will appear here."
           />
           <MountsCard mountsState={shell.mountsState} refreshMounts={shell.refreshMounts} />
+          {shell.engines && <EnginesCard engines={shell.engines} onEnableEngine={shell.onEnableEngine} />}
           {vault.accessControlPermission.state !== 'denied' && <AccessCenterCard />}
         </div>
       </div>

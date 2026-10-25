@@ -26,6 +26,7 @@ import Sidebar from '@/components/feature/Sidebar';
 import TopBar from '@/components/feature/TopBar';
 import Drawer from '@/components/base/Drawer';
 import type { AuthenticatedShellContextValue } from './authenticated-shell';
+import { useEngineNavigation } from './useEngineNavigation';
 import { useShellCommands } from './useShellCommands';
 import { directoryPathForSecret, explorerRoute } from '@/router/explorer-route';
 import { normalizeVaultError } from '@/domain/vault/errors';
@@ -97,6 +98,7 @@ function AuthenticatedWorkspace() {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [createMountOpen, setCreateMountOpen] = useState(false);
   const openCreateMount = useCallback(() => setCreateMountOpen(true), []);
+  const engineNavigation = useEngineNavigation(refreshMounts);
   const mounts = mountsState.data ?? NO_MOUNTS;
   const explorer = matchPath('/explorer/:mount/*', location.pathname);
   const activeMount = explorer?.params.mount ? decodeURIComponent(explorer.params.mount) : '';
@@ -135,11 +137,15 @@ function AuthenticatedWorkspace() {
     refreshMounts,
     onCreateMount: openCreateMount,
     onOpenPath: openNavigationPath,
+    engines: engineNavigation.engines,
+    onEnableEngine: engineNavigation.openEnable,
   });
   useShortcutCommands(commands);
   const context: AuthenticatedShellContextValue = {
     mountsState,
     refreshMounts,
+    engines: engineNavigation.loaded ? engineNavigation.engines : undefined,
+    onEnableEngine: engineNavigation.openEnable,
   };
 
   const sidebarNavigation = {
@@ -153,6 +159,8 @@ function AuthenticatedWorkspace() {
     showActivity: runtimeConfig.auditAvailable,
     activeActivity: location.pathname.startsWith('/activity'),
     activeOverview: location.pathname === '/home',
+    engines: engineNavigation.engines,
+    activeEngine: engineNavigation.activeEngine,
     favorites: navigationHistory.favorites,
     recents: navigationHistory.recents,
   };
@@ -204,6 +212,8 @@ function AuthenticatedWorkspace() {
           onActivitySelect={() => navigate('/activity')}
           onOverviewSelect={() => navigate('/home')}
           onPathSelect={openNavigationPath}
+          onEngineSelect={engineNavigation.selectEngine}
+          onEnableEngine={engineNavigation.openEnable}
         />
         <Drawer
           open={mobileNavigationOpen}
@@ -223,6 +233,8 @@ function AuthenticatedWorkspace() {
             onActivitySelect={closeNavigationThen(() => navigate('/activity'))}
             onOverviewSelect={closeNavigationThen(() => navigate('/home'))}
             onPathSelect={closeNavigationThen(openNavigationPath)}
+            onEngineSelect={closeNavigationThen(engineNavigation.selectEngine)}
+            onEnableEngine={closeNavigationThen(engineNavigation.openEnable)}
           />
         </Drawer>
         <Outlet context={context} />
@@ -235,6 +247,7 @@ function AuthenticatedWorkspace() {
             navigate(`/explorer/${encodeURIComponent(mount)}`);
           }}
         />
+        {engineNavigation.dialog}
         <CommandPalette />
         <ShortcutHelp />
       </div>

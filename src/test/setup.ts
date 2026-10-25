@@ -36,6 +36,9 @@ if (!globalThis.ResizeObserver) {
   };
 }
 
+// Tests must inject gateways or stub fetch; nothing reaches the network.
+globalThis.fetch = (input) => Promise.reject(new TypeError(`Network access is disabled in tests: ${String(input)}`));
+
 afterEach(() => {
   cleanup();
   sessionStorage.clear();

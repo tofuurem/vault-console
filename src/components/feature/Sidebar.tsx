@@ -6,6 +6,7 @@ import type {
   NavigationPath,
   RecentNavigationPath,
 } from '@/application/navigation-history/navigation-history';
+import { engineIcon, type SecretEngine } from '@/domain/engines/engines';
 import type { KvV2Mount, VaultHealth } from '@/domain/vault/contracts';
 
 interface SidebarProps {
@@ -18,6 +19,11 @@ interface SidebarProps {
   readonly activePath: string;
   readonly onMountSelect: (mount: string) => void;
   readonly onCreateMount?: () => void;
+  /** Non-KV secrets engines; KV v2 mounts are listed separately. */
+  readonly engines?: readonly SecretEngine[];
+  readonly activeEngine?: string;
+  readonly onEngineSelect?: (path: string) => void;
+  readonly onEnableEngine?: () => void;
   readonly showAccessControl?: boolean;
   readonly activeAccessCenter?: boolean;
   readonly onAccessCenterSelect?: () => void;
@@ -108,6 +114,9 @@ function CollapsedSidebar({
   activeMount,
   onMountSelect,
   onCreateMount,
+  engines = [],
+  activeEngine,
+  onEngineSelect,
   showAccessControl,
   activeAccessCenter,
   onAccessCenterSelect,
@@ -139,6 +148,22 @@ function CollapsedSidebar({
             className={`${RAIL_BUTTON} ${activeMount === mount.path ? 'bg-primary-100 text-primary-700' : 'text-foreground-500 hover:bg-background-200'}`}
           >
             <i className="ri-folder-keyhole-line text-sm" aria-hidden="true" />
+          </button>
+        </Tooltip>
+      ))}
+      {onEngineSelect && engines.length > 0 && (
+        <div className="my-1 h-px w-6 bg-background-300" aria-hidden="true" />
+      )}
+      {onEngineSelect && engines.map((engine) => (
+        <Tooltip key={engine.path} content={`${engine.path}/ · ${engine.type}`} position="right">
+          <button
+            type="button"
+            aria-label={`Open ${engine.path} engine`}
+            aria-current={activeEngine === engine.path ? 'page' : undefined}
+            onClick={() => onEngineSelect(engine.path)}
+            className={`${RAIL_BUTTON} ${activeEngine === engine.path ? 'bg-primary-100 text-primary-700' : 'text-foreground-500 hover:bg-background-200'}`}
+          >
+            <i className={`${engineIcon(engine.kind)} text-sm`} aria-hidden="true" />
           </button>
         </Tooltip>
       ))}
@@ -238,6 +263,53 @@ function MountList({
   ));
 }
 
+function EnginesSection({
+  mobile,
+  engines,
+  activeEngine,
+  onEngineSelect,
+  onEnableEngine,
+}: {
+  readonly mobile: boolean;
+  readonly engines: readonly SecretEngine[];
+  readonly activeEngine?: string;
+  readonly onEngineSelect: (path: string) => void;
+  readonly onEnableEngine?: () => void;
+}) {
+  return (
+    <div className="mt-3 border-t border-background-200 pt-2">
+      <div className={`${wideOnly(mobile, 'flex')} h-6 items-center justify-between px-3`}>
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-500">Secrets engines</span>
+        {onEnableEngine && (
+          <Tooltip content="Enable secrets engine" position="right">
+            <button type="button" aria-label="Enable secrets engine" onClick={onEnableEngine} className={`flex items-center justify-center rounded text-primary-600 hover:bg-primary-100 ${FOCUS_RING} ${mobile ? 'h-11 w-11' : 'h-6 w-6'}`}>
+              <i className="ri-add-line text-sm" aria-hidden="true" />
+            </button>
+          </Tooltip>
+        )}
+      </div>
+      {engines.length === 0 && (
+        <p className={`${wideOnly(mobile, 'block')} px-3 py-2 text-xs leading-5 text-foreground-500`}>No other engines visible.</p>
+      )}
+      {engines.map((engine) => (
+        <button
+          key={engine.path}
+          type="button"
+          aria-label={`Open ${engine.path} engine`}
+          aria-current={activeEngine === engine.path ? 'page' : undefined}
+          title={engine.description || undefined}
+          onClick={() => onEngineSelect(engine.path)}
+          className={`flex w-full items-center gap-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 ${rowLayout(mobile)} ${activeRow(activeEngine === engine.path)}`}
+        >
+          <i className={`${engineIcon(engine.kind)} shrink-0 text-sm text-primary-500`} aria-hidden="true" />
+          <span className={`${wideOnly(mobile)} min-w-0 flex-1 truncate font-mono`}>{engine.path}/</span>
+          <span className={`${wideOnly(mobile)} rounded bg-background-200 px-1 py-0.5 font-mono text-[10px] text-foreground-600`}>{engine.type}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function AdministrationSection({
   mobile,
   showAccessControl,
@@ -335,6 +407,10 @@ export default function Sidebar(props: SidebarProps) {
     activeMount,
     onMountSelect,
     onCreateMount,
+    engines = [],
+    activeEngine,
+    onEngineSelect,
+    onEnableEngine,
     showAccessControl,
     activeAccessCenter,
     onAccessCenterSelect,
@@ -391,6 +467,16 @@ export default function Sidebar(props: SidebarProps) {
               mobile={mobile}
             />
           </>
+        )}
+
+        {onEngineSelect && (
+          <EnginesSection
+            mobile={mobile}
+            engines={engines}
+            activeEngine={activeEngine}
+            onEngineSelect={onEngineSelect}
+            onEnableEngine={onEnableEngine}
+          />
         )}
 
         {(showAccessControl || showActivity) && (
