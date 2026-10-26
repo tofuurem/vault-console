@@ -577,6 +577,10 @@ paths и session favorites переносятся автоматически. С
 (`vault-console.session.v1`) удаляется без копирования, поэтому вкладки,
 открытые во время обновления, один раз попросят войти снова.
 
+Версия `0.10.0` добавляет только одну browser-local запись,
+`vc-console:session-preferences:v1` (автопродление сессии), и не переносит
+существующие keys.
+
 Сессии двух интерфейсов намеренно независимы. Вход в Vault Console на `/` не
 авторизует вкладку штатного UI на `/ui/`; войдите в нативный UI отдельно. Если
 существующий браузер сразу открывает `/ui/` после обновления и показывает белый
@@ -608,13 +612,24 @@ docker compose pull vault-console
 docker compose up -d --no-build vault-console
 ```
 
-Обновление `0.8.1` → `0.9.0` не требует миграции Vault data или policies.
-Открытые вкладки один раз попросят войти снова (см. «Сессия и данные в
-браузере»). После rollout проверьте `/healthz`, вход token/userpass,
-exact-path read, одну разрешённую metadata capability и открытие `/unseal`.
-При необходимости можно вернуть immutable контейнер `0.8.1`; уже выполненные
-permanent delete, revoke-self, unseal и другие Vault mutations откат образа не
-отменяет.
+Обновление `0.9.0` → `0.10.0` не требует миграции Vault data, policies или
+сессий. Новые возможности включаются по желанию:
+
+- secrets engines работают с существующими правами; для рабочих пространств
+  Database, Transit, PKI и SSH примените
+  [`deploy/vault-console-engines-policy.hcl.example`](deploy/vault-console-engines-policy.hcl.example),
+  а для настройки и отключения engines добавьте `read` и `delete` на
+  `sys/mounts/*` (см. обновлённый admin-шаблон);
+- Activity появляется только после подключения сервиса `vault-console-audit`
+  и Vault file audit device (см. «Журнал действий»);
+- метка окружения задаётся через `VAULT_UI_ENVIRONMENT_NAME` и
+  `VAULT_UI_ENVIRONMENT_TONE`.
+
+После rollout проверьте `/healthz`, вход token/userpass, exact-path read,
+Overview, список Secrets engines в сайдбаре и открытие `/unseal`. При
+необходимости можно вернуть immutable контейнер `0.9.0`; уже выполненные
+Vault mutations (включённые или отключённые engines, выпущенные сертификаты и
+credentials, permanent delete, unseal) откат образа не отменяет.
 
 ## Локальная разработка
 
